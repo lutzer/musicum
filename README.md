@@ -18,11 +18,16 @@ Build by lutzer and Claude Code
 
 TODO: Installation Instructions
 
+```bash
+docker compose up
+```
+
 ## Development
 
 ```bash
-# Run the app in Docker
-docker compose up
+# Install Dependencies
+(cd /Users/lutz/Documents/Projects/musicum/apps/frontend && npm install)
+
 
 # Backend
 nx serve backend          # Run backend dev server

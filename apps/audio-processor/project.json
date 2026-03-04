@@ -1,0 +1,22 @@
+{
+  "name": "audio-processor",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "apps/audio-processor/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "wasm-pack build --target web --out-dir pkg",
+        "cwd": "apps/audio-processor"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cargo test",
+        "cwd": "apps/audio-processor"
+      }
+    }
+  }
+}
