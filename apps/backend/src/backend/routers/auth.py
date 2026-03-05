@@ -10,7 +10,12 @@ from backend.services.auth_service import (
     get_current_user,
     verify_password,
 )
-from backend.services.user_service import create_user, delete_user, get_user_by_email
+from backend.services.user_service import (
+    create_user,
+    delete_user,
+    get_user_by_email,
+    get_user_by_username,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -19,11 +24,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
 def register(user_data: UserCreate, db: Session = Depends(get_db)) -> User:
-    existing_user = get_user_by_email(db, user_data.email)
-    if existing_user:
+    if get_user_by_email(db, user_data.email):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
+        )
+    if get_user_by_username(db, user_data.username):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already taken",
         )
     return create_user(db, user_data)
 

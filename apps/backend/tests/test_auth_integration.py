@@ -7,11 +7,16 @@ class TestAuthFlow:
         # 1. Register a new user
         register_response = client.post(
             "/auth/register",
-            json={"email": "integration@example.com", "password": "securepassword123"},
+            json={
+                "username": "integrationuser",
+                "email": "integration@example.com",
+                "password": "securepassword123",
+            },
         )
         assert register_response.status_code == 201
         user_data = register_response.json()
         user_id = user_data["id"]
+        assert user_data["username"] == "integrationuser"
         assert user_data["email"] == "integration@example.com"
 
         # 2. Login with the new user
@@ -33,6 +38,7 @@ class TestAuthFlow:
         assert me_response.status_code == 200
         me_data = me_response.json()
         assert me_data["id"] == user_id
+        assert me_data["username"] == "integrationuser"
         assert me_data["email"] == "integration@example.com"
 
         # 4. Use token to delete the user
@@ -54,7 +60,11 @@ class TestAuthFlow:
         # Register a user
         client.post(
             "/auth/register",
-            json={"email": "protected@example.com", "password": "password123"},
+            json={
+                "username": "protecteduser",
+                "email": "protected@example.com",
+                "password": "password123",
+            },
         )
 
         # Try to access /me without token
@@ -70,14 +80,22 @@ class TestAuthFlow:
         # Register user 1
         user1_response = client.post(
             "/auth/register",
-            json={"email": "user1@example.com", "password": "password123"},
+            json={
+                "username": "user1",
+                "email": "user1@example.com",
+                "password": "password123",
+            },
         )
         user1_id = user1_response.json()["id"]
 
         # Register user 2
         client.post(
             "/auth/register",
-            json={"email": "user2@example.com", "password": "password123"},
+            json={
+                "username": "user2",
+                "email": "user2@example.com",
+                "password": "password123",
+            },
         )
 
         # Login as user 2

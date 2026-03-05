@@ -6,6 +6,7 @@ from backend.models.user import UserRole
 
 
 class UserCreate(BaseModel):
+    username: str
     email: EmailStr
     password: str
 
@@ -14,6 +15,7 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    username: str
     email: str
     role: UserRole
     is_active: int

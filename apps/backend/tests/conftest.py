@@ -47,6 +47,7 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
 @pytest.fixture
 def test_user(db_session: Session) -> User:
     user = User(
+        username="testuser",
         email="test@example.com",
         hashed_password=get_password_hash("testpassword"),
         role=UserRole.USER,
@@ -60,6 +61,7 @@ def test_user(db_session: Session) -> User:
 @pytest.fixture
 def admin_user(db_session: Session) -> User:
     user = User(
+        username="adminuser",
         email="admin@example.com",
         hashed_password=get_password_hash("adminpassword"),
         role=UserRole.ADMIN,

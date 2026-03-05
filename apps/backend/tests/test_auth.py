@@ -7,10 +7,15 @@ class TestRegister:
     def test_register_success(self, client: TestClient):
         response = client.post(
             "/auth/register",
-            json={"email": "new@example.com", "password": "newpassword"},
+            json={
+                "username": "newuser",
+                "email": "new@example.com",
+                "password": "newpassword",
+            },
         )
         assert response.status_code == 201
         data = response.json()
+        assert data["username"] == "newuser"
         assert data["email"] == "new@example.com"
         assert data["role"] == "user"
         assert data["is_active"] == 1
@@ -21,15 +26,35 @@ class TestRegister:
     def test_register_duplicate_email(self, client: TestClient, test_user: User):
         response = client.post(
             "/auth/register",
-            json={"email": test_user.email, "password": "somepassword"},
+            json={
+                "username": "anotheruser",
+                "email": test_user.email,
+                "password": "somepassword",
+            },
         )
         assert response.status_code == 400
         assert response.json()["detail"] == "Email already registered"
 
+    def test_register_duplicate_username(self, client: TestClient, test_user: User):
+        response = client.post(
+            "/auth/register",
+            json={
+                "username": test_user.username,
+                "email": "another@example.com",
+                "password": "somepassword",
+            },
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Username already taken"
+
     def test_register_invalid_email(self, client: TestClient):
         response = client.post(
             "/auth/register",
-            json={"email": "notanemail", "password": "somepassword"},
+            json={
+                "username": "invaliduser",
+                "email": "notanemail",
+                "password": "somepassword",
+            },
         )
         assert response.status_code == 422
 
