@@ -27,7 +27,6 @@ docker compose up
 
 * poetry, install with `brew install poetry`
 * python 3.11, install via pyenv
-* install node/npm
 * install cargo with `brew install cargo`
 
 ```bash
@@ -36,13 +35,13 @@ docker compose up
 (cd apps/backend && poetry install)
 
 # Backend
-nx serve backend          # Run backend dev server
-nx test backend           # Run backend unit tests
-nx test backend --watch   # Run tests in watch mode
+npx nx serve backend          # Run backend dev server
+npx nx test backend           # Run backend unit tests
+npx nx test backend --watch   # Run tests in watch mode
 
 # Frontend
-nx serve frontend         # Run frontend dev server
-nx test frontend          # Run frontend tests
+npx nx serve frontend         # Run frontend dev server
+npx nx test frontend          # Run frontend tests
 ```
 
 Build by @lutzer and Claude Code in 2026

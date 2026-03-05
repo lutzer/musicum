@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from backend.database import Base, engine
 from backend.routers.auth import router as auth_router
+from backend.routers.tracks import router as tracks_router
 
 
 @asynccontextmanager
@@ -20,6 +21,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router)
+app.include_router(tracks_router)
 
 
 @app.get("/health")

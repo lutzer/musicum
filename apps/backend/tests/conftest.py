@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from backend.database import Base, get_db
 from backend.main import app
+from backend.models.track import AttachmentType, Track, TrackAttachment
 from backend.models.user import User, UserRole
 from backend.services.auth_service import create_access_token, get_password_hash
 
@@ -82,3 +83,100 @@ def auth_headers(test_user: User) -> dict:
 def admin_auth_headers(admin_user: User) -> dict:
     token = create_access_token(data={"sub": admin_user.email})
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def other_user(db_session: Session) -> User:
+    user = User(
+        username="otheruser",
+        email="other@example.com",
+        hashed_password=get_password_hash("otherpassword"),
+        role=UserRole.USER,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def other_auth_headers(other_user: User) -> dict:
+    token = create_access_token(data={"sub": other_user.email})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def public_track(db_session: Session, test_user: User) -> Track:
+    track = Track(
+        title="Public Track",
+        description="A public track",
+        source_path="/fake/path/public.mp3",
+        original_filename="public.mp3",
+        file_size=1024,
+        mime_type="audio/mpeg",
+        duration_seconds=120.0,
+        user_id=test_user.id,
+        is_public=True,
+        tags="rock,indie",
+    )
+    db_session.add(track)
+    db_session.commit()
+    db_session.refresh(track)
+    return track
+
+
+@pytest.fixture
+def private_track(db_session: Session, test_user: User) -> Track:
+    track = Track(
+        title="Private Track",
+        description="A private track",
+        source_path="/fake/path/private.mp3",
+        original_filename="private.mp3",
+        file_size=2048,
+        mime_type="audio/mpeg",
+        duration_seconds=180.0,
+        user_id=test_user.id,
+        is_public=False,
+        tags="jazz,ambient",
+    )
+    db_session.add(track)
+    db_session.commit()
+    db_session.refresh(track)
+    return track
+
+
+@pytest.fixture
+def track_with_attachments(db_session: Session, test_user: User) -> Track:
+    track = Track(
+        title="Track With Attachments",
+        description="A track with various attachments",
+        source_path="/fake/path/attachments.mp3",
+        original_filename="attachments.mp3",
+        file_size=3072,
+        mime_type="audio/mpeg",
+        duration_seconds=240.0,
+        user_id=test_user.id,
+        is_public=True,
+        tags="electronic",
+    )
+    db_session.add(track)
+    db_session.commit()
+    db_session.refresh(track)
+
+    note = TrackAttachment(
+        track_id=track.id,
+        type=AttachmentType.NOTE,
+        content="This is a note about the track.",
+        caption=None,
+    )
+    image = TrackAttachment(
+        track_id=track.id,
+        type=AttachmentType.IMAGE,
+        path="/fake/path/image.jpg",
+        original_filename="image.jpg",
+        caption="Album cover",
+    )
+    db_session.add_all([note, image])
+    db_session.commit()
+    db_session.refresh(track)
+    return track
