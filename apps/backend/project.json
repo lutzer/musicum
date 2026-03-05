@@ -24,6 +24,20 @@
         "command": "poetry install",
         "cwd": "apps/backend"
       }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "poetry run ruff check src tests && poetry run ruff format --check src tests",
+        "cwd": "apps/backend"
+      }
+    },
+    "format": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "poetry run ruff check --fix src tests && poetry run ruff format src tests",
+        "cwd": "apps/backend"
+      }
     }
   }
 }

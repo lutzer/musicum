@@ -18,3 +18,5 @@ poetry.lock
 .pytest_cache/
 .coverage
 htmlcov/
+
+*.db

@@ -9,7 +9,9 @@ Musicum is a web app for organizing sound recordings and publishing collections.
 ## Architecture
 
 - **Monorepo**: Nx workspace
-- **Backend**: FastAPI (Python) with Poetry for dependency management
+- **Backend**: 
+  * FastAPI (Python) with Poetry for dependency management
+  * using sqlalchemy with a sql lite database
 - **Frontend**: SvelteKit (TypeScript)
 - **Audio Processing**: Rust compiled to WebAssembly
 - **Deployment**: Docker container
@@ -46,7 +48,11 @@ nx test audio-processor   # Run Rust tests
 
 ## Testing
 
-The backend must have thorough unit test coverage. All new backend features require corresponding unit tests.
+* The backend must have thorough unit test coverage. All new backend features require corresponding unit tests.
+
+## Linting
+
+* always lint and format code after modifying code.
 
 ## Prerequisites
 

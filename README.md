@@ -12,9 +12,8 @@ Musicum is a web app that lets you organize your sound recordings and publish co
 *  import/export tracks
 *  automated data backup
 
-Build by lutzer and Claude Code
 
-## Install
+## Getting started
 
 TODO: Installation Instructions
 
@@ -24,10 +23,17 @@ docker compose up
 
 ## Development
 
+### Requirements
+
+* poetry, install with `brew install poetry`
+* python 3.11, install via pyenv
+* install node/npm
+* install cargo with `brew install cargo`
+
 ```bash
 # Install Dependencies
-(cd /Users/lutz/Documents/Projects/musicum/apps/frontend && npm install)
-
+(cd apps/frontend && npm install)
+(cd apps/backend && poetry install)
 
 # Backend
 nx serve backend          # Run backend dev server
@@ -38,3 +44,5 @@ nx test backend --watch   # Run tests in watch mode
 nx serve frontend         # Run frontend dev server
 nx test frontend          # Run frontend tests
 ```
+
+Build by @lutzer and Claude Code in 2026
