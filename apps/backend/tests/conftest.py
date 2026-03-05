@@ -8,6 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from backend.database import Base, get_db
 from backend.main import app
+from backend.models.collection import Collection, CollectionTrack
 from backend.models.track import AttachmentType, Track, TrackAttachment
 from backend.models.user import User, UserRole
 from backend.services.auth_service import create_access_token, get_password_hash
@@ -180,3 +181,61 @@ def track_with_attachments(db_session: Session, test_user: User) -> Track:
     db_session.commit()
     db_session.refresh(track)
     return track
+
+
+@pytest.fixture
+def public_collection(db_session: Session, test_user: User) -> Collection:
+    collection = Collection(
+        name="Public Collection",
+        description="A public collection",
+        user_id=test_user.id,
+        is_public=True,
+    )
+    db_session.add(collection)
+    db_session.commit()
+    db_session.refresh(collection)
+    return collection
+
+
+@pytest.fixture
+def private_collection(db_session: Session, test_user: User) -> Collection:
+    collection = Collection(
+        name="Private Collection",
+        description="A private collection",
+        user_id=test_user.id,
+        is_public=False,
+    )
+    db_session.add(collection)
+    db_session.commit()
+    db_session.refresh(collection)
+    return collection
+
+
+@pytest.fixture
+def collection_with_tracks(
+    db_session: Session, test_user: User, public_track: Track, private_track: Track
+) -> Collection:
+    collection = Collection(
+        name="Collection With Tracks",
+        description="A collection with multiple tracks",
+        user_id=test_user.id,
+        is_public=True,
+    )
+    db_session.add(collection)
+    db_session.commit()
+    db_session.refresh(collection)
+
+    ct1 = CollectionTrack(
+        collection_id=collection.id,
+        track_id=public_track.id,
+        position=0,
+    )
+    ct2 = CollectionTrack(
+        collection_id=collection.id,
+        track_id=private_track.id,
+        position=1,
+    )
+    db_session.add_all([ct1, ct2])
+    db_session.commit()
+    db_session.refresh(collection)
+    return collection

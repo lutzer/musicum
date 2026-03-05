@@ -47,6 +47,9 @@ class Track(Base):
     attachments: Mapped[list["TrackAttachment"]] = relationship(
         "TrackAttachment", back_populates="track", cascade="all, delete-orphan"
     )
+    collection_tracks: Mapped[list["CollectionTrack"]] = relationship(
+        "CollectionTrack", back_populates="track", cascade="all, delete-orphan"
+    )
 
 
 class TrackAttachment(Base):
@@ -69,5 +72,6 @@ class TrackAttachment(Base):
     track: Mapped["Track"] = relationship("Track", back_populates="attachments")
 
 
-# Import User at the end to avoid circular imports
+# Import at the end to avoid circular imports
+from backend.models.collection import CollectionTrack  # noqa: E402, F401
 from backend.models.user import User  # noqa: E402, F401

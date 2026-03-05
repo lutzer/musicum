@@ -28,7 +28,11 @@ class User(Base):
     )
 
     tracks: Mapped[list["Track"]] = relationship("Track", back_populates="user")
+    collections: Mapped[list["Collection"]] = relationship(
+        "Collection", back_populates="user"
+    )
 
 
-# Import Track at the end to avoid circular imports
+# Import at the end to avoid circular imports
+from backend.models.collection import Collection  # noqa: E402, F401
 from backend.models.track import Track  # noqa: E402, F401

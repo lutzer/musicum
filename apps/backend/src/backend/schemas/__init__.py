@@ -1,4 +1,15 @@
 from backend.schemas.auth import LoginRequest, Token
+from backend.schemas.collection import (
+    AddTrackToCollection,
+    CollectionCreate,
+    CollectionDetailResponse,
+    CollectionListResponse,
+    CollectionResponse,
+    CollectionTrackResponse,
+    CollectionUpdate,
+    ReorderTracksRequest,
+    UpdateTrackPosition,
+)
 from backend.schemas.track import (
     AttachmentCreate,
     AttachmentResponse,
@@ -24,4 +35,13 @@ __all__ = [
     "AttachmentCreate",
     "AttachmentUpdate",
     "AttachmentResponse",
+    "CollectionCreate",
+    "CollectionUpdate",
+    "CollectionResponse",
+    "CollectionDetailResponse",
+    "CollectionListResponse",
+    "CollectionTrackResponse",
+    "AddTrackToCollection",
+    "UpdateTrackPosition",
+    "ReorderTracksRequest",
 ]
