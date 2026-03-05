@@ -24,6 +24,27 @@
         "command": "npm run test",
         "cwd": "apps/frontend"
       }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run lint",
+        "cwd": "apps/frontend"
+      }
+    },
+    "format-code": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run format",
+        "cwd": "apps/frontend"
+      }
+    },
+    "format-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run format:check",
+        "cwd": "apps/frontend"
+      }
     }
   }
 }
