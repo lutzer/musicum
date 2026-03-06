@@ -48,6 +48,10 @@ export async function getTrack(trackId: number): Promise<TrackDetailResponse> {
 	return get<TrackDetailResponse>(`/tracks/${trackId}`);
 }
 
+export async function getTrackBySlug(slug: string): Promise<TrackDetailResponse> {
+	return get<TrackDetailResponse>(`/tracks/by-slug/${slug}`);
+}
+
 export async function updateTrack(trackId: number, data: TrackUpdate): Promise<TrackResponse> {
 	return patch<TrackResponse>(`/tracks/${trackId}`, data, { requireAuth: true });
 }

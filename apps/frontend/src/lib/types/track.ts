@@ -6,6 +6,7 @@ export enum AttachmentType {
 
 export interface TrackResponse {
 	id: number;
+	slug: string;
 	title: string;
 	description: string | null;
 	original_filename: string;
@@ -15,6 +16,9 @@ export interface TrackResponse {
 	user_id: number | null;
 	is_public: boolean;
 	tags: string | null;
+	processing_status: string;
+	converted_path: string | null;
+	stream_url: string;
 	created_at: string;
 	updated_at: string;
 }

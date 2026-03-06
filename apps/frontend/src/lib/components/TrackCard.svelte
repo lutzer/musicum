@@ -30,7 +30,7 @@
 	}
 </script>
 
-<a href="/tracks/{track.id}" class="card">
+<a href="/tracks/{track.slug}" class="card">
 	<div class="card-header">
 		<span class="card-icon">[~]</span>
 		<h3 class="card-title">{track.title}</h3>

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from backend.models.track import AttachmentType
 
@@ -37,6 +37,11 @@ class TrackResponse(BaseModel):
     converted_path: str | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def stream_url(self) -> str:
+        return f"/tracks/{self.id}/stream"
 
 
 class AttachmentResponse(BaseModel):

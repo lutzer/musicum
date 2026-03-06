@@ -46,7 +46,7 @@
 				tags: tags.trim() || null,
 				is_public: isPublic
 			});
-			goto(`/tracks/${track.id}`);
+			goto(`/tracks/${track.slug}`);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to create track';
 		} finally {
