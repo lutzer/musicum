@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { authStore } from '$lib/stores/auth.svelte';
+
 	interface Props {
 		searchQuery?: string;
 		onsearch?: (query: string) => void;
@@ -18,6 +20,10 @@
 			onsearch?.('');
 		}
 	}
+
+	function handleLogout() {
+		authStore.clearUser();
+	}
 </script>
 
 <header class="header">
@@ -36,7 +42,12 @@
 	</div>
 
 	<div class="header-actions">
-		<a href="/login" class="header-link">[login]</a>
+		{#if authStore.isAuthenticated}
+			<span class="username">{authStore.user?.username}</span>
+			<button type="button" class="header-link" onclick={handleLogout}>[logout]</button>
+		{:else}
+			<a href="/login" class="header-link">[login]</a>
+		{/if}
 	</div>
 </header>
 
@@ -74,6 +85,15 @@
 
 	.header-actions {
 		display: flex;
+		align-items: center;
 		gap: var(--space-md);
+	}
+
+	.header-link {
+		font: inherit;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0;
 	}
 </style>

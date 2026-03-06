@@ -15,7 +15,8 @@ Musicum is a web app for organizing sound recordings and publishing collections.
 - **Frontend**: SvelteKit (TypeScript)
   * using api wrapper to connect to backend
   * build reusable svelte components for the main elements
-  * dont apply css style. i will do that by myself if dont explicitly ask for it
+  * dont apply css styles. i will do that by myself if dont explicitly ask for it
+  * backend is reachable on /api
 - **Audio Processing**: Rust compiled to WebAssembly
 - **Deployment**: Docker container
 
