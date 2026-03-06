@@ -31,7 +31,10 @@
 		{ href: '/users', label: 'Users', icon: '[U]' }
 	];
 
-	const tags = ['ambient', 'electronic', 'field-recording', 'experimental', 'drone'];
+	const actionItems = [
+		{ href: '/tracks/new', label: 'Add Track', icon: '[+T]' },
+		{ href: '/collections/new', label: 'Add Collection', icon: '[+C]' }
+	];
 </script>
 
 <aside class="sidebar" style="width: {width}px" class:collapsed={isCollapsed}>
@@ -46,16 +49,16 @@
 		{/each}
 	</nav>
 
-	{#if !isCollapsed}
-		<div class="tags-section">
-			<div class="tags-header">Tags</div>
-			<ul class="tags-list">
-				{#each tags as tag}
-					<li class="tag-item">#{tag}</li>
-				{/each}
-			</ul>
-		</div>
-	{/if}
+	<div class="actions-section">
+		{#each actionItems as item}
+			<a href={item.href} class="action-item">
+				<span class="nav-icon">{item.icon}</span>
+				{#if !isCollapsed}
+					<span class="nav-label">{item.label}</span>
+				{/if}
+			</a>
+		{/each}
+	</div>
 
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -103,23 +106,23 @@
 		overflow: hidden;
 	}
 
-	.tags-section {
-		flex: 1;
+	.actions-section {
+		display: flex;
+		flex-direction: column;
 		padding: var(--space-sm);
 		border-top: 1px solid;
-		overflow-y: auto;
+		margin-top: auto;
 	}
 
-	.tags-header {
-		margin-bottom: var(--space-sm);
+	.action-item {
+		display: flex;
+		align-items: center;
+		gap: var(--space-sm);
+		padding: var(--space-xs);
 	}
 
-	.tags-list {
-		list-style: none;
-	}
-
-	.tag-item {
-		cursor: pointer;
+	.collapsed .action-item {
+		justify-content: center;
 	}
 
 	.resize-handle {

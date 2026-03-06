@@ -5,10 +5,6 @@
 </script>
 
 <div class="auth-layout">
-	<header class="auth-header">
-		<a href="/" class="logo">MUSICUM</a>
-	</header>
-
 	<main class="auth-content">
 		{@render children()}
 	</main>
@@ -19,11 +15,6 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 100vh;
-	}
-
-	.auth-header {
-		padding: var(--space-sm) var(--space-md);
-		border-bottom: 1px solid;
 	}
 
 	.logo {

@@ -22,7 +22,9 @@
 	<Header bind:searchQuery onsearch={handleSearch} />
 
 	<div class="app-body">
-		<Sidebar />
+		{#if authStore.isAuthenticated}
+			<Sidebar />
+		{/if}
 
 		<main class="main-content">
 			{@render children()}
