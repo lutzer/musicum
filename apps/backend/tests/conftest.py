@@ -109,6 +109,7 @@ def other_auth_headers(other_user: User) -> dict:
 @pytest.fixture
 def public_track(db_session: Session, test_user: User) -> Track:
     track = Track(
+        slug="public-track",
         title="Public Track",
         description="A public track",
         source_path="/fake/path/public.mp3",
@@ -119,6 +120,7 @@ def public_track(db_session: Session, test_user: User) -> Track:
         user_id=test_user.id,
         is_public=True,
         tags="rock,indie",
+        processing_status="ready",
     )
     db_session.add(track)
     db_session.commit()
@@ -129,6 +131,7 @@ def public_track(db_session: Session, test_user: User) -> Track:
 @pytest.fixture
 def private_track(db_session: Session, test_user: User) -> Track:
     track = Track(
+        slug="private-track",
         title="Private Track",
         description="A private track",
         source_path="/fake/path/private.mp3",
@@ -139,6 +142,7 @@ def private_track(db_session: Session, test_user: User) -> Track:
         user_id=test_user.id,
         is_public=False,
         tags="jazz,ambient",
+        processing_status="ready",
     )
     db_session.add(track)
     db_session.commit()
@@ -149,6 +153,7 @@ def private_track(db_session: Session, test_user: User) -> Track:
 @pytest.fixture
 def track_with_attachments(db_session: Session, test_user: User) -> Track:
     track = Track(
+        slug="track-with-attachments",
         title="Track With Attachments",
         description="A track with various attachments",
         source_path="/fake/path/attachments.mp3",
@@ -159,6 +164,7 @@ def track_with_attachments(db_session: Session, test_user: User) -> Track:
         user_id=test_user.id,
         is_public=True,
         tags="electronic",
+        processing_status="ready",
     )
     db_session.add(track)
     db_session.commit()

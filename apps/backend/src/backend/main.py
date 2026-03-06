@@ -2,15 +2,27 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from backend.database import Base, engine
+from backend.config import settings
+from backend.database import Base, SessionLocal, engine
 from backend.routers.auth import router as auth_router
 from backend.routers.collections import router as collections_router
 from backend.routers.tracks import router as tracks_router
+from backend.routers.users import router as users_router
+from backend.seed import is_fresh_database, seed_database
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+
+    if settings.DEV_MODE:
+        db = SessionLocal()
+        try:
+            if is_fresh_database(db):
+                seed_database(db)
+        finally:
+            db.close()
+
     yield
 
 
@@ -24,6 +36,7 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(tracks_router)
 app.include_router(collections_router)
+app.include_router(users_router)
 
 
 @app.get("/health")

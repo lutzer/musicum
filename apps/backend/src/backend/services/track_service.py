@@ -1,3 +1,6 @@
+import uuid
+
+from slugify import slugify
 from sqlalchemy.orm import Session, joinedload
 
 from backend.models.track import AttachmentType, Track, TrackAttachment
@@ -8,6 +11,44 @@ from backend.schemas.track import (
     TrackCreate,
     TrackUpdate,
 )
+
+
+def generate_unique_slug(db: Session, title: str) -> str:
+    """Generate a unique slug from the title."""
+    base_slug = slugify(title, max_length=200)
+    if not base_slug:
+        base_slug = "track"
+
+    slug = base_slug
+    existing = db.query(Track).filter(Track.slug == slug).first()
+    if existing:
+        suffix = uuid.uuid4().hex[:4]
+        slug = f"{base_slug}-{suffix}"
+
+    return slug
+
+
+def get_track_by_slug(db: Session, slug: str) -> Track | None:
+    """Get a track by its slug."""
+    return db.query(Track).filter(Track.slug == slug).first()
+
+
+def update_track_status(
+    db: Session,
+    track_id: int,
+    status: str,
+    converted_path: str | None = None,
+) -> Track | None:
+    """Update a track's processing status."""
+    track = db.query(Track).filter(Track.id == track_id).first()
+    if not track:
+        return None
+    track.processing_status = status
+    if converted_path:
+        track.converted_path = converted_path
+    db.commit()
+    db.refresh(track)
+    return track
 
 
 def get_track_by_id(db: Session, track_id: int) -> Track | None:
@@ -65,14 +106,17 @@ def get_tracks(
 def create_track(
     db: Session,
     track_data: TrackCreate,
+    slug: str,
     source_path: str,
     original_filename: str,
     file_size: int,
     mime_type: str,
     user_id: int | None = None,
     duration_seconds: float | None = None,
+    processing_status: str = "processing",
 ) -> Track:
     track = Track(
+        slug=slug,
         title=track_data.title,
         description=track_data.description,
         source_path=source_path,
@@ -83,6 +127,7 @@ def create_track(
         user_id=user_id,
         is_public=track_data.is_public,
         tags=track_data.tags,
+        processing_status=processing_status,
     )
     db.add(track)
     db.commit()

@@ -23,6 +23,7 @@ class TrackResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    slug: str
     title: str
     description: str | None
     original_filename: str
@@ -32,6 +33,8 @@ class TrackResponse(BaseModel):
     user_id: int | None
     is_public: bool
     tags: str | None
+    processing_status: str
+    converted_path: str | None
     created_at: datetime
     updated_at: datetime
 

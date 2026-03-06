@@ -1,9 +1,10 @@
+import json
 import os
-import uuid
 from pathlib import Path
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     Form,
@@ -12,6 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
@@ -30,14 +32,17 @@ from backend.schemas.track import (
     TrackResponse,
     TrackUpdate,
 )
+from backend.services.audio_processor import process_track_background
 from backend.services.track_service import (
     create_attachment,
     create_track,
     delete_attachment,
     delete_track,
+    generate_unique_slug,
     get_attachment_by_id,
     get_attachments,
     get_track_by_id,
+    get_track_by_slug,
     get_track_with_details,
     get_tracks,
     update_attachment,
@@ -102,14 +107,35 @@ def check_track_visibility(track: Track, user: User | None) -> None:
 
 def save_uploaded_file(file: UploadFile, upload_dir: str) -> tuple[str, str, int]:
     Path(upload_dir).mkdir(parents=True, exist_ok=True)
-    ext = Path(file.filename or "").suffix
-    filename = f"{uuid.uuid4()}{ext}"
+    filename = file.filename or "unnamed"
     file_path = os.path.join(upload_dir, filename)
     content = file.file.read()
     file_size = len(content)
     with open(file_path, "wb") as f:
         f.write(content)
-    return file_path, file.filename or "", file_size
+    return file_path, filename, file_size
+
+
+def write_track_metadata(track_dir: str, track: Track, original_filename: str) -> None:
+    """Write track.json metadata file."""
+    metadata = {
+        "id": track.id,
+        "slug": track.slug,
+        "title": track.title,
+        "description": track.description,
+        "original_filename": original_filename,
+        "file_size": track.file_size,
+        "mime_type": track.mime_type,
+        "duration_seconds": track.duration_seconds,
+        "is_public": track.is_public,
+        "tags": track.tags,
+        "user_id": track.user_id,
+        "created_at": track.created_at.isoformat() if track.created_at else None,
+        "updated_at": track.updated_at.isoformat() if track.updated_at else None,
+    }
+    metadata_path = os.path.join(track_dir, "track.json")
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
 
 
 @router.get("", response_model=TrackListResponse)
@@ -134,6 +160,7 @@ def list_tracks(
 
 @router.post("", response_model=TrackResponse, status_code=status.HTTP_201_CREATED)
 def create_track_endpoint(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
     description: str | None = Form(None),
@@ -148,21 +175,40 @@ def create_track_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid file type. Allowed types: {allowed}",
         )
-    file_path, original_filename, file_size = save_uploaded_file(
-        file, settings.UPLOAD_DIR_TRACKS
-    )
+
+    slug = generate_unique_slug(db, title)
+
+    track_dir = os.path.join(settings.UPLOAD_DIR_TRACKS, slug)
+    Path(track_dir).mkdir(parents=True, exist_ok=True)
+
+    file_path, original_filename, file_size = save_uploaded_file(file, track_dir)
+
     track_data = TrackCreate(
         title=title, description=description, is_public=is_public, tags=tags
     )
-    return create_track(
+    track = create_track(
         db,
         track_data,
+        slug=slug,
         source_path=file_path,
         original_filename=original_filename,
         file_size=file_size,
         mime_type=file.content_type or "audio/mpeg",
         user_id=current_user.id,
+        processing_status="processing",
     )
+
+    write_track_metadata(track_dir, track, original_filename)
+
+    converted_path = os.path.join(settings.UPLOAD_DIR_CONVERTED, f"{slug}.mp3")
+    background_tasks.add_task(
+        process_track_background,
+        track_id=track.id,
+        input_path=file_path,
+        output_path=converted_path,
+    )
+
+    return track
 
 
 @router.get("/{track_id}", response_model=TrackDetailResponse)
@@ -211,6 +257,54 @@ def delete_track_endpoint(
     if os.path.exists(track.source_path):
         os.remove(track.source_path)
     delete_track(db, track)
+
+
+@router.get("/{track_id}/stream")
+def stream_track_endpoint(
+    track_id: int,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    track = get_track_by_id(db, track_id)
+    if not track:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Track not found"
+        )
+    check_track_visibility(track, current_user)
+
+    if track.processing_status == "ready" and track.converted_path:
+        if os.path.exists(track.converted_path):
+            return FileResponse(
+                track.converted_path,
+                media_type="audio/mpeg",
+                filename=f"{track.slug}.mp3",
+            )
+
+    if os.path.exists(track.source_path):
+        return FileResponse(
+            track.source_path,
+            media_type=track.mime_type,
+            filename=track.original_filename,
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Audio file not found"
+    )
+
+
+@router.get("/by-slug/{slug}", response_model=TrackDetailResponse)
+def get_track_by_slug_endpoint(
+    slug: str,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> Track:
+    track = get_track_by_slug(db, slug)
+    if not track:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Track not found"
+        )
+    check_track_visibility(track, current_user)
+    return track
 
 
 @router.get("/{track_id}/attachments", response_model=list[AttachmentResponse])

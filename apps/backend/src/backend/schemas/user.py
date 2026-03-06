@@ -21,3 +21,10 @@ class UserResponse(BaseModel):
     is_active: int
     created_at: datetime
     updated_at: datetime
+
+
+class UserListResponse(BaseModel):
+    items: list[UserResponse]
+    total: int
+    page: int
+    page_size: int

@@ -122,6 +122,8 @@ class TestCreateTrack:
         assert data["tags"] == "test,new"
         assert data["original_filename"] == "test.mp3"
         assert data["mime_type"] == "audio/mpeg"
+        assert data["slug"] == "new-track"
+        assert data["processing_status"] == "processing"
 
     def test_create_track_requires_auth(self, client: TestClient):
         response = client.post(

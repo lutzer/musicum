@@ -32,3 +32,23 @@ def create_user(
 def delete_user(db: Session, user: User) -> None:
     db.delete(user)
     db.commit()
+
+
+def get_users(
+    db: Session,
+    page: int = 1,
+    page_size: int = 20,
+    active_only: bool = True,
+) -> tuple[list[User], int]:
+    """Get paginated list of users."""
+    query = db.query(User)
+    if active_only:
+        query = query.filter(User.is_active == 1)
+    total = query.count()
+    users = (
+        query.order_by(User.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return users, total
