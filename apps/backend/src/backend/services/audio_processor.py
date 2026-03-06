@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from backend.config import settings
 from backend.models.track import Track
 
+from pydub import AudioSegment
 
 def convert_to_mp3(
     input_path: str,
@@ -30,6 +31,12 @@ def convert_to_mp3(
     result = subprocess.run(cmd, capture_output=True)
     return result.returncode == 0
 
+def get_duration(input_path: str) -> int | None:
+    try:
+        audio = AudioSegment.from_file(input_path)
+        return int(len(audio) / 1000)
+    except:
+        return None
 
 def process_track_background(
     track_id: int,
@@ -57,6 +64,10 @@ def process_track_background(
                 track.converted_path = output_path
             else:
                 track.processing_status = "failed"
+
+            duration = get_duration(input_path)
+            if duration != None:
+                track.duration_seconds = duration
 
             db.commit()
         finally:
