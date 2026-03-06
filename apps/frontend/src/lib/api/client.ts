@@ -1,6 +1,6 @@
 import type { ApiError } from '$lib/types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const TOKEN_KEY = 'musicum_auth_token';
 
 export function getToken(): string | null {

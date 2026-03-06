@@ -13,8 +13,17 @@ Musicum is a web app for organizing sound recordings and publishing collections.
   * FastAPI (Python) with Poetry for dependency management
   * using sqlalchemy with a sql lite database
 - **Frontend**: SvelteKit (TypeScript)
+  * using api wrapper to connect to backend
+  * build reusable svelte components for the main elements
+  * dont apply css style. i will do that by myself if dont explicitly ask for it
 - **Audio Processing**: Rust compiled to WebAssembly
 - **Deployment**: Docker container
+
+## Design
+
+  * use only spacings from the globals.css files as variables
+  * design should use no images, only textual elements, inspired by asci console applications
+  * 
 
 ### Project Structure
 

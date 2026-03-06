@@ -1,0 +1,29 @@
+@font-face {
+	font-family: 'Inconsolata';
+	src: url('$lib/assets/fonts/inconsolata-v37-latin-regular.woff2') format('woff2');
+	font-weight: 300 700;
+	font-style: normal;
+	font-display: swap;
+}
+
+:root {
+	--space-xs: 0.25rem;
+	--space-sm: 0.5rem;
+	--space-md: 1rem;
+	--space-lg: 1.5rem;
+	--space-xl: 2rem;
+}
+
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	margin: 0;
+	font-family: 'Inconsolata', monospace;
+	font-optical-sizing: auto;
+	font-weight: 200;
+	font-size: 16px;
+}
