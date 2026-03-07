@@ -23,11 +23,11 @@
 
 <div class="page">
 	<div class="page-header">
-		<h1 class="page-title">Public Collections</h1>
+		<h1 class="page-title">Collections</h1>
 		<span class="page-count">[{collections.length}]</span>
 		<a href="/tracks" class="page-toggle">[view tracks]</a>
 		{#if authStore.isAuthenticated}
-			<a href="/collections/new" class="page-action">[+ new]</a>
+			<a href="/create_collection" class="page-action">[+ new]</a>
 		{/if}
 	</div>
 
@@ -40,7 +40,7 @@
 			<p>No collections found.</p>
 			{#if authStore.isAuthenticated}
 				<p class="empty-hint">
-					<a href="/collections/new">[+ Create your first collection]</a>
+					<a href="/create_collection">[+ Create your first collection]</a>
 				</p>
 			{/if}
 		</div>
@@ -74,9 +74,9 @@
 	}
 
 	.grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+		display: flex;
 		gap: var(--space-md);
+		flex-wrap: wrap;
 	}
 
 	.empty-hint {

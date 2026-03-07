@@ -3,6 +3,7 @@
 	import { getCollectionBySlug } from '$lib/api/collections';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { UserRole, type CollectionDetailResponse } from '$lib/types';
+	import TrackRow from '$lib/components/TrackRow.svelte';
 
 	let collection = $state<CollectionDetailResponse | null>(null);
 	let error = $state('');
@@ -48,7 +49,7 @@
 	}
 </script>
 
-<div class="collection-page">
+<div class="collection-page center">
 	{#if loading}
 		<p>Loading...</p>
 	{:else if error}
@@ -74,19 +75,13 @@
 		{#if collection.tracks.length > 0}
 			<div class="tracks-section">
 				<h2>Tracks</h2>
-				<ol class="tracks-list">
+				<ul>
 					{#each collection.tracks.toSorted((a, b) => a.position - b.position) as collectionTrack}
-						<li class="track-item">
-							<span class="track-position">{collectionTrack.position}.</span>
-							<a href="/tracks/{collectionTrack.track.slug}" class="track-link">
-								{collectionTrack.track.title}
-							</a>
-							<span class="track-duration"
-								>{formatDuration(collectionTrack.track.duration_seconds)}</span
-							>
+						<li>
+							<TrackRow track={collectionTrack.track} />
 						</li>
 					{/each}
-				</ol>
+				</ul>
 			</div>
 		{:else}
 			<p class="no-tracks">No tracks in this collection yet.</p>
@@ -104,7 +99,6 @@
 <style>
 	.collection-page {
 		width: 100%;
-		max-width: 600px;
 	}
 
 	.collection-header {
@@ -144,36 +138,6 @@
 
 	.tracks-section h2 {
 		margin-bottom: var(--space-sm);
-	}
-
-	.tracks-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-xs);
-	}
-
-	.track-item {
-		display: flex;
-		align-items: center;
-		gap: var(--space-sm);
-		padding: var(--space-sm);
-		border: 1px solid;
-	}
-
-	.track-position {
-		opacity: 0.7;
-		min-width: 2em;
-	}
-
-	.track-link {
-		flex: 1;
-	}
-
-	.track-duration {
-		opacity: 0.7;
 	}
 
 	.no-tracks {

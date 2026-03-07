@@ -88,7 +88,7 @@
 	}
 </script>
 
-<div class="edit-track-page">
+<div class="edit-track-page center">
 	{#if loading}
 		<p>Loading...</p>
 	{:else if error && !track}
@@ -164,7 +164,6 @@
 <style>
 	.edit-track-page {
 		width: 100%;
-		max-width: 600px;
 	}
 
 	h1 {

@@ -50,7 +50,7 @@
 	}
 </script>
 
-<div class="track-page">
+<div class="track-page center">
 	{#if loading}
 		<p>Loading...</p>
 	{:else if error}
@@ -150,7 +150,6 @@
 <style>
 	.track-page {
 		width: 100%;
-		max-width: 600px;
 	}
 
 	.track-header {

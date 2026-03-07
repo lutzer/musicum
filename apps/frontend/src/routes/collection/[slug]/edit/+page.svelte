@@ -12,7 +12,7 @@
 	let error = $state('');
 	let success = $state('');
 
-	let name = $state('');
+	let title = $state('');
 	let description = $state('');
 	let isPublic = $state(false);
 	let isSaving = $state(false);
@@ -31,7 +31,7 @@
 		error = '';
 		try {
 			collection = await getCollectionBySlug(slug);
-			name = collection.name;
+			title = collection.title;
 			description = collection.description || '';
 			isPublic = collection.is_public;
 		} catch (err) {
@@ -51,7 +51,7 @@
 
 		try {
 			const updated = await updateCollection(collection.id, {
-				name: name.trim(),
+				title: title.trim(),
 				description: description.trim() || null,
 				is_public: isPublic
 			});
@@ -84,7 +84,7 @@
 	}
 </script>
 
-<div class="edit-collection-page">
+<div class="edit-collection-page center">
 	{#if loading}
 		<p>Loading...</p>
 	{:else if error && !collection}
@@ -97,7 +97,7 @@
 			<FormMessage type="error" message={error} />
 			<FormMessage type="success" message={success} />
 
-			<FormField label="Name" name="name" bind:value={name} required />
+			<FormField label="Title" name="title" bind:value={title} required />
 
 			<div class="form-field">
 				<label for="description" class="form-label">Description</label>
@@ -158,7 +158,6 @@
 <style>
 	.edit-collection-page {
 		width: 100%;
-		max-width: 600px;
 	}
 
 	h1 {

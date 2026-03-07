@@ -8,7 +8,7 @@
 	let title = $state('');
 	let description = $state('');
 	let tags = $state('');
-	let isPublic = $state(false);
+	let isPublic = $state(true);
 	let error = $state('');
 	let isSubmitting = $state(false);
 
@@ -55,7 +55,7 @@
 	}
 </script>
 
-<div class="new-track-page">
+<div class="new-track-page center">
 	<h1>New Track</h1>
 
 	<form onsubmit={handleSubmit} class="new-track-form">
@@ -105,7 +105,7 @@
 		</button>
 
 		<p class="form-footer">
-			<a href="/tracks">[&lt; back to tracks]</a>
+			<a href="/">[&lt; back]</a>
 		</p>
 	</form>
 </div>
@@ -113,7 +113,6 @@
 <style>
 	.new-track-page {
 		width: 100%;
-		max-width: 500px;
 	}
 
 	h1 {

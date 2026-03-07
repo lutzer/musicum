@@ -20,7 +20,7 @@
 <div class="app">
 	<Header bind:searchQuery onsearch={handleSearch} />
 
-	<main class="main-content">
+	<main class="main-content content-width">
 		{@render children()}
 	</main>
 </div>

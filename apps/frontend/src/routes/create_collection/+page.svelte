@@ -6,7 +6,7 @@
 
 	let title = $state('');
 	let description = $state('');
-	let isPublic = $state(false);
+	let isPublic = $state(true);
 	let error = $state('');
 	let isSubmitting = $state(false);
 
@@ -36,7 +36,7 @@
 	}
 </script>
 
-<div class="new-collection-page">
+<div class="new-collection-page center">
 	<h1>New Collection</h1>
 
 	<form onsubmit={handleSubmit} class="new-collection-form">
@@ -69,7 +69,7 @@
 		</button>
 
 		<p class="form-footer">
-			<a href="/collections">[&lt; back to collections]</a>
+			<a href="/">[&lt; back]</a>
 		</p>
 	</form>
 </div>
@@ -77,7 +77,6 @@
 <style>
 	.new-collection-page {
 		width: 100%;
-		max-width: 500px;
 	}
 
 	h1 {

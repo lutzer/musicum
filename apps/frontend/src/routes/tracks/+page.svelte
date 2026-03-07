@@ -73,11 +73,13 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="list">
+		<ul>
 			{#each filteredTracks() as track (track.id)}
-				<TrackRow {track} />
+				<li>
+					<TrackRow {track} />
+				</li>
 			{/each}
-		</div>
+		</ul>
 	{/if}
 </div>
 
@@ -103,11 +105,6 @@
 
 	.filter-section {
 		margin-bottom: var(--space-md);
-	}
-
-	.list {
-		display: flex;
-		flex-direction: column;
 	}
 
 	.empty-hint {
