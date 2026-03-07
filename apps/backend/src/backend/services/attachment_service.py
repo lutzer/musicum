@@ -88,3 +88,5 @@ def delete_attachment(db: Session, attachment: TrackAttachment) -> None:
     db.commit()
     if attachment.path:
         delete_file(attachment.path)
+    if attachment.processed_path:
+        delete_file(attachment.processed_path)

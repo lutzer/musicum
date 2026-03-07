@@ -1,12 +1,12 @@
 import json
 import os
-from pathlib import Path
 import uuid
+from pathlib import Path
 
 from slugify import slugify
 from sqlalchemy.orm import Session, joinedload
 
-from backend.models.track import AttachmentType, Track, TrackAttachment
+from backend.models.track import Track, TrackAttachment
 from backend.models.user import User, UserRole
 from backend.schemas.track import (
     TrackCreate,
@@ -14,6 +14,7 @@ from backend.schemas.track import (
 )
 from backend.services.attachment_service import delete_attachment
 from backend.utils import delete_dir, delete_file
+
 
 def generate_unique_slug(
     db: Session, title: str, exclude_track_id: int | None = None
@@ -158,13 +159,15 @@ def update_track(db: Session, track: Track, track_data: TrackUpdate) -> Track:
     return track
 
 
-def delete_track(db: Session, track: Track, track_dir: str) -> None:
+def delete_track(db: Session, track: Track) -> None:
     db.delete(track)
     db.commit()
     delete_file(track.converted_path)
+    track_dir = Path(track.source_path).resolve().parent
     delete_dir(track_dir)
     for attachment in track.attachments:
         delete_attachment(db, attachment)
+    
 
 def write_track_metadata(
     track_dir: str,

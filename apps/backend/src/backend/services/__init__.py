@@ -1,3 +1,9 @@
+from backend.services.attachment_service import (
+    create_attachment,
+    get_attachment_by_id,
+    get_attachments,
+    update_attachment,
+)
 from backend.services.auth_service import (
     create_access_token,
     get_current_user,
@@ -13,13 +19,6 @@ from backend.services.track_service import (
     get_tracks,
     update_track,
 )
-from backend.services.attachment_service import (
-    create_attachment,
-    get_attachment_by_id,
-    get_attachments,
-    update_attachment,
-)
-
 from backend.services.user_service import create_user, delete_user, get_user_by_email
 
 __all__ = [

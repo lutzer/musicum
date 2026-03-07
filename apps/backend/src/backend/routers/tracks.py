@@ -1,6 +1,4 @@
-import json
 import os
-import shutil
 import uuid
 from pathlib import Path
 
@@ -35,7 +33,14 @@ from backend.schemas.track import (
     TrackResponse,
     TrackUpdate,
 )
-from backend.services.attachment_service import create_attachment, delete_attachment, get_attachment_by_id, get_attachments, update_attachment
+from backend.services.attachment_service import (
+    create_attachment,
+    delete_attachment,
+    get_attachment_by_id,
+    get_attachments,
+    reorder_attachments,
+    update_attachment,
+)
 from backend.services.audio_processor import process_track_background
 from backend.services.media_processor import process_attachment_background
 from backend.services.track_service import (

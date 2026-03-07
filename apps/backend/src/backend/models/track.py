@@ -10,9 +10,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-
 from sqlalchemy import Enum as SQLEnum
-
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
@@ -71,6 +69,7 @@ class TrackAttachment(Base):
     type: Mapped[AttachmentType] = mapped_column(SQLEnum(AttachmentType))
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    processed_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     caption: Mapped[str | None] = mapped_column(String(500), nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=0)

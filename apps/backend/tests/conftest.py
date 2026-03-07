@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -107,12 +108,17 @@ def other_auth_headers(other_user: User) -> dict:
 
 
 @pytest.fixture
-def public_track(db_session: Session, test_user: User) -> Track:
+def public_track(db_session: Session, test_user: User, tmp_path: Path) -> Track:
+    track_dir = tmp_path / "public-track"
+    track_dir.mkdir()
+    audio_file = track_dir / "public.mp3"
+    audio_file.write_bytes(b"fake audio content")
+
     track = Track(
         slug="public-track",
         title="Public Track",
         description="A public track",
-        source_path="/fake/path/public.mp3",
+        source_path=str(audio_file),
         original_filename="public.mp3",
         file_size=1024,
         mime_type="audio/mpeg",
@@ -129,12 +135,17 @@ def public_track(db_session: Session, test_user: User) -> Track:
 
 
 @pytest.fixture
-def private_track(db_session: Session, test_user: User) -> Track:
+def private_track(db_session: Session, test_user: User, tmp_path: Path) -> Track:
+    track_dir = tmp_path / "private-track"
+    track_dir.mkdir()
+    audio_file = track_dir / "private.mp3"
+    audio_file.write_bytes(b"fake audio content")
+
     track = Track(
         slug="private-track",
         title="Private Track",
         description="A private track",
-        source_path="/fake/path/private.mp3",
+        source_path=str(audio_file),
         original_filename="private.mp3",
         file_size=2048,
         mime_type="audio/mpeg",
@@ -151,12 +162,19 @@ def private_track(db_session: Session, test_user: User) -> Track:
 
 
 @pytest.fixture
-def track_with_attachments(db_session: Session, test_user: User) -> Track:
+def track_with_attachments(
+    db_session: Session, test_user: User, tmp_path: Path
+) -> Track:
+    track_dir = tmp_path / "track-with-attachments"
+    track_dir.mkdir()
+    audio_file = track_dir / "attachments.mp3"
+    audio_file.write_bytes(b"fake audio content")
+
     track = Track(
         slug="track-with-attachments",
         title="Track With Attachments",
         description="A track with various attachments",
-        source_path="/fake/path/attachments.mp3",
+        source_path=str(audio_file),
         original_filename="attachments.mp3",
         file_size=3072,
         mime_type="audio/mpeg",
