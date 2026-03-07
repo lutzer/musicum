@@ -6,13 +6,13 @@ from backend.schemas.track import TrackResponse
 
 
 class CollectionCreate(BaseModel):
-    name: str = Field(..., max_length=255)
+    title: str = Field(..., max_length=255)
     description: str | None = None
     is_public: bool = False
 
 
 class CollectionUpdate(BaseModel):
-    name: str | None = Field(None, max_length=255)
+    title: str | None = Field(None, max_length=255)
     description: str | None = None
     is_public: bool | None = None
 
@@ -21,7 +21,8 @@ class CollectionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    name: str
+    title: str
+    slug: str
     description: str | None
     user_id: int
     is_public: bool

@@ -30,15 +30,15 @@ class TestSeedFunctions:
     def test_create_sample_tracks(self, db_session: Session):
         user = create_demo_user(db_session)
         tracks = create_sample_tracks(db_session, user)
-        assert len(tracks) == 5
+        assert len(tracks) == 6
         assert all(t.user_id == user.id for t in tracks)
         assert all(t.slug for t in tracks)
 
     def test_create_sample_collection(self, db_session: Session):
         user = create_demo_user(db_session)
         tracks = create_sample_tracks(db_session, user)
-        collection = create_sample_collection(db_session, user, tracks)
-        assert collection.name == "Ambient Favorites"
+        collection = create_sample_collection(db_session, user, tracks, "Ambient Favorites", "ambient-favorites", False)
+        assert collection.title == "Ambient Favorites"
         assert collection.user_id == user.id
         assert len(collection.collection_tracks) > 0
 
@@ -50,10 +50,10 @@ class TestSeedFunctions:
         assert users[0].email == "demo@example.com"
 
         tracks = db_session.query(Track).all()
-        assert len(tracks) == 5
+        assert len(tracks) == 6
 
         collections = db_session.query(Collection).all()
-        assert len(collections) == 1
+        assert len(collections) == 2
 
     def test_seed_database_skips_if_user_exists(
         self, db_session: Session, test_user: User

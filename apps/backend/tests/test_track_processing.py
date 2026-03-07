@@ -6,21 +6,21 @@ from sqlalchemy.orm import Session
 
 from backend.models.track import Track
 from backend.models.user import User
-from backend.services.track_service import generate_unique_slug
+from backend.services.track_service import generate_unique_track_slug
 
 
 class TestSlugGeneration:
     def test_generate_slug_from_title(self, db_session: Session):
-        slug = generate_unique_slug(db_session, "My Awesome Song")
+        slug = generate_unique_track_slug(db_session, "My Awesome Song")
         assert slug == "my-awesome-song"
 
     def test_generate_slug_handles_special_characters(self, db_session: Session):
-        slug = generate_unique_slug(db_session, "Test & Track (remix)")
+        slug = generate_unique_track_slug(db_session, "Test & Track (remix)")
         assert "test" in slug
         assert "track" in slug
 
     def test_generate_slug_handles_empty_title(self, db_session: Session):
-        slug = generate_unique_slug(db_session, "")
+        slug = generate_unique_track_slug(db_session, "")
         assert slug == "track"
 
     def test_generate_slug_adds_suffix_for_duplicate(
@@ -39,7 +39,7 @@ class TestSlugGeneration:
         db_session.add(track)
         db_session.commit()
 
-        new_slug = generate_unique_slug(db_session, "My Song")
+        new_slug = generate_unique_track_slug(db_session, "My Song")
         assert new_slug.startswith("my-song-")
         assert len(new_slug) > len("my-song")
 

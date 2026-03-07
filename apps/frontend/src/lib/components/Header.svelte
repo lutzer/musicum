@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/auth.svelte';
+	import UserDropdown from './UserDropdown.svelte';
+	import SearchDropdown from './SearchDropdown.svelte';
 
 	interface Props {
 		searchQuery?: string;
@@ -21,8 +23,9 @@
 		}
 	}
 
-	function handleLogout() {
-		authStore.clearUser();
+	function handleSearchClose() {
+		searchQuery = '';
+		onsearch?.('');
 	}
 </script>
 
@@ -39,12 +42,12 @@
 			oninput={handleInput}
 			onkeydown={handleKeyDown}
 		/>
+		<SearchDropdown query={searchQuery} onclose={handleSearchClose} />
 	</div>
 
 	<div class="header-actions">
 		{#if authStore.isAuthenticated}
-			<span class="username">{authStore.user?.username}</span>
-			<button type="button" class="header-link" onclick={handleLogout}>[logout]</button>
+			<UserDropdown />
 		{:else}
 			<a href="/login" class="header-link">[login]</a>
 		{/if}
@@ -67,6 +70,7 @@
 	}
 
 	.search-container {
+		position: relative;
 		flex: 1;
 		max-width: 400px;
 		display: flex;

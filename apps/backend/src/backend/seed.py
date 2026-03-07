@@ -63,6 +63,13 @@ def create_sample_tracks(db: Session, user: User) -> list[Track]:
             "tags": "electronic,experimental,synth",
             "is_public": True,
         },
+        {
+            "slug": "private-track",
+            "title": "Private Track",
+            "description": "secret",
+            "tags": "electronic,experimental,synth",
+            "is_public": False,
+        },
     ]
 
     tracks = []
@@ -99,14 +106,15 @@ def create_sample_tracks(db: Session, user: User) -> list[Track]:
 
 
 def create_sample_collection(
-    db: Session, user: User, tracks: list[Track]
+    db: Session, user: User, tracks: list[Track], title : str, slug : str, private: bool
 ) -> Collection:
     """Create a sample collection with tracks."""
     collection = Collection(
-        name="Ambient Favorites",
+        title=title,
+        slug=slug,
         description="A curated selection of ambient and atmospheric recordings",
         user_id=user.id,
-        is_public=True,
+        is_public=private,
     )
     db.add(collection)
     db.commit()
@@ -140,8 +148,11 @@ def seed_database(db: Session) -> None:
     tracks = create_sample_tracks(db, user)
     print(f"  Created {len(tracks)} sample tracks")
 
-    collection = create_sample_collection(db, user, tracks)
-    print(f"  Created collection: {collection.name}")
+    collection = create_sample_collection(db, user, tracks, "Ambient Collection", "ambient-collection", True)
+    print(f"  Created collection: {collection.title}")
+
+    collection = create_sample_collection(db, user, tracks, "Private Collection", "private-collection", False)
+    print(f"  Created collection: {collection.title}")
 
     print("Database seeding complete!")
 

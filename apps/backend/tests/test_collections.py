@@ -91,14 +91,14 @@ class TestCreateCollection:
             "/collections",
             headers=auth_headers,
             json={
-                "name": "New Collection",
+                "title": "New Collection",
                 "description": "A test collection",
                 "is_public": True,
             },
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["name"] == "New Collection"
+        assert data["title"] == "New Collection"
         assert data["description"] == "A test collection"
         assert data["is_public"] is True
 
@@ -106,18 +106,18 @@ class TestCreateCollection:
         response = client.post(
             "/collections",
             headers=auth_headers,
-            json={"name": "Minimal Collection"},
+            json={"title": "Minimal Collection"},
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["name"] == "Minimal Collection"
+        assert data["title"] == "Minimal Collection"
         assert data["description"] is None
         assert data["is_public"] is False
 
     def test_create_collection_requires_auth(self, client: TestClient):
         response = client.post(
             "/collections",
-            json={"name": "New Collection"},
+            json={"title": "New Collection"},
         )
         assert response.status_code == 401
 
@@ -130,7 +130,7 @@ class TestGetCollection:
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == public_collection.id
-        assert data["name"] == public_collection.name
+        assert data["title"] == public_collection.title
 
     def test_get_private_collection_anonymous_returns_404(
         self, client: TestClient, private_collection: Collection
@@ -195,11 +195,11 @@ class TestUpdateCollection:
         response = client.patch(
             f"/collections/{public_collection.id}",
             headers=auth_headers,
-            json={"name": "Updated Name", "description": "Updated description"},
+            json={"title": "Updated Name", "description": "Updated description"},
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Updated Name"
+        assert data["title"] == "Updated Name"
         assert data["description"] == "Updated description"
 
     def test_update_collection_other_user_forbidden(
@@ -211,7 +211,7 @@ class TestUpdateCollection:
         response = client.patch(
             f"/collections/{public_collection.id}",
             headers=other_auth_headers,
-            json={"name": "Hacked Name"},
+            json={"title": "Hacked Name"},
         )
         assert response.status_code == 403
 
@@ -224,17 +224,17 @@ class TestUpdateCollection:
         response = client.patch(
             f"/collections/{public_collection.id}",
             headers=admin_auth_headers,
-            json={"name": "Admin Updated"},
+            json={"title": "Admin Updated"},
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Admin Updated"
+        assert data["title"] == "Admin Updated"
 
     def test_update_collection_requires_auth(
         self, client: TestClient, public_collection: Collection
     ):
         response = client.patch(
-            f"/collections/{public_collection.id}", json={"name": "New Name"}
+            f"/collections/{public_collection.id}", json={"title": "New Name"}
         )
         assert response.status_code == 401
 
@@ -242,7 +242,7 @@ class TestUpdateCollection:
         self, client: TestClient, auth_headers: dict
     ):
         response = client.patch(
-            "/collections/99999", headers=auth_headers, json={"name": "New Name"}
+            "/collections/99999", headers=auth_headers, json={"title": "New Name"}
         )
         assert response.status_code == 404
 

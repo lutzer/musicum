@@ -39,6 +39,10 @@ export async function getCollection(collectionId: number): Promise<CollectionDet
 	return get<CollectionDetailResponse>(`/collections/${collectionId}`);
 }
 
+export async function getCollectionBySlug(slug: string): Promise<CollectionDetailResponse> {
+	return get<CollectionDetailResponse>(`/collections/by-slug/${slug}`);
+}
+
 export async function updateCollection(
 	collectionId: number,
 	data: CollectionUpdate

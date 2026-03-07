@@ -2,7 +2,8 @@ import type { TrackResponse } from './track';
 
 export interface CollectionResponse {
 	id: number;
-	name: string;
+	title: string;
+	slug: string;
 	description: string | null;
 	user_id: number;
 	is_public: boolean;
@@ -31,7 +32,7 @@ export interface CollectionListResponse {
 }
 
 export interface CollectionCreate {
-	name: string;
+	title: string;
 	description?: string | null;
 	is_public?: boolean;
 }

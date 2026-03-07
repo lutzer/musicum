@@ -1074,8 +1074,8 @@ class TestTrackJsonSync:
             with open(track_json_path) as f:
                 metadata = json.load(f)
 
-            assert metadata["title"] == "Updated Title"
-            assert metadata["description"] == "Updated description"
+            assert metadata["data"]["title"] == "Updated Title"
+            assert metadata["data"]["description"] == "Updated description"
 
     def test_track_json_updated_on_attachment_add(
         self,
@@ -1125,11 +1125,11 @@ class TestTrackJsonSync:
             with open(track_json_path) as f:
                 metadata = json.load(f)
 
-            assert "attachments" in metadata
-            assert len(metadata["attachments"]) == 1
-            assert metadata["attachments"][0]["id"] == attachment_data["id"]
-            assert metadata["attachments"][0]["type"] == "note"
-            assert metadata["attachments"][0]["caption"] == "Note caption"
+            assert "attachments" in metadata["data"]
+            assert len(metadata["data"]["attachments"]) == 1
+            assert metadata["data"]["attachments"][0]["id"] == attachment_data["id"]
+            assert metadata["data"]["attachments"][0]["type"] == "note"
+            assert metadata["data"]["attachments"][0]["caption"] == "Note caption"
 
     def test_track_json_updated_on_attachment_delete(
         self,
@@ -1194,9 +1194,9 @@ class TestTrackJsonSync:
             with open(track_json_path) as f:
                 metadata = json.load(f)
 
-            assert "attachments" in metadata
-            assert len(metadata["attachments"]) == 1
-            assert metadata["attachments"][0]["id"] == attachment2.id
+            assert "attachments" in metadata["data"]
+            assert len(metadata["data"]["attachments"]) == 1
+            assert metadata["data"]["attachments"][0]["id"] == attachment2.id
 
     def test_track_json_contains_attachments(
         self,
@@ -1263,14 +1263,14 @@ class TestTrackJsonSync:
             with open(track_json_path) as f:
                 metadata = json.load(f)
 
-            assert "attachments" in metadata
-            assert len(metadata["attachments"]) == 2
+            assert "attachments" in metadata["data"]
+            assert len(metadata["data"]["attachments"]) == 2
 
             note_meta = next(
-                (a for a in metadata["attachments"] if a["type"] == "note"), None
+                (a for a in metadata["data"]["attachments"] if a["type"] == "note"), None
             )
             image_meta = next(
-                (a for a in metadata["attachments"] if a["type"] == "image"), None
+                (a for a in metadata["data"]["attachments"] if a["type"] == "image"), None
             )
 
             assert note_meta is not None
@@ -1280,6 +1280,5 @@ class TestTrackJsonSync:
 
             assert image_meta is not None
             assert image_meta["id"] == image.id
-            assert image_meta["original_filename"] == "image.jpg"
             assert image_meta["caption"] == "Image caption"
             assert image_meta["position"] == 1

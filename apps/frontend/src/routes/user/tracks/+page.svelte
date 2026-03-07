@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { listTracks } from '$lib/api/tracks';
 	import type { TrackResponse } from '$lib/types';
 	import TrackRow from '$lib/components/TrackRow.svelte';
@@ -31,9 +32,14 @@
 	});
 
 	onMount(async () => {
+		if (!authStore.isAuthenticated) {
+			goto('/login');
+			return;
+		}
+
 		try {
-			// Show public tracks (no user_id filter)
-			const response = await listTracks();
+			const userId = authStore.user?.id;
+			const response = await listTracks(userId ? { user_id: userId } : undefined);
 			tracks = response.items;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load tracks';
@@ -45,12 +51,9 @@
 
 <div class="page">
 	<div class="page-header">
-		<h1 class="page-title">Public Tracks</h1>
+		<h1 class="page-title">My Tracks</h1>
 		<span class="page-count">[{filteredTracks().length}]</span>
-		<a href="/" class="page-toggle">[view collections]</a>
-		{#if authStore.isAuthenticated}
-			<a href="/create_track" class="page-action">[+ new]</a>
-		{/if}
+		<a href="/tracks/new" class="page-action">[+ new]</a>
 	</div>
 
 	{#if allTags().length > 0}
@@ -66,11 +69,9 @@
 	{:else if filteredTracks().length === 0}
 		<div class="empty">
 			<p>No tracks found.</p>
-			{#if authStore.isAuthenticated}
-				<p class="empty-hint">
-					<a href="/create_track">[+ Upload your first track]</a>
-				</p>
-			{/if}
+			<p class="empty-hint">
+				<a href="/tracks/new">[+ Upload your first track]</a>
+			</p>
 		</div>
 	{:else}
 		<div class="list">
@@ -91,10 +92,6 @@
 
 	.page-title {
 		font-weight: normal;
-	}
-
-	.page-toggle {
-		margin-left: var(--space-md);
 	}
 
 	.page-action {

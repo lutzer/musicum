@@ -1,33 +1,28 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { listCollections } from '$lib/api/collections';
-	import { authStore } from '$lib/stores/auth.svelte';
-	import { UserRole, type CollectionResponse } from '$lib/types';
+	import { goto } from '$app/navigation';
+	import { listCollections } from '$lib/api';
+	import type { CollectionResponse } from '$lib/types';
 	import CollectionCard from '$lib/components/CollectionCard.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
 
 	let collections = $state<CollectionResponse[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
-	let isAdmin = $derived(authStore.user?.role === UserRole.ADMIN);
-
 	onMount(async () => {
+		if (!authStore.isAuthenticated) {
+			goto('/login');
+			return;
+		}
+
 		try {
-			if (isAdmin) {
-				// Admin sees all collections
-				const response = await listCollections(undefined, { requireAuth: true });
-				collections = response.items;
-			} else if (authStore.user) {
-				// Regular user sees only their own collections
-				const response = await listCollections(
-					{ user_id: authStore.user.id },
-					{ requireAuth: true }
-				);
-				collections = response.items;
-			} else {
-				// Not logged in - show nothing
-				collections = [];
-			}
+			const userId = authStore.user?.id;
+			const response = await listCollections(
+				userId ? { user_id: userId } : undefined,
+				{ requireAuth: true }
+			);
+			collections = response.items;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load collections';
 		} finally {
@@ -40,16 +35,10 @@
 	<div class="page-header">
 		<h1 class="page-title">My Collections</h1>
 		<span class="page-count">[{collections.length}]</span>
-		{#if authStore.isAuthenticated}
-			<a href="/collections/new" class="page-action">[+ new]</a>
-		{/if}
+		<a href="/create_collection" class="page-action">[+ new]</a>
 	</div>
 
-	{#if !authStore.isAuthenticated}
-		<div class="empty">
-			<p>Please <a href="/login">[login]</a> to view your collections.</p>
-		</div>
-	{:else if loading}
+	{#if loading}
 		<div class="loading">Loading...</div>
 	{:else if error}
 		<div class="error">Error: {error}</div>

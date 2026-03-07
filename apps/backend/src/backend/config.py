@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env")
 
-    DATABASE_URL: str = f"sqlite:///./data/musicum.db"
+    DATABASE_URL: str = "sqlite:///./data/musicum.db"
     SCHEMA_VERSION: str = "0.3"
     SECRET_KEY: str = "dev-secret-key-change-in-production"
     ALGORITHM: str = "HS256"

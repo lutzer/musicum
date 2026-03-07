@@ -1,3 +1,7 @@
+import re
+import uuid
+
+from slugify import slugify
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -6,8 +10,42 @@ from backend.models.user import User, UserRole
 from backend.schemas.collection import CollectionCreate, CollectionUpdate
 
 
+def generate_unique_collection_slug(
+    db: Session, title: str, exclude_collection_id: int | None = None
+) -> str:
+    """Generate a unique slug from the title."""
+    base_slug = slugify(title, max_length=200)
+    if not base_slug:
+        base_slug = "track"
+
+    slug = base_slug
+    query = db.query(Collection).filter(Collection.slug == slug)
+    if exclude_collection_id is not None:
+        query = query.filter(Collection.id != exclude_collection_id)
+    existing = query.first()
+    if existing:
+        suffix = uuid.uuid4().hex[:4]
+        slug = f"{base_slug}-{suffix}"
+
+    return slug
+
 def get_collection_by_id(db: Session, collection_id: int) -> Collection | None:
     return db.query(Collection).filter(Collection.id == collection_id).first()
+
+
+def get_collection_by_slug(db: Session, slug: str) -> Collection | None:
+    return db.query(Collection).filter(Collection.slug == slug).first()
+
+
+def get_collection_with_tracks_by_slug(db: Session, slug: str) -> Collection | None:
+    return (
+        db.query(Collection)
+        .options(
+            joinedload(Collection.collection_tracks).joinedload(CollectionTrack.track)
+        )
+        .filter(Collection.slug == slug)
+        .first()
+    )
 
 
 def get_collection_with_tracks(db: Session, collection_id: int) -> Collection | None:
@@ -60,8 +98,10 @@ def create_collection(
     collection_data: CollectionCreate,
     user_id: int,
 ) -> Collection:
+    slug = generate_unique_collection_slug(db, collection_data.title)
     collection = Collection(
-        name=collection_data.name,
+        title=collection_data.title,
+        slug=slug,
         description=collection_data.description,
         user_id=user_id,
         is_public=collection_data.is_public,
@@ -76,6 +116,13 @@ def update_collection(
     db: Session, collection: Collection, collection_data: CollectionUpdate
 ) -> Collection:
     update_data = collection_data.model_dump(exclude_unset=True)
+
+    # Regenerate slug if title is being updated
+    if "title" in update_data and update_data["title"]:
+        update_data["slug"] = generate_unique_collection_slug(
+            db, update_data["title"], exclude_collection_id=collection.id
+        )
+
     for field, value in update_data.items():
         setattr(collection, field, value)
     db.commit()

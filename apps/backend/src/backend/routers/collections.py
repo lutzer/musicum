@@ -24,6 +24,7 @@ from backend.services.collection_service import (
     get_collection_track,
     get_collection_tracks,
     get_collection_with_tracks,
+    get_collection_with_tracks_by_slug,
     get_collections,
     remove_track_from_collection,
     reorder_tracks,
@@ -85,6 +86,34 @@ def create_collection_endpoint(
     return create_collection(db, collection_data, user_id=current_user.id)
 
 
+@router.get("/by-slug/{slug}", response_model=CollectionDetailResponse)
+def get_collection_by_slug_endpoint(
+    slug: str,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    collection = get_collection_with_tracks_by_slug(db, slug)
+    if not collection:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Collection not found"
+        )
+    check_collection_visibility(collection, current_user)
+
+    sorted_tracks = sorted(collection.collection_tracks, key=lambda ct: ct.position)
+
+    return {
+        "id": collection.id,
+        "title": collection.title,
+        "slug": collection.slug,
+        "description": collection.description,
+        "user_id": collection.user_id,
+        "is_public": collection.is_public,
+        "created_at": collection.created_at,
+        "updated_at": collection.updated_at,
+        "tracks": sorted_tracks,
+    }
+
+
 @router.get("/{collection_id}", response_model=CollectionDetailResponse)
 def get_collection_endpoint(
     collection_id: int,
@@ -103,7 +132,8 @@ def get_collection_endpoint(
 
     return {
         "id": collection.id,
-        "name": collection.name,
+        "title": collection.title,
+        "slug": collection.slug,
         "description": collection.description,
         "user_id": collection.user_id,
         "is_public": collection.is_public,

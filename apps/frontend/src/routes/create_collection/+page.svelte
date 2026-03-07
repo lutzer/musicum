@@ -4,7 +4,7 @@
 	import FormField from '$lib/components/forms/FormField.svelte';
 	import FormMessage from '$lib/components/forms/FormMessage.svelte';
 
-	let name = $state('');
+	let title = $state('');
 	let description = $state('');
 	let isPublic = $state(false);
 	let error = $state('');
@@ -14,7 +14,7 @@
 		event.preventDefault();
 		error = '';
 
-		if (!name.trim()) {
+		if (!title.trim()) {
 			error = 'Name is required';
 			return;
 		}
@@ -23,7 +23,7 @@
 
 		try {
 			const collection = await createCollection({
-				name: name.trim(),
+				title: title.trim(),
 				description: description.trim() || null,
 				is_public: isPublic
 			});
@@ -42,7 +42,7 @@
 	<form onsubmit={handleSubmit} class="new-collection-form">
 		<FormMessage type="error" message={error} />
 
-		<FormField label="Name" name="name" bind:value={name} required />
+		<FormField label="Title" name="title" bind:value={title} required />
 
 		<div class="form-field">
 			<label for="description" class="form-label">Description</label>

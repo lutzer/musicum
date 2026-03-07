@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { getCollection, updateCollection, deleteCollection } from '$lib/api/collections';
+	import { getCollectionBySlug, updateCollection, deleteCollection } from '$lib/api/collections';
 	import FormField from '$lib/components/forms/FormField.svelte';
 	import FormMessage from '$lib/components/forms/FormMessage.svelte';
 	import CollectionTrackManager from '$lib/components/CollectionTrackManager.svelte';
@@ -20,17 +20,17 @@
 	let showDeleteConfirm = $state(false);
 
 	$effect(() => {
-		const id = $page.params.id;
-		if (id) {
-			loadCollection(parseInt(id, 10));
+		const slug = $page.params.slug;
+		if (slug) {
+			loadCollection(slug);
 		}
 	});
 
-	async function loadCollection(id: number) {
+	async function loadCollection(slug: string) {
 		loading = true;
 		error = '';
 		try {
-			collection = await getCollection(id);
+			collection = await getCollectionBySlug(slug);
 			name = collection.name;
 			description = collection.description || '';
 			isPublic = collection.is_public;
@@ -50,12 +50,16 @@
 		isSaving = true;
 
 		try {
-			await updateCollection(collection.id, {
+			const updated = await updateCollection(collection.id, {
 				name: name.trim(),
 				description: description.trim() || null,
 				is_public: isPublic
 			});
 			success = 'Collection saved successfully';
+			// Update slug if it changed
+			if (updated.slug !== collection.slug) {
+				goto(`/collection/${updated.slug}/edit`, { replaceState: true });
+			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to save collection';
 		} finally {
@@ -71,7 +75,7 @@
 
 		try {
 			await deleteCollection(collection.id);
-			goto('/collections');
+			goto('/user/collections');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to delete collection';
 			isDeleting = false;
@@ -85,7 +89,7 @@
 		<p>Loading...</p>
 	{:else if error && !collection}
 		<p class="error">{error}</p>
-		<p><a href="/collections">[&lt; back to collections]</a></p>
+		<p><a href="/">[&lt; back to collections]</a></p>
 	{:else if collection}
 		<h1>Edit Collection</h1>
 
@@ -146,7 +150,7 @@
 		</div>
 
 		<div class="page-actions">
-			<a href="/collections/{collection.id}">[&lt; back to collection]</a>
+			<a href="/collection/{collection.slug}">[&lt; back to collection]</a>
 		</div>
 	{/if}
 </div>

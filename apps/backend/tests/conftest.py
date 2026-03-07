@@ -214,7 +214,8 @@ def track_with_attachments(
 @pytest.fixture
 def public_collection(db_session: Session, test_user: User) -> Collection:
     collection = Collection(
-        name="Public Collection",
+        title="Public Collection",
+        slug="public-collection",
         description="A public collection",
         user_id=test_user.id,
         is_public=True,
@@ -228,7 +229,8 @@ def public_collection(db_session: Session, test_user: User) -> Collection:
 @pytest.fixture
 def private_collection(db_session: Session, test_user: User) -> Collection:
     collection = Collection(
-        name="Private Collection",
+        title="Private Collection",
+        slug="private-collection",
         description="A private collection",
         user_id=test_user.id,
         is_public=False,
@@ -244,7 +246,8 @@ def collection_with_tracks(
     db_session: Session, test_user: User, public_track: Track, private_track: Track
 ) -> Collection:
     collection = Collection(
-        name="Collection With Tracks",
+        title="Collection With Tracks",
+        slug="collection-with-tracks",
         description="A collection with multiple tracks",
         user_id=test_user.id,
         is_public=True,

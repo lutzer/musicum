@@ -6,7 +6,7 @@ from pathlib import Path
 from slugify import slugify
 from sqlalchemy.orm import Session, joinedload
 
-from backend.config import Settings
+from backend.config import settings
 from backend.models.track import Track, TrackAttachment
 from backend.models.user import User, UserRole
 from backend.schemas.track import (
@@ -17,7 +17,7 @@ from backend.services.attachment_service import delete_attachment
 from backend.utils import delete_dir, delete_file
 
 
-def generate_unique_slug(
+def generate_unique_track_slug(
     db: Session, title: str, exclude_track_id: int | None = None
 ) -> str:
     """Generate a unique slug from the title."""
@@ -124,6 +124,7 @@ def create_track(
     duration_seconds: float | None = None,
     processing_status: str = "processing",
 ) -> Track:
+    
     track = Track(
         slug=slug,
         title=track_data.title,
@@ -149,14 +150,18 @@ def update_track(db: Session, track: Track, track_data: TrackUpdate) -> Track:
     for field, value in update_data.items():
         setattr(track, field, value)
 
-    # Regenerate slug if title changed
+
+    # Regenerate slug if title is being updated
     if "title" in update_data and update_data["title"]:
-        track.slug = generate_unique_slug(
+        update_data["slug"] = generate_unique_track_slug(
             db, update_data["title"], exclude_track_id=track.id
         )
 
+    for field, value in update_data.items():
+        setattr(track, field, value)
     db.commit()
     db.refresh(track)
+
     return track
 
 
@@ -168,7 +173,7 @@ def delete_track(db: Session, track: Track) -> None:
     delete_dir(track_dir)
     for attachment in track.attachments:
         delete_attachment(db, attachment)
-    
+
 
 def write_track_metadata(
     track_dir: str,
@@ -176,10 +181,9 @@ def write_track_metadata(
     original_filename: str,
     attachments: list[TrackAttachment] | None = None,
 ) -> None:
-    
     if not Path(track_dir).exists():
         raise Exception("Track dir does not exist: " + track_dir)
-    
+
     """Write track.json metadata file."""
     attachments_data = []
     if attachments:
@@ -191,7 +195,7 @@ def write_track_metadata(
                     "caption": att.caption,
                     "position": att.position,
                     "path": att.path,
-                    "content": att.content
+                    "content": att.content,
                 }
             )
 
@@ -213,7 +217,4 @@ def write_track_metadata(
     }
     metadata_path = os.path.join(track_dir, "track.json")
     with open(metadata_path, "w") as f:
-        json.dump({"data" : metadata, "schema" : Settings.SCHEMA_VERSION}, f, indent=2)
-
-
-
+        json.dump({"data": metadata, "schema": settings.SCHEMA_VERSION}, f, indent=2)

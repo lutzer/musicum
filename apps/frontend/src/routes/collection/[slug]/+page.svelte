@@ -1,29 +1,29 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { getCollection } from '$lib/api/collections';
+	import { getCollectionBySlug } from '$lib/api/collections';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { UserRole, type CollectionDetailResponse } from '$lib/types';
-
-	let canEdit = $derived(
-		authStore.user?.id === collection?.user_id || authStore.user?.role === UserRole.ADMIN
-	);
 
 	let collection = $state<CollectionDetailResponse | null>(null);
 	let error = $state('');
 	let loading = $state(true);
 
+	let canEdit = $derived(
+		authStore.user?.id === collection?.user_id || authStore.user?.role === UserRole.ADMIN
+	);
+
 	$effect(() => {
-		const id = $page.params.id;
-		if (id) {
-			loadCollection(parseInt(id, 10));
+		const slug = $page.params.slug;
+		if (slug) {
+			loadCollection(slug);
 		}
 	});
 
-	async function loadCollection(id: number) {
+	async function loadCollection(slug: string) {
 		loading = true;
 		error = '';
 		try {
-			collection = await getCollection(id);
+			collection = await getCollectionBySlug(slug);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load collection';
 		} finally {
@@ -53,10 +53,10 @@
 		<p>Loading...</p>
 	{:else if error}
 		<p class="error">{error}</p>
-		<p><a href="/collections">[&lt; back to collections]</a></p>
+		<p><a href="/">[&lt; back to collections]</a></p>
 	{:else if collection}
 		<header class="collection-header">
-			<h1>{collection.name}</h1>
+			<h1>{collection.title}</h1>
 			<span class="badge" class:private={!collection.is_public}>
 				{collection.is_public ? 'public' : 'private'}
 			</span>
@@ -93,9 +93,9 @@
 		{/if}
 
 		<div class="collection-actions">
-			<a href="/collections">[&lt; back]</a>
+			<a href="/">[&lt; back]</a>
 			{#if canEdit}
-				<a href="/collections/{collection.id}/edit">[edit]</a>
+				<a href="/collection/{collection.slug}/edit">[edit]</a>
 			{/if}
 		</div>
 	{/if}

@@ -17,10 +17,10 @@
 	}
 </script>
 
-<a href="/collections/{collection.id}" class="card">
+<a href="/collection/{collection.slug}" class="card">
 	<div class="card-header">
 		<span class="card-icon">[*]</span>
-		<h3 class="card-title">{collection.name}</h3>
+		<h3 class="card-title">{collection.title}</h3>
 	</div>
 
 	{#if collection.description}

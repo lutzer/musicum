@@ -21,10 +21,12 @@ class AttachmentType(enum.Enum):
     IMAGE = "image"
     VIDEO = "video"
 
+
 class ProcessingState(str, enum.Enum):
     READY = "ready"
     PROCESSING = "processing"
     FAILED = "failed"
+
 
 class Track(Base):
     __tablename__ = "tracks"
@@ -38,12 +40,14 @@ class Track(Base):
     file_size: Mapped[int] = mapped_column(Integer)
     mime_type: Mapped[str] = mapped_column(String(100))
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
-    processing_status: Mapped[ProcessingState] = mapped_column(SQLEnum(ProcessingState), default=ProcessingState.PROCESSING)
+    processing_status: Mapped[ProcessingState] = mapped_column(
+        SQLEnum(ProcessingState), default=ProcessingState.PROCESSING
+    )
     converted_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     user_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True)
     tags: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -73,7 +77,9 @@ class TrackAttachment(Base):
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     caption: Mapped[str | None] = mapped_column(String(500), nullable=True)
     position: Mapped[int] = mapped_column(Integer, default=0)
-    processing_status: Mapped[ProcessingState] = mapped_column(SQLEnum(ProcessingState), default=ProcessingState.PROCESSING)
+    processing_status: Mapped[ProcessingState] = mapped_column(
+        SQLEnum(ProcessingState), default=ProcessingState.PROCESSING
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

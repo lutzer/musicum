@@ -46,7 +46,7 @@ from backend.services.media_processor import process_attachment_background
 from backend.services.track_service import (
     create_track,
     delete_track,
-    generate_unique_slug,
+    generate_unique_track_slug,
     get_track_by_id,
     get_track_by_slug,
     get_track_with_details,
@@ -136,7 +136,6 @@ def save_attachment_file(file: UploadFile, upload_dir: str) -> tuple[str, str, i
     return file_path, original_filename, file_size
 
 
-
 @router.get("", response_model=TrackListResponse)
 def list_tracks(
     user_id: int | None = Query(None, description="Filter by user ID"),
@@ -174,8 +173,8 @@ def create_track_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid file type. Allowed types: {allowed}",
         )
-
-    slug = generate_unique_slug(db, title)
+    
+    slug = generate_unique_track_slug(db, title)
 
     track_dir = os.path.join(settings.UPLOAD_DIR_TRACKS, slug)
     Path(track_dir).mkdir(parents=True, exist_ok=True)
@@ -196,6 +195,8 @@ def create_track_endpoint(
         user_id=current_user.id,
         processing_status=ProcessingState.PROCESSING,
     )
+
+  
 
     write_track_metadata(track_dir, track, original_filename)
 

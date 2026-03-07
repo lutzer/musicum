@@ -14,6 +14,7 @@ Musicum is a web app for organizing sound recordings and publishing collections.
   * using sqlalchemy with a sql lite database
   * keep the route files small and put logic in service files
   * run long running operations in background tasks
+  * ignore database migration for now
 - **Frontend**: SvelteKit (TypeScript)
   * using api wrapper to connect to backend
   * build reusable svelte components for the main elements

@@ -117,7 +117,6 @@ def process_attachment_background(
                 if os.path.exists(input_path):
                     os.remove(input_path)
                 attachment.path = None
-                
 
             db.commit()
         finally:
