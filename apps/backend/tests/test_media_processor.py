@@ -2,6 +2,7 @@ import os
 import tempfile
 from unittest.mock import MagicMock, patch
 
+from backend.models.track import ProcessingState
 from backend.services.media_processor import (
     process_attachment_background,
     process_image,
@@ -185,9 +186,8 @@ class TestProcessAttachmentBackground:
             assert not os.path.exists(input_path)
 
         mock_process_image.assert_called_once()
-        assert mock_attachment.processing_status == "ready"
-        assert mock_attachment.processed_path == "/output.jpg"
-        assert mock_attachment.path is None
+        assert mock_attachment.processing_status == ProcessingState.READY
+        assert mock_attachment.path == "/output.jpg"
         mock_session.commit.assert_called_once()
 
     @patch("backend.services.media_processor.process_video")
@@ -229,9 +229,8 @@ class TestProcessAttachmentBackground:
             assert not os.path.exists(input_path)
 
         mock_process_video.assert_called_once()
-        assert mock_attachment.processing_status == "ready"
-        assert mock_attachment.processed_path == "/output.mp4"
-        assert mock_attachment.path is None
+        assert mock_attachment.processing_status == ProcessingState.READY
+        assert mock_attachment.path == "/output.mp4"
 
     @patch("backend.services.media_processor.process_image")
     @patch("backend.services.media_processor.create_engine")

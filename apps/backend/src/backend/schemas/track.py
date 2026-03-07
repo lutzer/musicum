@@ -55,7 +55,6 @@ class AttachmentResponse(BaseModel):
     original_filename: str | None
     caption: str | None
     position: int
-    processed_path: str | None
     processing_status: str
     created_at: datetime
     updated_at: datetime

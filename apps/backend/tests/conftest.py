@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from backend.database import Base, get_db
 from backend.main import app
 from backend.models.collection import Collection, CollectionTrack
-from backend.models.track import AttachmentType, Track, TrackAttachment
+from backend.models.track import AttachmentType, ProcessingState, Track, TrackAttachment
 from backend.models.user import User, UserRole
 from backend.services.auth_service import create_access_token, get_password_hash
 
@@ -120,7 +120,7 @@ def public_track(db_session: Session, test_user: User) -> Track:
         user_id=test_user.id,
         is_public=True,
         tags="rock,indie",
-        processing_status="ready",
+        processing_status=ProcessingState.READY,
     )
     db_session.add(track)
     db_session.commit()
@@ -142,7 +142,7 @@ def private_track(db_session: Session, test_user: User) -> Track:
         user_id=test_user.id,
         is_public=False,
         tags="jazz,ambient",
-        processing_status="ready",
+        processing_status=ProcessingState.READY,
     )
     db_session.add(track)
     db_session.commit()
@@ -164,7 +164,7 @@ def track_with_attachments(db_session: Session, test_user: User) -> Track:
         user_id=test_user.id,
         is_public=True,
         tags="electronic",
-        processing_status="ready",
+        processing_status=ProcessingState.READY,
     )
     db_session.add(track)
     db_session.commit()
@@ -176,7 +176,7 @@ def track_with_attachments(db_session: Session, test_user: User) -> Track:
         content="This is a note about the track.",
         caption=None,
         position=0,
-        processing_status="ready",
+        processing_status=ProcessingState.READY,
     )
     image = TrackAttachment(
         track_id=track.id,
@@ -185,7 +185,7 @@ def track_with_attachments(db_session: Session, test_user: User) -> Track:
         original_filename="image.jpg",
         caption="Album cover",
         position=1,
-        processing_status="ready",
+        processing_status=ProcessingState.READY,
     )
     db_session.add_all([note, image])
     db_session.commit()

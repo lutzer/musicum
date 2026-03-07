@@ -5,18 +5,21 @@ from backend.services.auth_service import (
     verify_password,
 )
 from backend.services.track_service import (
-    create_attachment,
     create_track,
     delete_attachment,
     delete_track,
-    get_attachment_by_id,
-    get_attachments,
     get_track_by_id,
     get_track_with_details,
     get_tracks,
-    update_attachment,
     update_track,
 )
+from backend.services.attachment_service import (
+    create_attachment,
+    get_attachment_by_id,
+    get_attachments,
+    update_attachment,
+)
+
 from backend.services.user_service import create_user, delete_user, get_user_by_email
 
 __all__ = [

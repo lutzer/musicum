@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.database import get_db
-from backend.models.track import AttachmentType, Track, TrackAttachment
+from backend.models.track import AttachmentType, ProcessingState, Track, TrackAttachment
 from backend.models.user import User, UserRole
 from backend.schemas.track import (
     AttachmentCreate,
@@ -35,23 +35,19 @@ from backend.schemas.track import (
     TrackResponse,
     TrackUpdate,
 )
+from backend.services.attachment_service import create_attachment, delete_attachment, get_attachment_by_id, get_attachments, update_attachment
 from backend.services.audio_processor import process_track_background
 from backend.services.media_processor import process_attachment_background
 from backend.services.track_service import (
-    create_attachment,
     create_track,
-    delete_attachment,
     delete_track,
     generate_unique_slug,
-    get_attachment_by_id,
-    get_attachments,
     get_track_by_id,
     get_track_by_slug,
     get_track_with_details,
     get_tracks,
-    reorder_attachments,
-    update_attachment,
     update_track,
+    write_track_metadata,
 )
 
 router = APIRouter(prefix="/tracks", tags=["tracks"])
@@ -135,46 +131,6 @@ def save_attachment_file(file: UploadFile, upload_dir: str) -> tuple[str, str, i
     return file_path, original_filename, file_size
 
 
-def write_track_metadata(
-    track_dir: str,
-    track: Track,
-    original_filename: str,
-    attachments: list[TrackAttachment] | None = None,
-) -> None:
-    """Write track.json metadata file."""
-    attachments_data = []
-    if attachments:
-        for att in attachments:
-            attachments_data.append(
-                {
-                    "id": att.id,
-                    "type": att.type.value,
-                    "caption": att.caption,
-                    "position": att.position,
-                    "original_filename": att.original_filename,
-                }
-            )
-
-    metadata = {
-        "id": track.id,
-        "slug": track.slug,
-        "title": track.title,
-        "description": track.description,
-        "original_filename": original_filename,
-        "file_size": track.file_size,
-        "mime_type": track.mime_type,
-        "duration_seconds": track.duration_seconds,
-        "is_public": track.is_public,
-        "tags": track.tags,
-        "user_id": track.user_id,
-        "created_at": track.created_at.isoformat() if track.created_at else None,
-        "updated_at": track.updated_at.isoformat() if track.updated_at else None,
-        "attachments": attachments_data,
-    }
-    metadata_path = os.path.join(track_dir, "track.json")
-    with open(metadata_path, "w") as f:
-        json.dump(metadata, f, indent=2)
-
 
 @router.get("", response_model=TrackListResponse)
 def list_tracks(
@@ -233,7 +189,7 @@ def create_track_endpoint(
         file_size=file_size,
         mime_type=file.content_type or "audio/mpeg",
         user_id=current_user.id,
-        processing_status="processing",
+        processing_status=ProcessingState.PROCESSING,
     )
 
     write_track_metadata(track_dir, track, original_filename)
@@ -281,11 +237,10 @@ def update_track_endpoint(
 
     # Sync track.json
     track_dir = os.path.dirname(updated_track.source_path)
-    if os.path.exists(track_dir):
-        attachments = get_attachments(db, track_id)
-        write_track_metadata(
-            track_dir, updated_track, updated_track.original_filename, attachments
-        )
+    attachments = get_attachments(db, track_id)
+    write_track_metadata(
+        track_dir, updated_track, updated_track.original_filename, attachments
+    )
 
     return updated_track
 
@@ -302,16 +257,6 @@ def delete_track_endpoint(
             status_code=status.HTTP_404_NOT_FOUND, detail="Track not found"
         )
     check_track_permission(track, current_user, "delete")
-
-    # Delete converted file if exists
-    if track.converted_path and os.path.exists(track.converted_path):
-        os.remove(track.converted_path)
-
-    # Delete track folder (contains source file + track.json)
-    track_dir = os.path.dirname(track.source_path)
-    if os.path.exists(track_dir) and os.path.isdir(track_dir):
-        shutil.rmtree(track_dir)
-
     delete_track(db, track)
 
 
@@ -403,8 +348,7 @@ def create_attachment_endpoint(
 
     path = None
     original_filename = None
-    processing_status = "ready"
-    needs_processing = False
+    processing_status = ProcessingState.READY
 
     if type == AttachmentType.NOTE:
         if not content:
@@ -427,8 +371,7 @@ def create_attachment_endpoint(
         path, original_filename, _ = save_attachment_file(
             file, settings.UPLOAD_DIR_ATTACHMENTS
         )
-        processing_status = "processing"
-        needs_processing = True
+        processing_status = ProcessingState.PROCESSING
     elif type == AttachmentType.VIDEO:
         if not file:
             raise HTTPException(
@@ -444,8 +387,7 @@ def create_attachment_endpoint(
         path, original_filename, _ = save_attachment_file(
             file, settings.UPLOAD_DIR_ATTACHMENTS
         )
-        processing_status = "processing"
-        needs_processing = True
+        processing_status = ProcessingState.PROCESSING
 
     attachment_data = AttachmentCreate(type=type, content=content, caption=caption)
     attachment = create_attachment(
@@ -457,7 +399,7 @@ def create_attachment_endpoint(
         processing_status=processing_status,
     )
 
-    if needs_processing and path:
+    if processing_status == ProcessingState.PROCESSING and path:
         processed_dir = os.path.join(settings.UPLOAD_DIR_ATTACHMENTS, "processed")
         if type == AttachmentType.IMAGE:
             processed_path = os.path.join(processed_dir, f"{attachment.id}.jpg")
@@ -474,9 +416,8 @@ def create_attachment_endpoint(
 
     # Sync track.json
     track_dir = os.path.dirname(track.source_path)
-    if os.path.exists(track_dir):
-        attachments = get_attachments(db, track_id)
-        write_track_metadata(track_dir, track, track.original_filename, attachments)
+    attachments = get_attachments(db, track_id)
+    write_track_metadata(track_dir, track, track.original_filename, attachments)
 
     return attachment
 
@@ -510,7 +451,13 @@ def update_attachment_endpoint(
             detail="Content can only be updated for note attachments",
         )
 
-    return update_attachment(db, attachment, attachment_data)
+    attachment = update_attachment(db, attachment, attachment_data)
+
+    track_dir = os.path.dirname(track.source_path)
+    attachments = get_attachments(db, track_id)
+    write_track_metadata(track_dir, track, track.original_filename, attachments)
+
+    return attachment
 
 
 @router.delete(
@@ -535,18 +482,12 @@ def delete_attachment_endpoint(
             status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found"
         )
 
-    if attachment.path and os.path.exists(attachment.path):
-        os.remove(attachment.path)
-    if attachment.processed_path and os.path.exists(attachment.processed_path):
-        os.remove(attachment.processed_path)
-
     delete_attachment(db, attachment)
 
     # Sync track.json
     track_dir = os.path.dirname(track.source_path)
-    if os.path.exists(track_dir):
-        attachments = get_attachments(db, track_id)
-        write_track_metadata(track_dir, track, track.original_filename, attachments)
+    attachments = get_attachments(db, track_id)
+    write_track_metadata(track_dir, track, track.original_filename, attachments)
 
 
 @router.get("/{track_id}/attachments/{attachment_id}/file")

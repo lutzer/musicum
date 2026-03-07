@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.config import settings
-from backend.models.track import TrackAttachment
+from backend.models.track import ProcessingState, TrackAttachment
 
 
 def process_image(
@@ -107,14 +107,17 @@ def process_attachment_background(
                 return
 
             if success:
-                attachment.processing_status = "ready"
-                attachment.processed_path = output_path
+                attachment.processing_status = ProcessingState.READY
                 # Delete original file and clear path (only keep processed file)
                 if os.path.exists(input_path):
                     os.remove(input_path)
-                attachment.path = None
+                attachment.path = output_path
             else:
-                attachment.processing_status = "failed"
+                attachment.processing_status = ProcessingState.FAILED
+                if os.path.exists(input_path):
+                    os.remove(input_path)
+                attachment.path = None
+                
 
             db.commit()
         finally:

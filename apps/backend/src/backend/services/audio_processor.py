@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.config import settings
-from backend.models.track import Track
+from backend.models.track import ProcessingState, Track
 
 
 def convert_to_mp3(
@@ -62,10 +62,10 @@ def process_track_background(
             success = convert_to_mp3(input_path, output_path)
 
             if success:
-                track.processing_status = "ready"
+                track.processing_status = ProcessingState.READY
                 track.converted_path = output_path
             else:
-                track.processing_status = "failed"
+                track.processing_status = ProcessingState.FAILED
 
             duration = get_duration(input_path)
             if duration is not None:
