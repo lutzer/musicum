@@ -6,6 +6,7 @@ from pathlib import Path
 from slugify import slugify
 from sqlalchemy.orm import Session, joinedload
 
+from backend.config import Settings
 from backend.models.track import Track, TrackAttachment
 from backend.models.user import User, UserRole
 from backend.schemas.track import (
@@ -212,7 +213,7 @@ def write_track_metadata(
     }
     metadata_path = os.path.join(track_dir, "track.json")
     with open(metadata_path, "w") as f:
-        json.dump(metadata, f, indent=2)
+        json.dump({"data" : metadata, "schema" : Settings.SCHEMA_VERSION}, f, indent=2)
 
 
 
