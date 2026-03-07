@@ -1,43 +1,41 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { getTrackBySlug, updateTrack, deleteTrack } from '$lib/api/tracks';
+	import { getCollection, updateCollection, deleteCollection } from '$lib/api/collections';
 	import FormField from '$lib/components/forms/FormField.svelte';
 	import FormMessage from '$lib/components/forms/FormMessage.svelte';
-	import AttachmentManager from '$lib/components/AttachmentManager.svelte';
-	import type { TrackDetailResponse } from '$lib/types';
+	import CollectionTrackManager from '$lib/components/CollectionTrackManager.svelte';
+	import type { CollectionDetailResponse } from '$lib/types';
 
-	let track = $state<TrackDetailResponse | null>(null);
+	let collection = $state<CollectionDetailResponse | null>(null);
 	let loading = $state(true);
 	let error = $state('');
 	let success = $state('');
 
-	let title = $state('');
+	let name = $state('');
 	let description = $state('');
-	let tags = $state('');
 	let isPublic = $state(false);
 	let isSaving = $state(false);
 	let isDeleting = $state(false);
 	let showDeleteConfirm = $state(false);
 
 	$effect(() => {
-		const slug = $page.params.slug;
-		if (slug) {
-			loadTrack(slug);
+		const id = $page.params.id;
+		if (id) {
+			loadCollection(parseInt(id, 10));
 		}
 	});
 
-	async function loadTrack(slug: string) {
+	async function loadCollection(id: number) {
 		loading = true;
 		error = '';
 		try {
-			track = await getTrackBySlug(slug);
-			title = track.title;
-			description = track.description || '';
-			tags = track.tags || '';
-			isPublic = track.is_public;
+			collection = await getCollection(id);
+			name = collection.name;
+			description = collection.description || '';
+			isPublic = collection.is_public;
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to load track';
+			error = err instanceof Error ? err.message : 'Failed to load collection';
 		} finally {
 			loading = false;
 		}
@@ -45,63 +43,57 @@
 
 	async function handleSave(event: Event) {
 		event.preventDefault();
-		if (!track) return;
+		if (!collection) return;
 
 		error = '';
 		success = '';
 		isSaving = true;
 
 		try {
-			const updatedTrack = await updateTrack(track.id, {
-				title: title.trim(),
+			await updateCollection(collection.id, {
+				name: name.trim(),
 				description: description.trim() || null,
-				tags: tags.trim() || null,
 				is_public: isPublic
 			});
-			// Redirect to new slug if it changed
-			if (updatedTrack.slug !== track.slug) {
-				goto(`/tracks/${updatedTrack.slug}/edit`);
-			} else {
-				success = 'Track saved successfully';
-			}
+			success = 'Collection saved successfully';
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to save track';
+			error = err instanceof Error ? err.message : 'Failed to save collection';
 		} finally {
 			isSaving = false;
 		}
 	}
 
 	async function handleDelete() {
-		if (!track) return;
+		if (!collection) return;
 
 		error = '';
 		isDeleting = true;
 
 		try {
-			await deleteTrack(track.id);
-			goto('/tracks');
+			await deleteCollection(collection.id);
+			goto('/collections');
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to delete track';
+			error = err instanceof Error ? err.message : 'Failed to delete collection';
 			isDeleting = false;
 			showDeleteConfirm = false;
 		}
 	}
 </script>
 
-<div class="edit-track-page">
+<div class="edit-collection-page">
 	{#if loading}
 		<p>Loading...</p>
-	{:else if error && !track}
+	{:else if error && !collection}
 		<p class="error">{error}</p>
-		<p><a href="/tracks">[&lt; back to tracks]</a></p>
-	{:else if track}
-		<h1>Edit Track</h1>
+		<p><a href="/collections">[&lt; back to collections]</a></p>
+	{:else if collection}
+		<h1>Edit Collection</h1>
 
 		<form onsubmit={handleSave} class="edit-form">
 			<FormMessage type="error" message={error} />
 			<FormMessage type="success" message={success} />
 
-			<FormField label="Title" name="title" bind:value={title} required />
+			<FormField label="Name" name="name" bind:value={name} required />
 
 			<div class="form-field">
 				<label for="description" class="form-label">Description</label>
@@ -113,8 +105,6 @@
 					bind:value={description}
 				></textarea>
 			</div>
-
-			<FormField label="Tags" name="tags" bind:value={tags} />
 
 			<div class="form-field">
 				<label class="checkbox-label">
@@ -132,14 +122,14 @@
 			</div>
 		</form>
 
-		<div class="attachments-section">
-			<AttachmentManager trackId={track.id} />
+		<div class="tracks-section">
+			<CollectionTrackManager collectionId={collection.id} />
 		</div>
 
 		<div class="danger-zone">
 			<h3>Danger Zone</h3>
 			{#if showDeleteConfirm}
-				<p>Are you sure you want to delete this track? This cannot be undone.</p>
+				<p>Are you sure you want to delete this collection? This cannot be undone.</p>
 				<div class="delete-actions">
 					<button type="button" class="delete-btn" onclick={handleDelete} disabled={isDeleting}>
 						{isDeleting ? '[deleting...]' : '[yes, delete]'}
@@ -150,19 +140,19 @@
 				</div>
 			{:else}
 				<button type="button" class="delete-btn" onclick={() => (showDeleteConfirm = true)}>
-					[delete track]
+					[delete collection]
 				</button>
 			{/if}
 		</div>
 
 		<div class="page-actions">
-			<a href="/tracks/{track.slug}">[&lt; back to track]</a>
+			<a href="/collections/{collection.id}">[&lt; back to collection]</a>
 		</div>
 	{/if}
 </div>
 
 <style>
-	.edit-track-page {
+	.edit-collection-page {
 		width: 100%;
 		max-width: 600px;
 	}
@@ -235,7 +225,7 @@
 		cursor: not-allowed;
 	}
 
-	.attachments-section {
+	.tracks-section {
 		margin-bottom: var(--space-lg);
 		padding: var(--space-md);
 		border: 1px solid;

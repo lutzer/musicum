@@ -142,7 +142,7 @@
 </script>
 
 <div class="attachment-manager">
-	<h3>&gt; Attachments</h3>
+	<h3>Attachments</h3>
 
 	{#if error}
 		<p class="error">{error}</p>
@@ -174,10 +174,10 @@
 	{/if}
 
 	<form class="add-attachment-form" onsubmit={handleAddAttachment}>
-		<h4>&gt; Add Attachment</h4>
+		<h4>Add Attachment</h4>
 
 		<div class="form-row">
-			<label for="attachment-type">[&gt;] Type</label>
+			<label for="attachment-type">Type</label>
 			<select id="attachment-type" bind:value={newType} class="form-select">
 				<option value={AttachmentType.NOTE}>Note</option>
 				<option value={AttachmentType.IMAGE}>Image</option>
@@ -187,7 +187,7 @@
 
 		{#if newType === AttachmentType.NOTE}
 			<div class="form-row">
-				<label for="attachment-content">[&gt;] Content</label>
+				<label for="attachment-content">Content</label>
 				<textarea
 					id="attachment-content"
 					bind:value={newContent}
@@ -198,7 +198,7 @@
 			</div>
 		{:else}
 			<div class="form-row">
-				<label for="attachment-file">[&gt;] File</label>
+				<label for="attachment-file">File</label>
 				<input
 					id="attachment-file"
 					type="file"
@@ -213,7 +213,7 @@
 		{/if}
 
 		<div class="form-row">
-			<label for="attachment-caption">[&gt;] Caption</label>
+			<label for="attachment-caption">Caption</label>
 			<input
 				id="attachment-caption"
 				type="text"

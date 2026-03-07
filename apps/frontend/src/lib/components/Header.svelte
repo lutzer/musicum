@@ -27,7 +27,7 @@
 </script>
 
 <header class="header">
-	<div class="logo">MUSICUM</div>
+	<a href="/" class="logo">MUSICUM</a>
 
 	<div class="search-container">
 		<span class="search-prefix">&gt;</span>

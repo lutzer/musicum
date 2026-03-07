@@ -1,82 +1,48 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { createTrack } from '$lib/api/tracks';
+	import { createCollection } from '$lib/api/collections';
 	import FormField from '$lib/components/forms/FormField.svelte';
 	import FormMessage from '$lib/components/forms/FormMessage.svelte';
 
-	let file = $state<File | null>(null);
-	let title = $state('');
+	let name = $state('');
 	let description = $state('');
-	let tags = $state('');
 	let isPublic = $state(false);
 	let error = $state('');
 	let isSubmitting = $state(false);
-
-	function handleFileSelect(event: Event) {
-		const target = event.target as HTMLInputElement;
-		const selectedFile = target.files?.[0];
-		if (selectedFile) {
-			file = selectedFile;
-			if (!title) {
-				title = selectedFile.name.replace(/\.[^/.]+$/, '');
-			}
-		}
-	}
 
 	async function handleSubmit(event: Event) {
 		event.preventDefault();
 		error = '';
 
-		if (!file) {
-			error = 'Please select an audio file';
-			return;
-		}
-
-		if (!title.trim()) {
-			error = 'Title is required';
+		if (!name.trim()) {
+			error = 'Name is required';
 			return;
 		}
 
 		isSubmitting = true;
 
 		try {
-			const track = await createTrack(file, {
-				title: title.trim(),
+			const collection = await createCollection({
+				name: name.trim(),
 				description: description.trim() || null,
-				tags: tags.trim() || null,
 				is_public: isPublic
 			});
-			goto(`/tracks/${track.slug}`);
+			goto(`/collections/${collection.id}`);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to create track';
+			error = err instanceof Error ? err.message : 'Failed to create collection';
 		} finally {
 			isSubmitting = false;
 		}
 	}
 </script>
 
-<div class="new-track-page">
-	<h1>New Track</h1>
+<div class="new-collection-page">
+	<h1>New Collection</h1>
 
-	<form onsubmit={handleSubmit} class="new-track-form">
+	<form onsubmit={handleSubmit} class="new-collection-form">
 		<FormMessage type="error" message={error} />
 
-		<div class="form-field">
-			<label for="file" class="form-label">Audio File</label>
-			<input
-				id="file"
-				name="file"
-				type="file"
-				accept="audio/*"
-				class="form-input"
-				onchange={handleFileSelect}
-			/>
-			{#if file}
-				<span class="file-info">{file.name}</span>
-			{/if}
-		</div>
-
-		<FormField label="Title" name="title" bind:value={title} required />
+		<FormField label="Name" name="name" bind:value={name} required />
 
 		<div class="form-field">
 			<label for="description" class="form-label">Description</label>
@@ -89,8 +55,6 @@
 			></textarea>
 		</div>
 
-		<FormField label="Tags" name="tags" bind:value={tags} />
-
 		<div class="form-field">
 			<label class="checkbox-label">
 				<button type="button" class="checkbox" onclick={() => (isPublic = !isPublic)}>
@@ -101,17 +65,17 @@
 		</div>
 
 		<button type="submit" class="submit-button" disabled={isSubmitting}>
-			{isSubmitting ? '[uploading...]' : '[upload]'}
+			{isSubmitting ? '[creating...]' : '[create]'}
 		</button>
 
 		<p class="form-footer">
-			<a href="/tracks">[&lt; back to tracks]</a>
+			<a href="/collections">[&lt; back to collections]</a>
 		</p>
 	</form>
 </div>
 
 <style>
-	.new-track-page {
+	.new-collection-page {
 		width: 100%;
 		max-width: 500px;
 	}
@@ -120,7 +84,7 @@
 		margin-bottom: var(--space-lg);
 	}
 
-	.new-track-form {
+	.new-collection-form {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-md);
@@ -141,10 +105,6 @@
 		font: inherit;
 		border: 1px solid;
 		background: none;
-	}
-
-	.file-info {
-		font-size: 0.9em;
 	}
 
 	.checkbox-label {

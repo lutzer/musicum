@@ -24,7 +24,7 @@
 
 <div class="page">
 	<div class="page-header">
-		<h1 class="page-title">&gt; Tracks</h1>
+		<h1 class="page-title">Tracks</h1>
 		<span class="page-count">[{tracks.length}]</span>
 		<a href="/tracks/new" class="page-action">[+ new]</a>
 	</div>

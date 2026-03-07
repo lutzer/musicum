@@ -26,3 +26,5 @@ export {
 	updateTrackPosition,
 	reorderTracks
 } from './collections';
+
+export { listUsers } from './users';

@@ -26,7 +26,8 @@
 	}
 
 	const navItems = [
-		{ href: '/', label: 'Collections', icon: '[C]' },
+		{ href: '/', label: 'Public', icon: '[P]' },
+		{ href: '/collections', label: 'Collections', icon: '[C]' },
 		{ href: '/tracks', label: 'Tracks', icon: '[T]' },
 		{ href: '/users', label: 'Users', icon: '[U]' }
 	];

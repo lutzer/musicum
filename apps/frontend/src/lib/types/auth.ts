@@ -29,3 +29,10 @@ export interface UserCreate {
 	email: string;
 	password: string;
 }
+
+export interface UserListResponse {
+	items: UserResponse[];
+	total: number;
+	page: number;
+	page_size: number;
+}

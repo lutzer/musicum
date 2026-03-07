@@ -189,7 +189,8 @@ def write_track_metadata(
                     "type": att.type.value,
                     "caption": att.caption,
                     "position": att.position,
-                    "original_filename": att.original_filename,
+                    "path": att.path,
+                    "content": att.content
                 }
             )
 

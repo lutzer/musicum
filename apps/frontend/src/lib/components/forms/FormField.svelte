@@ -24,7 +24,7 @@
 </script>
 
 <div class="form-field">
-	<label for={name} class="form-label">[&gt;] {label}</label>
+	<label for={name} class="form-label">{label}</label>
 	<input
 		id={name}
 		{name}

@@ -1,7 +1,7 @@
 export type { ApiError, PaginationParams } from './common';
 
 export { UserRole } from './auth';
-export type { UserResponse, Token, LoginRequest, UserCreate } from './auth';
+export type { UserResponse, Token, LoginRequest, UserCreate, UserListResponse } from './auth';
 
 export { AttachmentType } from './track';
 export type {

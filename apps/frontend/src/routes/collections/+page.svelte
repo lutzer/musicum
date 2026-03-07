@@ -1,17 +1,33 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { listCollections } from '$lib/api';
-	import type { CollectionResponse } from '$lib/types';
+	import { listCollections } from '$lib/api/collections';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import { UserRole, type CollectionResponse } from '$lib/types';
 	import CollectionCard from '$lib/components/CollectionCard.svelte';
 
 	let collections = $state<CollectionResponse[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
+	let isAdmin = $derived(authStore.user?.role === UserRole.ADMIN);
+
 	onMount(async () => {
 		try {
-			const response = await listCollections();
-			collections = response.items;
+			if (isAdmin) {
+				// Admin sees all collections
+				const response = await listCollections(undefined, { requireAuth: true });
+				collections = response.items;
+			} else if (authStore.user) {
+				// Regular user sees only their own collections
+				const response = await listCollections(
+					{ user_id: authStore.user.id },
+					{ requireAuth: true }
+				);
+				collections = response.items;
+			} else {
+				// Not logged in - show nothing
+				collections = [];
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load collections';
 		} finally {
@@ -22,18 +38,27 @@
 
 <div class="page">
 	<div class="page-header">
-		<h1 class="page-title">Public Collections</h1>
+		<h1 class="page-title">My Collections</h1>
 		<span class="page-count">[{collections.length}]</span>
+		{#if authStore.isAuthenticated}
+			<a href="/collections/new" class="page-action">[+ new]</a>
+		{/if}
 	</div>
 
-	{#if loading}
+	{#if !authStore.isAuthenticated}
+		<div class="empty">
+			<p>Please <a href="/login">[login]</a> to view your collections.</p>
+		</div>
+	{:else if loading}
 		<div class="loading">Loading...</div>
 	{:else if error}
 		<div class="error">Error: {error}</div>
 	{:else if collections.length === 0}
 		<div class="empty">
 			<p>No collections found.</p>
-			<p class="empty-hint">Create your first collection to get started.</p>
+			<p class="empty-hint">
+				<a href="/collections/new">[+ Create your first collection]</a>
+			</p>
 		</div>
 	{:else}
 		<div class="grid">
@@ -54,6 +79,10 @@
 
 	.page-title {
 		font-weight: normal;
+	}
+
+	.page-action {
+		margin-left: auto;
 	}
 
 	.grid {

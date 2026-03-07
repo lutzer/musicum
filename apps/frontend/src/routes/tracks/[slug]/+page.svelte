@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { getTrackBySlug } from '$lib/api/tracks';
 	import type { TrackDetailResponse } from '$lib/types';
+	import { AttachmentType } from '$lib/types';
 
 	let track = $state<TrackDetailResponse | null>(null);
 	let error = $state('');
@@ -57,7 +58,7 @@
 		<p><a href="/tracks">[&lt; back to tracks]</a></p>
 	{:else if track}
 		<header class="track-header">
-			<h1>&gt; {track.title}</h1>
+			<h1>{track.title}</h1>
 			<span class="badge" class:private={!track.is_public}>
 				{track.is_public ? 'public' : 'private'}
 			</span>
@@ -91,6 +92,51 @@
 				{#each track.tags.split(',') as tag}
 					<span class="tag">[{tag.trim()}]</span>
 				{/each}
+			</div>
+		{/if}
+
+		{#if track.attachments && track.attachments.length > 0}
+			<div class="attachments-section">
+				<h2>Attachments</h2>
+				<div class="attachments-list">
+					{#each track.attachments as attachment}
+						<div class="attachment-item">
+							{#if attachment.type === AttachmentType.NOTE}
+								<div class="note-content">
+									<span class="type-icon">[N] </span>
+									<span class="note-text">{attachment.content}</span>
+								</div>
+							{:else if attachment.type === AttachmentType.IMAGE}
+								<div class="media-content">
+									<span class="type-icon">[I] </span>
+									{#if attachment.processing_status === 'processing'}
+										<span class="processing">[processing...]</span>
+									{:else if attachment.file_url}
+										<img src="/api{attachment.file_url}" alt={attachment.caption || 'Attachment'} />
+									{:else}
+										<span class="no-file">[no file]</span>
+									{/if}
+								</div>
+							{:else if attachment.type === AttachmentType.VIDEO}
+								<div class="media-content">
+									<span class="type-icon">[V] </span>
+									{#if attachment.processing_status === 'processing'}
+										<span class="processing">[processing...]</span>
+									{:else if attachment.file_url}
+										<video controls src="/api{attachment.file_url}">
+											Your browser does not support the video element.
+										</video>
+									{:else}
+										<span class="no-file">[no file]</span>
+									{/if}
+								</div>
+							{/if}
+							{#if attachment.caption}
+								<div class="attachment-caption">{attachment.caption}</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
 			</div>
 		{/if}
 
@@ -165,5 +211,64 @@
 
 	.error {
 		color: inherit;
+	}
+
+	.attachments-section {
+		margin-bottom: var(--space-md);
+	}
+
+	.attachments-section h2 {
+		margin-bottom: var(--space-sm);
+	}
+
+	.attachments-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+
+	.attachment-item {
+		padding: var(--space-sm);
+		border: 1px solid;
+	}
+
+	.type-icon {
+		flex-shrink: 0;
+	}
+
+	.note-content {
+		display: flex;
+		gap: var(--space-sm);
+	}
+
+	.note-text {
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	.media-content {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+
+	.media-content img {
+		max-width: 100%;
+		max-height: 300px;
+		object-fit: contain;
+	}
+
+	.media-content video {
+		max-width: 100%;
+		max-height: 300px;
+	}
+
+	.processing {
+		opacity: 0.7;
+	}
+
+	.attachment-caption {
+		margin-top: var(--space-sm);
+		opacity: 0.8;
 	}
 </style>

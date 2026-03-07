@@ -24,10 +24,11 @@ function buildQueryString<T extends object>(params: T): string {
 }
 
 export async function listCollections(
-	params?: CollectionListParams
+	params?: CollectionListParams,
+	options?: { requireAuth?: boolean }
 ): Promise<CollectionListResponse> {
 	const query = params ? buildQueryString(params) : '';
-	return get<CollectionListResponse>(`/collections${query}`);
+	return get<CollectionListResponse>(`/collections${query}`, options);
 }
 
 export async function createCollection(data: CollectionCreate): Promise<CollectionResponse> {
