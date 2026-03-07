@@ -43,8 +43,8 @@
 		border: 1px solid;
 		padding: var(--space-md);
 		color: inherit;
-		width: 33%;
-		min-width: 250px;
+		width: 30%;
+   		min-width: 250px;
 		flex-grow: 1;
 	}
 
