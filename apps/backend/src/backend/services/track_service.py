@@ -13,14 +13,19 @@ from backend.schemas.track import (
 )
 
 
-def generate_unique_slug(db: Session, title: str) -> str:
+def generate_unique_slug(
+    db: Session, title: str, exclude_track_id: int | None = None
+) -> str:
     """Generate a unique slug from the title."""
     base_slug = slugify(title, max_length=200)
     if not base_slug:
         base_slug = "track"
 
     slug = base_slug
-    existing = db.query(Track).filter(Track.slug == slug).first()
+    query = db.query(Track).filter(Track.slug == slug)
+    if exclude_track_id is not None:
+        query = query.filter(Track.id != exclude_track_id)
+    existing = query.first()
     if existing:
         suffix = uuid.uuid4().hex[:4]
         slug = f"{base_slug}-{suffix}"
@@ -139,6 +144,13 @@ def update_track(db: Session, track: Track, track_data: TrackUpdate) -> Track:
     update_data = track_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(track, field, value)
+
+    # Regenerate slug if title changed
+    if "title" in update_data and update_data["title"]:
+        track.slug = generate_unique_slug(
+            db, update_data["title"], exclude_track_id=track.id
+        )
+
     db.commit()
     db.refresh(track)
     return track
@@ -161,7 +173,34 @@ def get_attachments(
     query = db.query(TrackAttachment).filter(TrackAttachment.track_id == track_id)
     if attachment_type is not None:
         query = query.filter(TrackAttachment.type == attachment_type)
-    return query.order_by(TrackAttachment.created_at.desc()).all()
+    return query.order_by(
+        TrackAttachment.position, TrackAttachment.created_at.desc()
+    ).all()
+
+
+def get_next_attachment_position(db: Session, track_id: int) -> int:
+    """Get the next position for a new attachment."""
+    max_position = (
+        db.query(TrackAttachment).filter(TrackAttachment.track_id == track_id).count()
+    )
+    return max_position
+
+
+def reorder_attachments(
+    db: Session, track_id: int, attachment_ids: list[int]
+) -> list[TrackAttachment]:
+    """Reorder attachments by setting their positions."""
+    attachments = (
+        db.query(TrackAttachment).filter(TrackAttachment.track_id == track_id).all()
+    )
+    attachment_map = {a.id: a for a in attachments}
+
+    for position, attachment_id in enumerate(attachment_ids):
+        if attachment_id in attachment_map:
+            attachment_map[attachment_id].position = position
+
+    db.commit()
+    return get_attachments(db, track_id)
 
 
 def create_attachment(
@@ -170,7 +209,9 @@ def create_attachment(
     attachment_data: AttachmentCreate,
     path: str | None = None,
     original_filename: str | None = None,
+    processing_status: str = "ready",
 ) -> TrackAttachment:
+    position = get_next_attachment_position(db, track_id)
     attachment = TrackAttachment(
         track_id=track_id,
         type=attachment_data.type,
@@ -178,6 +219,8 @@ def create_attachment(
         path=path,
         original_filename=original_filename,
         caption=attachment_data.caption,
+        position=position,
+        processing_status=processing_status,
     )
     db.add(attachment)
     db.commit()

@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import tempfile
 
@@ -208,6 +209,54 @@ class TestUpdateTrack:
         data = response.json()
         assert data["title"] == "Updated Title"
         assert data["tags"] == "updated,tags"
+
+    def test_update_track_title_updates_slug(
+        self, client: TestClient, public_track: Track, auth_headers: dict
+    ):
+        response = client.patch(
+            f"/tracks/{public_track.id}",
+            headers=auth_headers,
+            json={"title": "Brand New Title"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "Brand New Title"
+        assert data["slug"] == "brand-new-title"
+
+    def test_update_track_title_keeps_unique_slug(
+        self,
+        client: TestClient,
+        db_session: Session,
+        public_track: Track,
+        auth_headers: dict,
+    ):
+        # Create another track with a specific slug
+        other_track = Track(
+            slug="target-slug",
+            title="Target Slug",
+            source_path="/fake/path.mp3",
+            original_filename="test.mp3",
+            file_size=1024,
+            mime_type="audio/mpeg",
+            user_id=public_track.user_id,
+            is_public=True,
+            processing_status="ready",
+        )
+        db_session.add(other_track)
+        db_session.commit()
+
+        # Try to update public_track to have the same title
+        response = client.patch(
+            f"/tracks/{public_track.id}",
+            headers=auth_headers,
+            json={"title": "Target Slug"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "Target Slug"
+        # Slug should be unique, not "target-slug"
+        assert data["slug"] != "target-slug"
+        assert data["slug"].startswith("target-slug-")
 
     def test_update_track_other_user_forbidden(
         self, client: TestClient, public_track: Track, other_auth_headers: dict
@@ -451,7 +500,7 @@ class TestUpdateAttachment:
         data = response.json()
         assert data["content"] == "Updated note content"
 
-    def test_update_image_attachment_fails(
+    def test_update_image_caption(
         self,
         client: TestClient,
         db_session: Session,
@@ -471,8 +520,32 @@ class TestUpdateAttachment:
             headers=auth_headers,
             json={"caption": "New caption"},
         )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["caption"] == "New caption"
+
+    def test_update_image_content_fails(
+        self,
+        client: TestClient,
+        db_session: Session,
+        track_with_attachments: Track,
+        auth_headers: dict,
+    ):
+        image = (
+            db_session.query(TrackAttachment)
+            .filter(
+                TrackAttachment.track_id == track_with_attachments.id,
+                TrackAttachment.type == AttachmentType.IMAGE,
+            )
+            .first()
+        )
+        response = client.patch(
+            f"/tracks/{track_with_attachments.id}/attachments/{image.id}",
+            headers=auth_headers,
+            json={"content": "Some content"},
+        )
         assert response.status_code == 400
-        assert "Only note attachments" in response.json()["detail"]
+        assert "Content can only be updated" in response.json()["detail"]
 
     def test_update_attachment_requires_auth(
         self, client: TestClient, db_session: Session, track_with_attachments: Track
@@ -610,3 +683,603 @@ class TestDeleteAttachment:
             f"/tracks/{public_track.id}/attachments/99999", headers=auth_headers
         )
         assert response.status_code == 404
+
+
+class TestReorderAttachments:
+    def test_reorder_attachments(
+        self,
+        client: TestClient,
+        db_session: Session,
+        track_with_attachments: Track,
+        auth_headers: dict,
+    ):
+        attachments = (
+            db_session.query(TrackAttachment)
+            .filter(TrackAttachment.track_id == track_with_attachments.id)
+            .order_by(TrackAttachment.position)
+            .all()
+        )
+        original_order = [a.id for a in attachments]
+        reversed_order = list(reversed(original_order))
+
+        response = client.put(
+            f"/tracks/{track_with_attachments.id}/attachments/reorder",
+            headers=auth_headers,
+            json={"attachment_ids": reversed_order},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert [a["id"] for a in data] == reversed_order
+
+    def test_reorder_attachments_requires_auth(
+        self, client: TestClient, track_with_attachments: Track
+    ):
+        response = client.put(
+            f"/tracks/{track_with_attachments.id}/attachments/reorder",
+            json={"attachment_ids": [1, 2]},
+        )
+        assert response.status_code == 401
+
+    def test_reorder_attachments_other_user_forbidden(
+        self,
+        client: TestClient,
+        track_with_attachments: Track,
+        other_auth_headers: dict,
+    ):
+        response = client.put(
+            f"/tracks/{track_with_attachments.id}/attachments/reorder",
+            headers=other_auth_headers,
+            json={"attachment_ids": [1, 2]},
+        )
+        assert response.status_code == 403
+
+    def test_reorder_attachments_nonexistent_track(
+        self, client: TestClient, auth_headers: dict
+    ):
+        response = client.put(
+            "/tracks/99999/attachments/reorder",
+            headers=auth_headers,
+            json={"attachment_ids": [1, 2]},
+        )
+        assert response.status_code == 404
+
+
+class TestGetAttachmentFile:
+    def test_get_note_file_fails(
+        self,
+        client: TestClient,
+        db_session: Session,
+        track_with_attachments: Track,
+    ):
+        note = (
+            db_session.query(TrackAttachment)
+            .filter(
+                TrackAttachment.track_id == track_with_attachments.id,
+                TrackAttachment.type == AttachmentType.NOTE,
+            )
+            .first()
+        )
+        response = client.get(
+            f"/tracks/{track_with_attachments.id}/attachments/{note.id}/file"
+        )
+        assert response.status_code == 400
+        assert "Notes do not have files" in response.json()["detail"]
+
+    def test_get_attachment_file_nonexistent_track(self, client: TestClient):
+        response = client.get("/tracks/99999/attachments/1/file")
+        assert response.status_code == 404
+
+    def test_get_attachment_file_nonexistent_attachment(
+        self, client: TestClient, public_track: Track
+    ):
+        response = client.get(f"/tracks/{public_track.id}/attachments/99999/file")
+        assert response.status_code == 404
+
+    def test_get_attachment_file_private_track_anonymous(
+        self,
+        client: TestClient,
+        db_session: Session,
+        private_track: Track,
+    ):
+        attachment = TrackAttachment(
+            track_id=private_track.id,
+            type=AttachmentType.IMAGE,
+            path="/fake/path.jpg",
+            original_filename="test.jpg",
+            position=0,
+            processing_status="ready",
+        )
+        db_session.add(attachment)
+        db_session.commit()
+        db_session.refresh(attachment)
+
+        response = client.get(
+            f"/tracks/{private_track.id}/attachments/{attachment.id}/file"
+        )
+        assert response.status_code == 404
+
+
+class TestAttachmentPosition:
+    def test_attachment_has_position_in_response(
+        self, client: TestClient, track_with_attachments: Track
+    ):
+        response = client.get(f"/tracks/{track_with_attachments.id}/attachments")
+        assert response.status_code == 200
+        data = response.json()
+        for attachment in data:
+            assert "position" in attachment
+            assert isinstance(attachment["position"], int)
+
+    def test_attachment_has_file_url_for_image(
+        self, client: TestClient, track_with_attachments: Track
+    ):
+        response = client.get(f"/tracks/{track_with_attachments.id}/attachments")
+        assert response.status_code == 200
+        data = response.json()
+        image = next((a for a in data if a["type"] == "image"), None)
+        assert image is not None
+        assert image["file_url"] is not None
+        assert (
+            f"/tracks/{track_with_attachments.id}/attachments/{image['id']}/file"
+            in image["file_url"]
+        )
+
+    def test_attachment_has_no_file_url_for_note(
+        self, client: TestClient, track_with_attachments: Track
+    ):
+        response = client.get(f"/tracks/{track_with_attachments.id}/attachments")
+        assert response.status_code == 200
+        data = response.json()
+        note = next((a for a in data if a["type"] == "note"), None)
+        assert note is not None
+        assert note["file_url"] is None
+
+
+class TestAttachmentFileDeletion:
+    def test_delete_attachment_removes_original_file(
+        self,
+        client: TestClient,
+        db_session: Session,
+        public_track: Track,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create attachment file
+            attachment_path = os.path.join(temp_dir, "test_image.jpg")
+            with open(attachment_path, "wb") as f:
+                f.write(b"fake image data")
+
+            attachment = TrackAttachment(
+                track_id=public_track.id,
+                type=AttachmentType.IMAGE,
+                path=attachment_path,
+                original_filename="test_image.jpg",
+                position=0,
+                processing_status="ready",
+            )
+            db_session.add(attachment)
+            db_session.commit()
+            db_session.refresh(attachment)
+
+            assert os.path.exists(attachment_path)
+
+            response = client.delete(
+                f"/tracks/{public_track.id}/attachments/{attachment.id}",
+                headers=auth_headers,
+            )
+            assert response.status_code == 204
+            assert not os.path.exists(attachment_path)
+
+    def test_delete_attachment_removes_processed_file(
+        self,
+        client: TestClient,
+        db_session: Session,
+        public_track: Track,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create attachment files
+            original_path = os.path.join(temp_dir, "test_image.jpg")
+            processed_path = os.path.join(temp_dir, "test_image_processed.jpg")
+            with open(original_path, "wb") as f:
+                f.write(b"fake original image")
+            with open(processed_path, "wb") as f:
+                f.write(b"fake processed image")
+
+            attachment = TrackAttachment(
+                track_id=public_track.id,
+                type=AttachmentType.IMAGE,
+                path=original_path,
+                processed_path=processed_path,
+                original_filename="test_image.jpg",
+                position=0,
+                processing_status="ready",
+            )
+            db_session.add(attachment)
+            db_session.commit()
+            db_session.refresh(attachment)
+
+            assert os.path.exists(original_path)
+            assert os.path.exists(processed_path)
+
+            response = client.delete(
+                f"/tracks/{public_track.id}/attachments/{attachment.id}",
+                headers=auth_headers,
+            )
+            assert response.status_code == 204
+            assert not os.path.exists(original_path)
+            assert not os.path.exists(processed_path)
+
+
+class TestTrackFileDeletion:
+    def test_delete_track_removes_track_folder(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_user: User,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create track folder with source file
+            track_dir = os.path.join(temp_dir, "test-track")
+            os.makedirs(track_dir)
+            source_path = os.path.join(track_dir, "audio.mp3")
+            with open(source_path, "wb") as f:
+                f.write(b"fake audio data")
+
+            track = Track(
+                slug="test-track-delete",
+                title="Test Track Delete",
+                source_path=source_path,
+                original_filename="audio.mp3",
+                file_size=1024,
+                mime_type="audio/mpeg",
+                user_id=test_user.id,
+                is_public=True,
+                processing_status="ready",
+            )
+            db_session.add(track)
+            db_session.commit()
+            db_session.refresh(track)
+
+            assert os.path.exists(track_dir)
+
+            response = client.delete(f"/tracks/{track.id}", headers=auth_headers)
+            assert response.status_code == 204
+            assert not os.path.exists(track_dir)
+
+    def test_delete_track_removes_converted_file(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_user: User,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create track folder with source file
+            track_dir = os.path.join(temp_dir, "test-track")
+            os.makedirs(track_dir)
+            source_path = os.path.join(track_dir, "audio.mp3")
+            converted_path = os.path.join(temp_dir, "converted.mp3")
+            with open(source_path, "wb") as f:
+                f.write(b"fake audio data")
+            with open(converted_path, "wb") as f:
+                f.write(b"fake converted audio data")
+
+            track = Track(
+                slug="test-track-delete-converted",
+                title="Test Track Delete Converted",
+                source_path=source_path,
+                converted_path=converted_path,
+                original_filename="audio.mp3",
+                file_size=1024,
+                mime_type="audio/mpeg",
+                user_id=test_user.id,
+                is_public=True,
+                processing_status="ready",
+            )
+            db_session.add(track)
+            db_session.commit()
+            db_session.refresh(track)
+
+            assert os.path.exists(converted_path)
+
+            response = client.delete(f"/tracks/{track.id}", headers=auth_headers)
+            assert response.status_code == 204
+            assert not os.path.exists(converted_path)
+
+    def test_delete_track_removes_track_json(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_user: User,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create track folder with source file and track.json
+            track_dir = os.path.join(temp_dir, "test-track")
+            os.makedirs(track_dir)
+            source_path = os.path.join(track_dir, "audio.mp3")
+            track_json_path = os.path.join(track_dir, "track.json")
+            with open(source_path, "wb") as f:
+                f.write(b"fake audio data")
+            with open(track_json_path, "w") as f:
+                json.dump({"title": "Test"}, f)
+
+            track = Track(
+                slug="test-track-delete-json",
+                title="Test Track Delete JSON",
+                source_path=source_path,
+                original_filename="audio.mp3",
+                file_size=1024,
+                mime_type="audio/mpeg",
+                user_id=test_user.id,
+                is_public=True,
+                processing_status="ready",
+            )
+            db_session.add(track)
+            db_session.commit()
+            db_session.refresh(track)
+
+            assert os.path.exists(track_json_path)
+
+            response = client.delete(f"/tracks/{track.id}", headers=auth_headers)
+            assert response.status_code == 204
+            assert not os.path.exists(track_json_path)
+            assert not os.path.exists(track_dir)
+
+
+class TestTrackJsonSync:
+    def test_track_json_updated_on_track_edit(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_user: User,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create track folder with source file
+            track_dir = os.path.join(temp_dir, "test-track")
+            os.makedirs(track_dir)
+            source_path = os.path.join(track_dir, "audio.mp3")
+            with open(source_path, "wb") as f:
+                f.write(b"fake audio data")
+
+            track = Track(
+                slug="test-track-edit",
+                title="Original Title",
+                description="Original description",
+                source_path=source_path,
+                original_filename="audio.mp3",
+                file_size=1024,
+                mime_type="audio/mpeg",
+                user_id=test_user.id,
+                is_public=True,
+                processing_status="ready",
+            )
+            db_session.add(track)
+            db_session.commit()
+            db_session.refresh(track)
+
+            response = client.patch(
+                f"/tracks/{track.id}",
+                headers=auth_headers,
+                json={"title": "Updated Title", "description": "Updated description"},
+            )
+            assert response.status_code == 200
+
+            track_json_path = os.path.join(track_dir, "track.json")
+            assert os.path.exists(track_json_path)
+
+            with open(track_json_path) as f:
+                metadata = json.load(f)
+
+            assert metadata["title"] == "Updated Title"
+            assert metadata["description"] == "Updated description"
+
+    def test_track_json_updated_on_attachment_add(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_user: User,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create track folder with source file
+            track_dir = os.path.join(temp_dir, "test-track")
+            os.makedirs(track_dir)
+            source_path = os.path.join(track_dir, "audio.mp3")
+            with open(source_path, "wb") as f:
+                f.write(b"fake audio data")
+
+            track = Track(
+                slug="test-track-attach",
+                title="Track with Attachment",
+                source_path=source_path,
+                original_filename="audio.mp3",
+                file_size=1024,
+                mime_type="audio/mpeg",
+                user_id=test_user.id,
+                is_public=True,
+                processing_status="ready",
+            )
+            db_session.add(track)
+            db_session.commit()
+            db_session.refresh(track)
+
+            response = client.post(
+                f"/tracks/{track.id}/attachments",
+                headers=auth_headers,
+                data={
+                    "type": "note",
+                    "content": "Test note",
+                    "caption": "Note caption",
+                },
+            )
+            assert response.status_code == 201
+            attachment_data = response.json()
+
+            track_json_path = os.path.join(track_dir, "track.json")
+            assert os.path.exists(track_json_path)
+
+            with open(track_json_path) as f:
+                metadata = json.load(f)
+
+            assert "attachments" in metadata
+            assert len(metadata["attachments"]) == 1
+            assert metadata["attachments"][0]["id"] == attachment_data["id"]
+            assert metadata["attachments"][0]["type"] == "note"
+            assert metadata["attachments"][0]["caption"] == "Note caption"
+
+    def test_track_json_updated_on_attachment_delete(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_user: User,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create track folder with source file
+            track_dir = os.path.join(temp_dir, "test-track")
+            os.makedirs(track_dir)
+            source_path = os.path.join(track_dir, "audio.mp3")
+            with open(source_path, "wb") as f:
+                f.write(b"fake audio data")
+
+            track = Track(
+                slug="test-track-attach-del",
+                title="Track with Attachment Delete",
+                source_path=source_path,
+                original_filename="audio.mp3",
+                file_size=1024,
+                mime_type="audio/mpeg",
+                user_id=test_user.id,
+                is_public=True,
+                processing_status="ready",
+            )
+            db_session.add(track)
+            db_session.commit()
+            db_session.refresh(track)
+
+            # Add two attachments
+            attachment1 = TrackAttachment(
+                track_id=track.id,
+                type=AttachmentType.NOTE,
+                content="Note 1",
+                position=0,
+                processing_status="ready",
+            )
+            attachment2 = TrackAttachment(
+                track_id=track.id,
+                type=AttachmentType.NOTE,
+                content="Note 2",
+                position=1,
+                processing_status="ready",
+            )
+            db_session.add_all([attachment1, attachment2])
+            db_session.commit()
+            db_session.refresh(attachment1)
+            db_session.refresh(attachment2)
+
+            # Delete first attachment
+            response = client.delete(
+                f"/tracks/{track.id}/attachments/{attachment1.id}",
+                headers=auth_headers,
+            )
+            assert response.status_code == 204
+
+            track_json_path = os.path.join(track_dir, "track.json")
+            assert os.path.exists(track_json_path)
+
+            with open(track_json_path) as f:
+                metadata = json.load(f)
+
+            assert "attachments" in metadata
+            assert len(metadata["attachments"]) == 1
+            assert metadata["attachments"][0]["id"] == attachment2.id
+
+    def test_track_json_contains_attachments(
+        self,
+        client: TestClient,
+        db_session: Session,
+        test_user: User,
+        auth_headers: dict,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create track folder with source file
+            track_dir = os.path.join(temp_dir, "test-track")
+            os.makedirs(track_dir)
+            source_path = os.path.join(track_dir, "audio.mp3")
+            with open(source_path, "wb") as f:
+                f.write(b"fake audio data")
+
+            track = Track(
+                slug="test-track-attachments",
+                title="Track with Multiple Attachments",
+                source_path=source_path,
+                original_filename="audio.mp3",
+                file_size=1024,
+                mime_type="audio/mpeg",
+                user_id=test_user.id,
+                is_public=True,
+                processing_status="ready",
+            )
+            db_session.add(track)
+            db_session.commit()
+            db_session.refresh(track)
+
+            # Add multiple attachments
+            note = TrackAttachment(
+                track_id=track.id,
+                type=AttachmentType.NOTE,
+                content="Test note",
+                caption="Note caption",
+                position=0,
+                processing_status="ready",
+            )
+            image = TrackAttachment(
+                track_id=track.id,
+                type=AttachmentType.IMAGE,
+                path="/fake/path/image.jpg",
+                original_filename="image.jpg",
+                caption="Image caption",
+                position=1,
+                processing_status="ready",
+            )
+            db_session.add_all([note, image])
+            db_session.commit()
+            db_session.refresh(note)
+            db_session.refresh(image)
+
+            # Trigger track.json update by editing track
+            response = client.patch(
+                f"/tracks/{track.id}",
+                headers=auth_headers,
+                json={"description": "Updated"},
+            )
+            assert response.status_code == 200
+
+            track_json_path = os.path.join(track_dir, "track.json")
+            with open(track_json_path) as f:
+                metadata = json.load(f)
+
+            assert "attachments" in metadata
+            assert len(metadata["attachments"]) == 2
+
+            note_meta = next(
+                (a for a in metadata["attachments"] if a["type"] == "note"), None
+            )
+            image_meta = next(
+                (a for a in metadata["attachments"] if a["type"] == "image"), None
+            )
+
+            assert note_meta is not None
+            assert note_meta["id"] == note.id
+            assert note_meta["caption"] == "Note caption"
+            assert note_meta["position"] == 0
+
+            assert image_meta is not None
+            assert image_meta["id"] == image.id
+            assert image_meta["original_filename"] == "image.jpg"
+            assert image_meta["caption"] == "Image caption"
+            assert image_meta["position"] == 1

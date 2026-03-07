@@ -67,6 +67,9 @@ class TrackAttachment(Base):
     path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     caption: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    processed_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    processing_status: Mapped[str] = mapped_column(String(50), default="ready")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

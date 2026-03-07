@@ -96,6 +96,7 @@
 
 		<div class="track-actions">
 			<a href="/tracks">[&lt; back]</a>
+			<a href="/tracks/{track.slug}/edit">[edit]</a>
 		</div>
 	{/if}
 </div>

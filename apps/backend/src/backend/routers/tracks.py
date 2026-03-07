@@ -1,5 +1,7 @@
 import json
 import os
+import shutil
+import uuid
 from pathlib import Path
 
 from fastapi import (
@@ -26,6 +28,7 @@ from backend.schemas.track import (
     AttachmentCreate,
     AttachmentResponse,
     AttachmentUpdate,
+    ReorderAttachmentsRequest,
     TrackCreate,
     TrackDetailResponse,
     TrackListResponse,
@@ -33,6 +36,7 @@ from backend.schemas.track import (
     TrackUpdate,
 )
 from backend.services.audio_processor import process_track_background
+from backend.services.media_processor import process_attachment_background
 from backend.services.track_service import (
     create_attachment,
     create_track,
@@ -45,6 +49,7 @@ from backend.services.track_service import (
     get_track_by_slug,
     get_track_with_details,
     get_tracks,
+    reorder_attachments,
     update_attachment,
     update_track,
 )
@@ -116,8 +121,40 @@ def save_uploaded_file(file: UploadFile, upload_dir: str) -> tuple[str, str, int
     return file_path, filename, file_size
 
 
-def write_track_metadata(track_dir: str, track: Track, original_filename: str) -> None:
+def save_attachment_file(file: UploadFile, upload_dir: str) -> tuple[str, str, int]:
+    """Save attachment file with UUID filename, preserving original extension."""
+    Path(upload_dir).mkdir(parents=True, exist_ok=True)
+    original_filename = file.filename or "unnamed"
+    ext = Path(original_filename).suffix
+    uuid_filename = f"{uuid.uuid4()}{ext}"
+    file_path = os.path.join(upload_dir, uuid_filename)
+    content = file.file.read()
+    file_size = len(content)
+    with open(file_path, "wb") as f:
+        f.write(content)
+    return file_path, original_filename, file_size
+
+
+def write_track_metadata(
+    track_dir: str,
+    track: Track,
+    original_filename: str,
+    attachments: list[TrackAttachment] | None = None,
+) -> None:
     """Write track.json metadata file."""
+    attachments_data = []
+    if attachments:
+        for att in attachments:
+            attachments_data.append(
+                {
+                    "id": att.id,
+                    "type": att.type.value,
+                    "caption": att.caption,
+                    "position": att.position,
+                    "original_filename": att.original_filename,
+                }
+            )
+
     metadata = {
         "id": track.id,
         "slug": track.slug,
@@ -132,6 +169,7 @@ def write_track_metadata(track_dir: str, track: Track, original_filename: str) -
         "user_id": track.user_id,
         "created_at": track.created_at.isoformat() if track.created_at else None,
         "updated_at": track.updated_at.isoformat() if track.updated_at else None,
+        "attachments": attachments_data,
     }
     metadata_path = os.path.join(track_dir, "track.json")
     with open(metadata_path, "w") as f:
@@ -239,7 +277,17 @@ def update_track_endpoint(
             status_code=status.HTTP_404_NOT_FOUND, detail="Track not found"
         )
     check_track_permission(track, current_user, "update")
-    return update_track(db, track, track_data)
+    updated_track = update_track(db, track, track_data)
+
+    # Sync track.json
+    track_dir = os.path.dirname(updated_track.source_path)
+    if os.path.exists(track_dir):
+        attachments = get_attachments(db, track_id)
+        write_track_metadata(
+            track_dir, updated_track, updated_track.original_filename, attachments
+        )
+
+    return updated_track
 
 
 @router.delete("/{track_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -254,8 +302,16 @@ def delete_track_endpoint(
             status_code=status.HTTP_404_NOT_FOUND, detail="Track not found"
         )
     check_track_permission(track, current_user, "delete")
-    if os.path.exists(track.source_path):
-        os.remove(track.source_path)
+
+    # Delete converted file if exists
+    if track.converted_path and os.path.exists(track.converted_path):
+        os.remove(track.converted_path)
+
+    # Delete track folder (contains source file + track.json)
+    track_dir = os.path.dirname(track.source_path)
+    if os.path.exists(track_dir) and os.path.isdir(track_dir):
+        shutil.rmtree(track_dir)
+
     delete_track(db, track)
 
 
@@ -330,6 +386,7 @@ def list_attachments_endpoint(
 )
 def create_attachment_endpoint(
     track_id: int,
+    background_tasks: BackgroundTasks,
     type: AttachmentType = Form(...),
     content: str | None = Form(None),
     caption: str | None = Form(None),
@@ -346,6 +403,8 @@ def create_attachment_endpoint(
 
     path = None
     original_filename = None
+    processing_status = "ready"
+    needs_processing = False
 
     if type == AttachmentType.NOTE:
         if not content:
@@ -365,9 +424,11 @@ def create_attachment_endpoint(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid file type. Allowed types: {allowed}",
             )
-        path, original_filename, _ = save_uploaded_file(
+        path, original_filename, _ = save_attachment_file(
             file, settings.UPLOAD_DIR_ATTACHMENTS
         )
+        processing_status = "processing"
+        needs_processing = True
     elif type == AttachmentType.VIDEO:
         if not file:
             raise HTTPException(
@@ -380,14 +441,44 @@ def create_attachment_endpoint(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid file type. Allowed types: {allowed}",
             )
-        path, original_filename, _ = save_uploaded_file(
+        path, original_filename, _ = save_attachment_file(
             file, settings.UPLOAD_DIR_ATTACHMENTS
         )
+        processing_status = "processing"
+        needs_processing = True
 
     attachment_data = AttachmentCreate(type=type, content=content, caption=caption)
-    return create_attachment(
-        db, track_id, attachment_data, path=path, original_filename=original_filename
+    attachment = create_attachment(
+        db,
+        track_id,
+        attachment_data,
+        path=path,
+        original_filename=original_filename,
+        processing_status=processing_status,
     )
+
+    if needs_processing and path:
+        processed_dir = os.path.join(settings.UPLOAD_DIR_ATTACHMENTS, "processed")
+        if type == AttachmentType.IMAGE:
+            processed_path = os.path.join(processed_dir, f"{attachment.id}.jpg")
+        else:
+            processed_path = os.path.join(processed_dir, f"{attachment.id}.mp4")
+
+        background_tasks.add_task(
+            process_attachment_background,
+            attachment_id=attachment.id,
+            input_path=path,
+            output_path=processed_path,
+            attachment_type=type.value,
+        )
+
+    # Sync track.json
+    track_dir = os.path.dirname(track.source_path)
+    if os.path.exists(track_dir):
+        attachments = get_attachments(db, track_id)
+        write_track_metadata(track_dir, track, track.original_filename, attachments)
+
+    return attachment
 
 
 @router.patch(
@@ -413,10 +504,10 @@ def update_attachment_endpoint(
             status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found"
         )
 
-    if attachment.type != AttachmentType.NOTE:
+    if attachment.type != AttachmentType.NOTE and attachment_data.content is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only note attachments can be updated",
+            detail="Content can only be updated for note attachments",
         )
 
     return update_attachment(db, attachment, attachment_data)
@@ -446,5 +537,85 @@ def delete_attachment_endpoint(
 
     if attachment.path and os.path.exists(attachment.path):
         os.remove(attachment.path)
+    if attachment.processed_path and os.path.exists(attachment.processed_path):
+        os.remove(attachment.processed_path)
 
     delete_attachment(db, attachment)
+
+    # Sync track.json
+    track_dir = os.path.dirname(track.source_path)
+    if os.path.exists(track_dir):
+        attachments = get_attachments(db, track_id)
+        write_track_metadata(track_dir, track, track.original_filename, attachments)
+
+
+@router.get("/{track_id}/attachments/{attachment_id}/file")
+def get_attachment_file_endpoint(
+    track_id: int,
+    attachment_id: int,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    track = get_track_by_id(db, track_id)
+    if not track:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Track not found"
+        )
+    check_track_visibility(track, current_user)
+
+    attachment = get_attachment_by_id(db, attachment_id)
+    if not attachment or attachment.track_id != track_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found"
+        )
+
+    if attachment.type == AttachmentType.NOTE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Notes do not have files",
+        )
+
+    if attachment.processing_status == "ready" and attachment.processed_path:
+        if os.path.exists(attachment.processed_path):
+            media_type = (
+                "image/jpeg" if attachment.type == AttachmentType.IMAGE else "video/mp4"
+            )
+            ext = "jpg" if attachment.type == AttachmentType.IMAGE else "mp4"
+            return FileResponse(
+                attachment.processed_path,
+                media_type=media_type,
+                filename=f"{attachment.id}.{ext}",
+            )
+
+    if attachment.path and os.path.exists(attachment.path):
+        media_type = "application/octet-stream"
+        if attachment.type == AttachmentType.IMAGE:
+            media_type = "image/jpeg"
+        elif attachment.type == AttachmentType.VIDEO:
+            media_type = "video/mp4"
+        return FileResponse(
+            attachment.path,
+            media_type=media_type,
+            filename=attachment.original_filename or f"attachment_{attachment.id}",
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Attachment file not found"
+    )
+
+
+@router.put("/{track_id}/attachments/reorder", response_model=list[AttachmentResponse])
+def reorder_attachments_endpoint(
+    track_id: int,
+    request: ReorderAttachmentsRequest,
+    current_user: User = Depends(get_required_current_user),
+    db: Session = Depends(get_db),
+) -> list[TrackAttachment]:
+    track = get_track_by_id(db, track_id)
+    if not track:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Track not found"
+        )
+    check_track_permission(track, current_user, "modify")
+
+    return reorder_attachments(db, track_id, request.attachment_ids)

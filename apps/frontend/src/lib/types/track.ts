@@ -31,6 +31,10 @@ export interface AttachmentResponse {
 	path: string | null;
 	original_filename: string | null;
 	caption: string | null;
+	position: number;
+	processed_path: string | null;
+	processing_status: string;
+	file_url: string | null;
 	created_at: string;
 	updated_at: string;
 }

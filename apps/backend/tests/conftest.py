@@ -175,6 +175,8 @@ def track_with_attachments(db_session: Session, test_user: User) -> Track:
         type=AttachmentType.NOTE,
         content="This is a note about the track.",
         caption=None,
+        position=0,
+        processing_status="ready",
     )
     image = TrackAttachment(
         track_id=track.id,
@@ -182,6 +184,8 @@ def track_with_attachments(db_session: Session, test_user: User) -> Track:
         path="/fake/path/image.jpg",
         original_filename="image.jpg",
         caption="Album cover",
+        position=1,
+        processing_status="ready",
     )
     db_session.add_all([note, image])
     db_session.commit()

@@ -54,8 +54,18 @@ class AttachmentResponse(BaseModel):
     path: str | None
     original_filename: str | None
     caption: str | None
+    position: int
+    processed_path: str | None
+    processing_status: str
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def file_url(self) -> str | None:
+        if self.type.value == "note":
+            return None
+        return f"/tracks/{self.track_id}/attachments/{self.id}/file"
 
 
 class TrackDetailResponse(TrackResponse):
@@ -78,3 +88,7 @@ class AttachmentCreate(BaseModel):
 class AttachmentUpdate(BaseModel):
     content: str | None = None
     caption: str | None = Field(None, max_length=500)
+
+
+class ReorderAttachmentsRequest(BaseModel):
+    attachment_ids: list[int]

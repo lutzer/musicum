@@ -10,7 +10,7 @@ import type {
 	TrackListParams
 } from '$lib/types';
 import { AttachmentType } from '$lib/types';
-import { get, patch, del, postFormData } from './client';
+import { get, patch, put, del, postFormData } from './client';
 
 function buildQueryString<T extends object>(params: T): string {
 	const searchParams = new URLSearchParams();
@@ -101,4 +101,15 @@ export async function updateAttachment(
 
 export async function deleteAttachment(trackId: number, attachmentId: number): Promise<void> {
 	return del<void>(`/tracks/${trackId}/attachments/${attachmentId}`, { requireAuth: true });
+}
+
+export async function reorderAttachments(
+	trackId: number,
+	attachmentIds: number[]
+): Promise<AttachmentResponse[]> {
+	return put<AttachmentResponse[]>(
+		`/tracks/${trackId}/attachments/reorder`,
+		{ attachment_ids: attachmentIds },
+		{ requireAuth: true }
+	);
 }
