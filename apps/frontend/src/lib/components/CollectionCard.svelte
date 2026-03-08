@@ -17,7 +17,7 @@
 	}
 </script>
 
-<a href="/collection/{collection.slug}" class="card">
+<a href="/collections/{collection.slug}" class="card">
 	<div class="card-header">
 		<span class="card-icon">[*]</span>
 		<h3 class="card-title">{collection.title}</h3>

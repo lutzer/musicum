@@ -45,7 +45,7 @@
 
 <div class="page">
 	<div class="page-header">
-		<h1 class="page-title">Public Tracks</h1>
+		<h1 class="page-title">Tracks</h1>
 		<span class="page-count">[{filteredTracks().length}]</span>
 		<a href="/" class="page-toggle">[view collections]</a>
 		{#if authStore.isAuthenticated}

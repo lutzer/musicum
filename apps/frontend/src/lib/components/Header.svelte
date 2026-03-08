@@ -62,6 +62,8 @@
 		gap: var(--space-lg);
 		border-bottom: 1px solid;
 		justify-content: space-between;
+		height: var(--header-height);
+		box-sizing: border-box;
 	}
 
 	.logo {
