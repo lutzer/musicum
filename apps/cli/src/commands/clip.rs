@@ -13,13 +13,13 @@ use crate::output::{DetailItem::{Field, Section}, print_detail, print_json, prin
 use super::processor_list_editor::{run as run_editor, SaveFn};
 
 #[derive(Debug, Args)]
-pub struct ClipsArgs {
+pub struct ClipArgs {
     #[command(subcommand)]
-    pub command: ClipsCommand,
+    pub command: ClipCommand,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum ClipsCommand {
+pub enum ClipCommand {
     /// List clips — all clips, or only for a specific file if FILE_SLUG is given
     List {
         file_slug: Option<String>,
@@ -61,9 +61,9 @@ pub enum ClipsCommand {
     },
 }
 
-pub async fn run(db: &DatabaseConnection, args: ClipsArgs) -> Result<()> {
+pub async fn run(db: &DatabaseConnection, args: ClipArgs) -> Result<()> {
     match args.command {
-        ClipsCommand::List { file_slug, json } => {
+        ClipCommand::List { file_slug, json } => {
             if let Some(slug) = file_slug {
                 let file = file_service::get_file_by_slug(db, &slug).await?;
                 let clips = clip_service::list_clips_for_file(db, &file.id).await?;
@@ -101,7 +101,7 @@ pub async fn run(db: &DatabaseConnection, args: ClipsArgs) -> Result<()> {
                 }
             }
         }
-        ClipsCommand::Show { slug, json } => {
+        ClipCommand::Show { slug, json } => {
             let clip = clip_service::get_clip_by_slug(db, &slug).await?;
             let file = file_service::get_file_by_id(db, &clip.file_id).await?;
 
@@ -159,7 +159,7 @@ pub async fn run(db: &DatabaseConnection, args: ClipsArgs) -> Result<()> {
                 }
             }
         }
-        ClipsCommand::Create { file_slug, title } => {
+        ClipCommand::Create { file_slug, title } => {
             let title = title.unwrap_or_else(|| file_slug.clone());
             let clip = clip_service::create_clip(db, &file_slug, &title).await?;
             print_result("Created clip", &[
@@ -168,7 +168,7 @@ pub async fn run(db: &DatabaseConnection, args: ClipsArgs) -> Result<()> {
             ]);
         }
 
-        ClipsCommand::ApplyPreset { clip_slug, preset_slug } => {
+        ClipCommand::ApplyPreset { clip_slug, preset_slug } => {
             let preset = preset_service::get_preset_by_slug(db, &preset_slug).await?;
             let source_processors = deserialize_processor_edits(&preset.processors);
             // Re-assign new UUIDs so each clip application is independent
@@ -185,14 +185,14 @@ pub async fn run(db: &DatabaseConnection, args: ClipsArgs) -> Result<()> {
             ]);
         }
 
-        ClipsCommand::ClearProcessors { clip_slug } => {
+        ClipCommand::ClearProcessors { clip_slug } => {
             clip_service::update_clip_processors(db, &clip_slug, vec![]).await?;
             print_result("Cleared processors", &[
                 Field("clip", clip_slug.clone()),
             ]);
         }
 
-        ClipsCommand::Edit { slug } => {
+        ClipCommand::Edit { slug } => {
             let clip = clip_service::get_clip_by_slug(db, &slug).await?;
             let processors = deserialize_processor_edits(&clip.processors);
             let title = format!("Clip: {slug}");
@@ -208,11 +208,11 @@ pub async fn run(db: &DatabaseConnection, args: ClipsArgs) -> Result<()> {
 
             run_editor(&title, processors, save).await?;
         }
-        ClipsCommand::SetNotes { slug, notes } => {
+        ClipCommand::SetNotes { slug, notes } => {
             clip_service::set_clip_notes(db, &slug, &notes).await?;
             print_result("Set notes", &[Field("clip", slug.clone())]);
         }
-        ClipsCommand::Delete { slug } => {
+        ClipCommand::Delete { slug } => {
             clip_service::delete_clip(db, &slug).await?;
             print_result("Deleted clip", &[Field("slug", slug.clone())]);
         }

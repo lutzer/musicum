@@ -20,13 +20,13 @@ fn subfolder_of(file_path: &str, files_dir: &std::path::Path) -> String {
 }
 
 #[derive(Debug, Args)]
-pub struct FilesArgs {
+pub struct FileArgs {
     #[command(subcommand)]
-    pub command: FilesCommand,
+    pub command: FileCommand,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum FilesCommand {
+pub enum FileCommand {
     /// List all files in the library
     List {
         #[arg(long)]
@@ -57,9 +57,9 @@ pub enum FilesCommand {
     },
 }
 
-pub async fn run(db: &DatabaseConnection, args: FilesArgs) -> Result<()> {
+pub async fn run(db: &DatabaseConnection, args: FileArgs) -> Result<()> {
     match args.command {
-        FilesCommand::List { json } => {
+        FileCommand::List { json } => {
             let files = file_service::list_files(db).await?;
             if json {
                 print_json(&files);
@@ -81,7 +81,7 @@ pub async fn run(db: &DatabaseConnection, args: FilesArgs) -> Result<()> {
                 );
             }
         }
-        FilesCommand::Show { slug, json } => {
+        FileCommand::Show { slug, json } => {
             let file = file_service::get_file_by_slug(db, &slug).await?;
             let meta = file_service::get_file_metadata(db, &file.id).await?;
             let clips = clip_service::list_clips_for_file(db, &file.id).await?;
@@ -129,15 +129,15 @@ pub async fn run(db: &DatabaseConnection, args: FilesArgs) -> Result<()> {
                 }
             }
         }
-        FilesCommand::SetNotes { slug, notes } => {
+        FileCommand::SetNotes { slug, notes } => {
             file_service::set_file_notes(db, &slug, &notes).await?;
             print_result("Set notes", &[Field("file", slug.clone())]);
         }
-        FilesCommand::SetTags { slug, tags } => {
+        FileCommand::SetTags { slug, tags } => {
             file_service::set_file_tags(db, &slug, &tags).await?;
             print_result("Set tags", &[Field("file", slug.clone())]);
         }
-        FilesCommand::Delete { slug, delete_audio } => {
+        FileCommand::Delete { slug, delete_audio } => {
             let clip_count = file_service::delete_file(db, &slug, delete_audio).await?;
             print_result("Deleted file", &[
                 Field("slug", slug.clone()),

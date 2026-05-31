@@ -1,11 +1,11 @@
-pub mod clips;
+pub mod clip;
 pub mod completions;
-pub mod collections;
+pub mod collection;
 pub mod export;
-pub mod files;
+pub mod file;
 pub mod play;
 pub mod processor_list_editor;
-pub mod presets;
+pub mod preset;
 pub mod presets_editor;
-pub mod processors;
+pub mod processor;
 pub mod sync;

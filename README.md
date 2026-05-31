@@ -30,40 +30,40 @@ Settings are read from `~/.config/com.musicum.app/settings.json`.
 |---------|-------------|
 | `musicum config` | Print settings file path and resolved library paths |
 | `musicum sync` | Walk the library directory and sync DB + sidecars |
-| **files** | |
-| `musicum files list [--json]` | List all files in the library |
-| `musicum files show <slug> [--json]` | Show file detail including clips |
-| `musicum files set-notes <slug> <notes>` | Set notes on a file |
-| `musicum files set-tags <slug> <tags>` | Set tags on a file (comma-separated) |
-| `musicum files delete <slug> [--delete-audio]` | Remove file from DB (optionally delete audio) |
-| **clips** | |
-| `musicum clips list [<file-slug>] [--json]` | List all clips, or only clips for a file |
-| `musicum clips show <slug> [--json]` | Show clip detail including processor chain |
-| `musicum clips create <file-slug>` | Create a new clip for a file |
-| `musicum clips edit <slug>` | Interactively edit a clip's processor chain |
-| `musicum clips apply-preset <clip-slug> <preset-slug>` | Apply a preset's processor chain to a clip |
-| `musicum clips clear-processors <clip-slug>` | Remove all processors from a clip |
-| `musicum clips set-notes <slug> <notes>` | Set notes on a clip |
-| `musicum clips delete <slug>` | Delete a clip |
-| **collections** | |
-| `musicum collections list [--json]` | List all collections |
-| `musicum collections show <slug> [--json]` | Show collection detail including clips |
-| `musicum collections create <title>` | Create a new collection |
-| `musicum collections set-description <slug> <description>` | Set collection description |
-| `musicum collections add-clip <collection-slug> <clip-slug>` | Add a clip to a collection |
-| `musicum collections remove-clip <collection-slug> <clip-slug>` | Remove a clip from a collection |
-| `musicum collections delete <slug>` | Delete a collection |
-| **presets** | |
-| `musicum presets list [--json]` | List all presets |
-| `musicum presets show <slug> [--json]` | Show preset detail including processor chain |
-| `musicum presets create --title <title>` | Create a new preset |
-| `musicum presets edit <slug>` | Interactively edit processor parameters |
-| `musicum presets add-processor <preset-slug> <processor-type>` | Add a processor to a preset |
-| `musicum presets remove-processor <preset-slug> <instance-uuid>` | Remove a processor from a preset |
-| `musicum presets set-param <preset-slug> <instance-uuid> <key> <value>` | Set a processor parameter |
-| `musicum presets delete <slug>` | Delete a preset |
-| **processors** | |
-| `musicum processors list` | List available structural processors |
+| **file** | |
+| `musicum file list [--json]` | List all files in the library |
+| `musicum file show <slug> [--json]` | Show file detail including clips |
+| `musicum file set-notes <slug> <notes>` | Set notes on a file |
+| `musicum file set-tags <slug> <tags>` | Set tags on a file (comma-separated) |
+| `musicum file delete <slug> [--delete-audio]` | Remove file from DB (optionally delete audio) |
+| **clip** | |
+| `musicum clip list [<file-slug>] [--json]` | List all clips, or only clips for a file |
+| `musicum clip show <slug> [--json]` | Show clip detail including processor chain |
+| `musicum clip create <file-slug>` | Create a new clip for a file |
+| `musicum clip edit <slug>` | Interactively edit a clip's processor chain |
+| `musicum clip apply-preset <clip-slug> <preset-slug>` | Apply a preset's processor chain to a clip |
+| `musicum clip clear-processors <clip-slug>` | Remove all processors from a clip |
+| `musicum clip set-notes <slug> <notes>` | Set notes on a clip |
+| `musicum clip delete <slug>` | Delete a clip |
+| **collection** | |
+| `musicum collection list [--json]` | List all collections |
+| `musicum collection show <slug> [--json]` | Show collection detail including clips |
+| `musicum collection create <title>` | Create a new collection |
+| `musicum collection set-description <slug> <description>` | Set collection description |
+| `musicum collection add-clip <collection-slug> <clip-slug>` | Add a clip to a collection |
+| `musicum collection remove-clip <collection-slug> <clip-slug>` | Remove a clip from a collection |
+| `musicum collection delete <slug>` | Delete a collection |
+| **preset** | |
+| `musicum preset list [--json]` | List all presets |
+| `musicum preset show <slug> [--json]` | Show preset detail including processor chain |
+| `musicum preset create --title <title>` | Create a new preset |
+| `musicum preset edit <slug>` | Interactively edit processor parameters |
+| `musicum preset add-processor <preset-slug> <processor-type>` | Add a processor to a preset |
+| `musicum preset remove-processor <preset-slug> <instance-uuid>` | Remove a processor from a preset |
+| `musicum preset set-param <preset-slug> <instance-uuid> <key> <value>` | Set a processor parameter |
+| `musicum preset delete <slug>` | Delete a preset |
+| **processor** | |
+| `musicum processor list` | List available structural processors |
 | **play / export** | |
 | `musicum play [<slug>] [--file\|--clip] [--collection <slug>] [--loop]` | Play a file, clip, or collection |
 | `musicum export <slug> <output> [--file\|--clip] [--samplerate N] [--channels N] [--bitrate N]` | Export to audio file |

@@ -5,13 +5,13 @@ use serde::Serialize;
 use crate::output::{print_json, print_table};
 
 #[derive(Debug, Args)]
-pub struct ProcessorsArgs {
+pub struct ProcessorArgs {
     #[command(subcommand)]
-    pub command: ProcessorsCommand,
+    pub command: ProcessorCommand,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum ProcessorsCommand {
+pub enum ProcessorCommand {
     List {
         #[arg(long)]
         json: bool,
@@ -27,9 +27,9 @@ struct ProcessorListEntry {
     parameters: Vec<String>,
 }
 
-pub fn run(args: ProcessorsArgs) {
+pub fn run(args: ProcessorArgs) {
     match args.command {
-        ProcessorsCommand::List { json } => {
+        ProcessorCommand::List { json } => {
             let registry = EditRegistry::default();
             let mut entries: Vec<ProcessorListEntry> = registry
                 .list_entries()

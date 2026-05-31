@@ -7,13 +7,13 @@ use crate::output::{DetailItem::Field, print_detail, print_json, print_result,
                     print_section_header, print_table};
 
 #[derive(Debug, Args)]
-pub struct CollectionsArgs {
+pub struct CollectionArgs {
     #[command(subcommand)]
-    pub command: CollectionsCommand,
+    pub command: CollectionCommand,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum CollectionsCommand {
+pub enum CollectionCommand {
     /// Create a new collection
     Create {
         title: String,
@@ -54,9 +54,9 @@ pub enum CollectionsCommand {
     },
 }
 
-pub async fn run(db: &DatabaseConnection, args: CollectionsArgs) -> Result<()> {
+pub async fn run(db: &DatabaseConnection, args: CollectionArgs) -> Result<()> {
     match args.command {
-        CollectionsCommand::Create { title, description } => {
+        CollectionCommand::Create { title, description } => {
             let desc = description.unwrap_or_default();
             let col = collection_service::create_collection(db, &title, &desc).await?;
             print_result("Created collection", &[
@@ -65,17 +65,17 @@ pub async fn run(db: &DatabaseConnection, args: CollectionsArgs) -> Result<()> {
             ]);
         }
 
-        CollectionsCommand::SetDescription { slug, description } => {
+        CollectionCommand::SetDescription { slug, description } => {
             collection_service::set_collection_description(db, &slug, &description).await?;
             print_result("Updated collection", &[Field("slug", slug)]);
         }
 
-        CollectionsCommand::Delete { slug } => {
+        CollectionCommand::Delete { slug } => {
             collection_service::delete_collection(db, &slug).await?;
             print_result("Deleted collection", &[Field("slug", slug)]);
         }
 
-        CollectionsCommand::AddClip { collection_slug, clip_slug, position } => {
+        CollectionCommand::AddClip { collection_slug, clip_slug, position } => {
             let row = collection_service::add_clip_to_collection(
                 db, &collection_slug, &clip_slug, position,
             )
@@ -87,7 +87,7 @@ pub async fn run(db: &DatabaseConnection, args: CollectionsArgs) -> Result<()> {
             ]);
         }
 
-        CollectionsCommand::RemoveClip { collection_slug, clip_slug } => {
+        CollectionCommand::RemoveClip { collection_slug, clip_slug } => {
             collection_service::remove_clip_from_collection(db, &collection_slug, &clip_slug)
                 .await?;
             print_result("Removed clip", &[
@@ -96,7 +96,7 @@ pub async fn run(db: &DatabaseConnection, args: CollectionsArgs) -> Result<()> {
             ]);
         }
 
-        CollectionsCommand::List { json } => {
+        CollectionCommand::List { json } => {
             let cols = collection_service::list_collections(db).await?;
             if json {
                 print_json(&cols);
@@ -111,7 +111,7 @@ pub async fn run(db: &DatabaseConnection, args: CollectionsArgs) -> Result<()> {
             }
         }
 
-        CollectionsCommand::Show { slug, json } => {
+        CollectionCommand::Show { slug, json } => {
             let (col, clips) =
                 collection_service::get_collection_with_clips(db, &slug).await?;
 

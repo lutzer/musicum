@@ -13,13 +13,13 @@ use uuid::Uuid;
 use crate::output::{DetailItem::Field, print_detail, print_json, print_result, print_section_header, print_table};
 
 #[derive(Debug, Args)]
-pub struct PresetsArgs {
+pub struct PresetArgs {
     #[command(subcommand)]
-    pub command: PresetsCommand,
+    pub command: PresetCommand,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum PresetsCommand {
+pub enum PresetCommand {
     List {
         #[arg(long)]
         json: bool,
@@ -59,9 +59,9 @@ pub enum PresetsCommand {
     },
 }
 
-pub async fn run(db: &DatabaseConnection, args: PresetsArgs) -> Result<()> {
+pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
     match args.command {
-        PresetsCommand::List { json } => {
+        PresetCommand::List { json } => {
             let presets = preset_service::list_presets(db).await?;
             if json {
                 print_json(&presets);
@@ -76,7 +76,7 @@ pub async fn run(db: &DatabaseConnection, args: PresetsArgs) -> Result<()> {
             }
         }
 
-        PresetsCommand::Show { slug, json } => {
+        PresetCommand::Show { slug, json } => {
             let preset = preset_service::get_preset_by_slug(db, &slug).await?;
             if json {
                 print_json(&preset);
@@ -120,7 +120,7 @@ pub async fn run(db: &DatabaseConnection, args: PresetsArgs) -> Result<()> {
             }
         }
 
-        PresetsCommand::Create { title, description } => {
+        PresetCommand::Create { title, description } => {
             let slug = slugify(&title);
             preset_service::create_preset(db, &slug, &title, &description).await?;
             print_result("Created preset", &[
@@ -131,12 +131,12 @@ pub async fn run(db: &DatabaseConnection, args: PresetsArgs) -> Result<()> {
             ]);
         }
 
-        PresetsCommand::Delete { slug } => {
+        PresetCommand::Delete { slug } => {
             preset_service::delete_preset(db, &slug).await?;
             print_result(&format!("Deleted preset '{slug}'"), &[]);
         }
 
-        PresetsCommand::AddProcessor { preset_slug, processor_type } => {
+        PresetCommand::AddProcessor { preset_slug, processor_type } => {
             let reg = EditRegistry::default();
             let all_entries = reg.list_entries();
             let structural: Vec<_> = all_entries.iter()
@@ -185,11 +185,11 @@ pub async fn run(db: &DatabaseConnection, args: PresetsArgs) -> Result<()> {
             ]);
         }
 
-        PresetsCommand::Edit { slug } => {
+        PresetCommand::Edit { slug } => {
             super::presets_editor::run_editor(db, &slug).await?;
         }
 
-        PresetsCommand::SetParam { preset_slug, instance_uuid, key, value } => {
+        PresetCommand::SetParam { preset_slug, instance_uuid, key, value } => {
             let parsed = parse_param_value(&value);
             preset_service::set_processor_param(db, &preset_slug, &instance_uuid, &key, parsed).await?;
             print_result("Set parameter", &[
@@ -200,7 +200,7 @@ pub async fn run(db: &DatabaseConnection, args: PresetsArgs) -> Result<()> {
             ]);
         }
 
-        PresetsCommand::RemoveProcessor { preset_slug, instance_uuid } => {
+        PresetCommand::RemoveProcessor { preset_slug, instance_uuid } => {
             let preset = preset_service::get_preset_by_slug(db, &preset_slug).await?;
             let mut processors = deserialize_processor_edits(&preset.processors);
             let original_len = processors.len();

@@ -32,15 +32,15 @@ enum Commands {
         rebuild_sidecars: bool,
     },
     /// File operations
-    Files(commands::files::FilesArgs),
+    File(commands::file::FileArgs),
     /// Clip operations
-    Clips(commands::clips::ClipsArgs),
+    Clip(commands::clip::ClipArgs),
     /// Collection operations
-    Collections(commands::collections::CollectionsArgs),
+    Collection(commands::collection::CollectionArgs),
     /// Preset operations
-    Presets(commands::presets::PresetsArgs),
+    Preset(commands::preset::PresetArgs),
     /// List registered structural processors
-    Processors(commands::processors::ProcessorsArgs),
+    Processor(commands::processor::ProcessorArgs),
     /// Play a file or clip (slug or file path)
     Play {
         /// Slug or file path to play; also resolves collection slugs automatically
@@ -101,11 +101,11 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Sync { force, rebuild_sidecars } =>
             commands::sync::run(&db, force, rebuild_sidecars).await?,
-        Commands::Files(args)       => commands::files::run(&db, args).await?,
-        Commands::Clips(args)       => commands::clips::run(&db, args).await?,
-        Commands::Collections(args) => commands::collections::run(&db, args).await?,
-        Commands::Presets(args)     => commands::presets::run(&db, args).await?,
-        Commands::Processors(args)  => commands::processors::run(args),
+        Commands::File(args)       => commands::file::run(&db, args).await?,
+        Commands::Clip(args)       => commands::clip::run(&db, args).await?,
+        Commands::Collection(args) => commands::collection::run(&db, args).await?,
+        Commands::Preset(args)     => commands::preset::run(&db, args).await?,
+        Commands::Processor(args)  => commands::processor::run(args),
         Commands::Play { target, collection, file, clip, loop_mode } => {
             commands::play::run(&db, target, collection, file, clip, loop_mode).await?
         }
