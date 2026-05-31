@@ -39,8 +39,12 @@ enum Commands {
     Collection(commands::collection::CollectionArgs),
     /// Preset operations
     Preset(commands::preset::PresetArgs),
-    /// List registered structural processors
-    Processor(commands::processor::ProcessorArgs),
+    /// List registered processors and audio plugins
+    #[command(name = "list-processors")]
+    ListProcessors {
+        #[arg(long)]
+        json: bool,
+    },
     /// Play a file or clip (slug or file path)
     Play {
         /// Slug or file path to play; also resolves collection slugs automatically
@@ -57,7 +61,13 @@ enum Commands {
         /// Start playback with looping enabled
         #[arg(long = "loop")]
         loop_mode: bool,
+        /// Audio output device name (use `musicum list-outputs` to list available names)
+        #[arg(long)]
+        device: Option<String>,
     },
+    /// List available audio output device names
+    #[command(name = "list-outputs")]
+    ListOutputs,
     /// Export a file or clip to an audio file
     Export(commands::export::ExportArgs),
     /// Print config and resolved library paths
@@ -96,6 +106,16 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    if let Commands::ListOutputs = cli.command {
+        commands::list_outputs::run()?;
+        return Ok(());
+    }
+
+    if let Commands::ListProcessors { json } = cli.command {
+        commands::processor::run(json);
+        return Ok(());
+    }
+
     let db = musicum_core::db::connect(&Config::get().library.catalog_dir).await?;
 
     match cli.command {
@@ -105,12 +125,13 @@ async fn main() -> Result<()> {
         Commands::Clip(args)       => commands::clip::run(&db, args).await?,
         Commands::Collection(args) => commands::collection::run(&db, args).await?,
         Commands::Preset(args)     => commands::preset::run(&db, args).await?,
-        Commands::Processor(args)  => commands::processor::run(args),
-        Commands::Play { target, collection, file, clip, loop_mode } => {
-            commands::play::run(&db, target, collection, file, clip, loop_mode).await?
+        Commands::Play { target, collection, file, clip, loop_mode, device } => {
+            commands::play::run(&db, target, collection, file, clip, loop_mode, device).await?
         }
         Commands::Export(args) => commands::export::run(&db, args).await?,
         Commands::Config => unreachable!(),
+        Commands::ListOutputs => unreachable!(),
+        Commands::ListProcessors { .. } => unreachable!(),
         Commands::CompleteSlugs { slug_type } => {
             commands::completions::run_complete_slugs(&db, &slug_type).await?
         }

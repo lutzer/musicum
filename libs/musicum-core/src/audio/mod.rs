@@ -14,6 +14,16 @@ pub use source::FileAudioSource;
 
 pub(crate) use processor_chain::build_plugin_handles;
 
+/// Return the names of all available audio output devices on the default host.
+/// Returns an empty vec if no devices are found or enumeration fails.
+pub fn list_output_devices() -> Vec<String> {
+    use cpal::traits::{DeviceTrait, HostTrait};
+    let host = cpal::default_host();
+    host.output_devices()
+        .map(|iter| iter.filter_map(|d| d.description().ok().map(|desc| desc.name().to_string())).collect())
+        .unwrap_or_default()
+}
+
 /// Extract structural edits from a `ProcessorEdit` slice.
 /// Plugin edits are silently ignored. Used by `export_service`.
 pub fn structural_edits_from(edits: &[ProcessorEdit]) -> Vec<StructuralEdit> {
@@ -39,6 +49,12 @@ mod tests {
     use crate::edit::{EditKind, ProcessorEdit};
     use std::collections::HashMap;
     use uuid::Uuid;
+
+    #[test]
+    fn list_output_devices_returns_vec() {
+        let names = list_output_devices();
+        let _ = names;
+    }
 
     #[test]
     fn structural_edits_from_filters_plugins() {

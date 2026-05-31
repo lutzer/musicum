@@ -50,7 +50,12 @@ impl PlaybackEngine {
     /// `edits` is the full edit list (structural + plugin). Structural edits build
     /// the decode chain once; plugin edits are instantiated and applied live per chunk.
     /// Pass `edits: &[]` for raw file playback.
-    pub fn new(path: &Path, edits: &[ProcessorEdit], registry: &EditRegistry) -> Result<Self> {
+    pub fn new(
+        path: &Path,
+        edits: &[ProcessorEdit],
+        registry: &EditRegistry,
+        device_name: Option<&str>,
+    ) -> Result<Self> {
         let source = FileAudioSource::new(path)?;
         let raw_duration = source.duration_secs();
         let sample_rate  = source.sample_rate();
@@ -85,9 +90,20 @@ impl PlaybackEngine {
             .collect();
 
         // Audio device setup
-        let host   = cpal::default_host();
-        let device = host.default_output_device()
-            .ok_or_else(|| anyhow!("no audio output device"))?;
+        let host = cpal::default_host();
+        let device = match device_name {
+            None => host
+                .default_output_device()
+                .ok_or_else(|| anyhow!("no audio output device"))?,
+            Some(name) => host
+                .output_devices()
+                .map_err(|e| anyhow!("failed to enumerate audio devices: {e}"))?
+                .find(|d| {
+                    d.description().ok().map(|desc| desc.name().to_string())
+                        .as_deref() == Some(name)
+                })
+                .ok_or_else(|| anyhow!("audio device '{}' not found", name))?,
+        };
         let config = cpal::StreamConfig {
             channels,
             sample_rate,
@@ -262,7 +278,7 @@ mod tests {
     fn new_with_no_edits_creates_engine() {
         let tmp = write_temp_wav(4410, 44_100);
         let reg = EditRegistry::default();
-        let engine = PlaybackEngine::new(tmp.path(), &[], &reg);
+        let engine = PlaybackEngine::new(tmp.path(), &[], &reg, None);
         assert!(engine.is_ok());
     }
 
@@ -277,7 +293,7 @@ mod tests {
             enabled: true,
             kind: EditKind::Plugin { plugin_id: "gain".to_string(), params },
         }];
-        let engine = PlaybackEngine::new(tmp.path(), &edits, &reg);
+        let engine = PlaybackEngine::new(tmp.path(), &edits, &reg, None);
         assert!(engine.is_ok());
     }
 
@@ -293,8 +309,7 @@ mod tests {
             enabled: true,
             kind: EditKind::Plugin { plugin_id: "gain".to_string(), params },
         }];
-        let engine = PlaybackEngine::new(tmp.path(), &edits, &reg).unwrap();
-        // Should not panic; takes effect on next decoded chunk
+        let engine = PlaybackEngine::new(tmp.path(), &edits, &reg, None).unwrap();
         engine.set_edit_param(uuid, "gain", 0.5);
     }
 
@@ -310,8 +325,26 @@ mod tests {
             enabled: true,
             kind: EditKind::Plugin { plugin_id: "gain".to_string(), params },
         }];
-        let engine = PlaybackEngine::new(tmp.path(), &edits, &reg).unwrap();
+        let engine = PlaybackEngine::new(tmp.path(), &edits, &reg, None).unwrap();
         engine.set_edit_enabled(uuid, false);
         engine.set_edit_enabled(uuid, true);
+    }
+
+    #[test]
+    fn new_with_unknown_device_name_returns_error() {
+        let tmp = write_temp_wav(4410, 44_100);
+        let reg = EditRegistry::default();
+        let result = PlaybackEngine::new(tmp.path(), &[], &reg, Some("__nonexistent_device__"));
+        assert!(result.is_err());
+        let msg = result.err().unwrap().to_string();
+        assert!(msg.contains("__nonexistent_device__"), "error should name the device: {msg}");
+    }
+
+    #[test]
+    fn new_with_none_device_uses_default() {
+        let tmp = write_temp_wav(4410, 44_100);
+        let reg = EditRegistry::default();
+        let result = PlaybackEngine::new(tmp.path(), &[], &reg, None);
+        assert!(result.is_ok());
     }
 }

@@ -16,6 +16,16 @@
 * [x] refactor config singleton
 * [ ] create file analysis pipeline for plugins. for example for nomalization, but also for fft analysis
 * [ ] create processors file that wraps structural processors and audio plugins + offline processors into a unified interface
+    * [ ] unify parameter interface
+    * [ ] create analyzer pipeline
+    * [ ] adapt interface so it can wrap vst plugins as well
+* [ ] create analysis metafiles that lives in .generated folder when a file is added/changed or simply when its not existing and requested by the frontend. name: <file_slug>.data.json
+    * [ ] generate waveform data
+    * [ ] generate peak level
+    * [ ] generate transient detection for bpm detection
+    * [ ] generate spectogram
+    * [ ] generate duration
+    * [ ] add function to clean up orphaned data files
 
 ## cli
 * [x] add collection feature
@@ -30,6 +40,7 @@
 * [ ] bug: code completion doesnt seem to work reliably
 * [x] musicum clip create <file_slug> should create a clip with the same slug
 * [x] rename cli points files -> file, collextions -> collection, clips -> clip, presets -> preset, processors -> processor
+* [ ] renanme "processor list" to "list-processors"
 
 
 ## gui

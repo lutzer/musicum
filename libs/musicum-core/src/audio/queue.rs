@@ -18,10 +18,11 @@ pub struct PlaybackQueue {
     current_index: usize,
     engine:        PlaybackEngine,
     registry:      Arc<EditRegistry>,
+    device_name:   Option<String>,
 }
 
 impl PlaybackQueue {
-    pub fn new(items: Vec<QueueItem>, registry: Arc<EditRegistry>) -> Result<Self> {
+    pub fn new(items: Vec<QueueItem>, registry: Arc<EditRegistry>, device_name: Option<String>) -> Result<Self> {
         if items.is_empty() {
             return Err(anyhow!("PlaybackQueue requires at least one item"));
         }
@@ -29,9 +30,10 @@ impl PlaybackQueue {
             Path::new(&items[0].path),
             &items[0].edits,
             &registry,
+            device_name.as_deref(),
         )?;
         engine.play();
-        Ok(Self { items, current_index: 0, engine, registry })
+        Ok(Self { items, current_index: 0, engine, registry, device_name })
     }
 
     pub fn engine(&self)         -> &PlaybackEngine     { &self.engine }
@@ -83,7 +85,12 @@ impl PlaybackQueue {
 
     fn replace_engine(&mut self) {
         let item = &self.items[self.current_index];
-        if let Ok(eng) = PlaybackEngine::new(Path::new(&item.path), &item.edits, &self.registry) {
+        if let Ok(eng) = PlaybackEngine::new(
+            Path::new(&item.path),
+            &item.edits,
+            &self.registry,
+            self.device_name.as_deref(),
+        ) {
             eng.play();
             self.engine = eng;
         }
@@ -132,7 +139,7 @@ mod tests {
             path: tmp.path().to_str().unwrap().to_string(),
             edits: vec![edit.clone()],
         }];
-        let queue = PlaybackQueue::new(items, registry).unwrap();
+        let queue = PlaybackQueue::new(items, registry, None).unwrap();
         assert_eq!(queue.current_edits(), &[edit]);
     }
 
@@ -145,7 +152,7 @@ mod tests {
             path: tmp.path().to_str().unwrap().to_string(),
             edits: vec![disabled_plugin_edit()],
         }];
-        let queue = PlaybackQueue::new(items, registry).unwrap();
+        let queue = PlaybackQueue::new(items, registry, None).unwrap();
         assert!(!queue.has_any_edits());
     }
 
@@ -158,7 +165,7 @@ mod tests {
             path: tmp.path().to_str().unwrap().to_string(),
             edits: vec![disabled_plugin_edit(), enabled_structural_edit()],
         }];
-        let queue = PlaybackQueue::new(items, registry).unwrap();
+        let queue = PlaybackQueue::new(items, registry, None).unwrap();
         assert!(queue.has_any_edits());
     }
 
@@ -181,7 +188,7 @@ mod tests {
             path: tmp.path().to_str().unwrap().to_string(),
             edits: vec![],
         }];
-        let queue = PlaybackQueue::new(items, registry).unwrap();
+        let queue = PlaybackQueue::new(items, registry, None).unwrap();
         assert_eq!(queue.current_index(), 0);
         assert_eq!(queue.total(), 1);
         assert_eq!(queue.current_title(), "track");
@@ -190,7 +197,7 @@ mod tests {
     #[test]
     fn new_empty_items_returns_error() {
         let registry = Arc::new(EditRegistry::default());
-        let result = PlaybackQueue::new(vec![], registry);
+        let result = PlaybackQueue::new(vec![], registry, None);
         assert!(result.is_err());
     }
 
@@ -203,7 +210,7 @@ mod tests {
             QueueItem { title: "a".to_string(), path: tmp1.path().to_str().unwrap().to_string(), edits: vec![] },
             QueueItem { title: "b".to_string(), path: tmp2.path().to_str().unwrap().to_string(), edits: vec![] },
         ];
-        let mut queue = PlaybackQueue::new(items, registry).unwrap();
+        let mut queue = PlaybackQueue::new(items, registry, None).unwrap();
         let moved = queue.next();
         assert!(moved);
         assert_eq!(queue.current_index(), 1);
@@ -217,7 +224,7 @@ mod tests {
         let items = vec![QueueItem { title: "only".to_string(),
                                      path: tmp.path().to_str().unwrap().to_string(),
                                      edits: vec![] }];
-        let mut queue = PlaybackQueue::new(items, registry).unwrap();
+        let mut queue = PlaybackQueue::new(items, registry, None).unwrap();
         assert!(!queue.next());
         assert_eq!(queue.current_index(), 0);
     }
@@ -229,7 +236,7 @@ mod tests {
         let items = vec![QueueItem { title: "only".to_string(),
                                      path: tmp.path().to_str().unwrap().to_string(),
                                      edits: vec![] }];
-        let mut queue = PlaybackQueue::new(items, registry).unwrap();
+        let mut queue = PlaybackQueue::new(items, registry, None).unwrap();
         // position is 0, index is 0: no-op
         assert!(!queue.prev());
     }
@@ -243,10 +250,36 @@ mod tests {
             QueueItem { title: "a".to_string(), path: tmp1.path().to_str().unwrap().to_string(), edits: vec![] },
             QueueItem { title: "b".to_string(), path: tmp2.path().to_str().unwrap().to_string(), edits: vec![] },
         ];
-        let mut queue = PlaybackQueue::new(items, registry).unwrap();
+        let mut queue = PlaybackQueue::new(items, registry, None).unwrap();
         queue.next();
         let moved = queue.prev();
         assert!(moved);
         assert_eq!(queue.current_index(), 0);
+    }
+
+    #[test]
+    fn new_with_none_device_works() {
+        let tmp = temp_wav(4410, 44_100);
+        let registry = Arc::new(EditRegistry::default());
+        let items = vec![QueueItem {
+            title: "t".to_string(),
+            path: tmp.path().to_str().unwrap().to_string(),
+            edits: vec![],
+        }];
+        let result = PlaybackQueue::new(items, registry, None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn new_with_bad_device_name_returns_error() {
+        let tmp = temp_wav(4410, 44_100);
+        let registry = Arc::new(EditRegistry::default());
+        let items = vec![QueueItem {
+            title: "t".to_string(),
+            path: tmp.path().to_str().unwrap().to_string(),
+            edits: vec![],
+        }];
+        let result = PlaybackQueue::new(items, registry, Some("__no_such_device__".to_string()));
+        assert!(result.is_err());
     }
 }

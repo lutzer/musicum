@@ -61,6 +61,7 @@ pub async fn run(
     force_file: bool,
     force_clip: bool,
     loop_mode: bool,
+    device: Option<String>,
 ) -> Result<()> {
     let registry = Arc::new(EditRegistry::default());
 
@@ -68,7 +69,7 @@ pub async fn run(
         let (title, items) = build_collection_queue(db, &slug)
             .await
             .map_err(|_| anyhow!("no collection with slug '{slug}'"))?;
-        let queue = PlaybackQueue::new(items, Arc::clone(&registry))?;
+        let queue = PlaybackQueue::new(items, Arc::clone(&registry), device)?;
         if loop_mode { queue.engine().toggle_loop(); }
         return run_player(queue, Some(title));
     }
@@ -78,17 +79,17 @@ pub async fn run(
     // Force modes: only the requested entity type, no collection fallback.
     if force_file || force_clip {
         let (path, edits) = resolve_target(db, &target, force_file, force_clip).await?;
-        return play_single_clip(path, edits, loop_mode, registry);
+        return play_single_clip(path, edits, loop_mode, registry, device);
     }
 
     // Auto-resolve: file slug → clip slug → file path → collection slug.
     if let Ok((path, edits)) = resolve_target(db, &target, false, false).await {
-        return play_single_clip(path, edits, loop_mode, registry);
+        return play_single_clip(path, edits, loop_mode, registry, device);
     }
 
     match build_collection_queue(db, &target).await {
         Ok((title, items)) => {
-            let queue = PlaybackQueue::new(items, Arc::clone(&registry))?;
+            let queue = PlaybackQueue::new(items, Arc::clone(&registry), device)?;
             if loop_mode { queue.engine().toggle_loop(); }
             run_player(queue, Some(title))
         }
@@ -122,13 +123,14 @@ fn play_single_clip(
     edits: Vec<ProcessorEdit>,
     loop_mode: bool,
     registry: Arc<EditRegistry>,
+    device: Option<String>,
 ) -> Result<()> {
     let item = QueueItem {
         title: path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string(),
         path:  path.to_string_lossy().to_string(),
         edits,
     };
-    let queue = PlaybackQueue::new(vec![item], Arc::clone(&registry))?;
+    let queue = PlaybackQueue::new(vec![item], Arc::clone(&registry), device)?;
     if loop_mode { queue.engine().toggle_loop(); }
     run_player(queue, None)
 }

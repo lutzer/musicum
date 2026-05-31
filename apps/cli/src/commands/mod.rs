@@ -1,6 +1,7 @@
 pub mod clip;
 pub mod completions;
 pub mod collection;
+pub mod list_outputs;
 pub mod export;
 pub mod file;
 pub mod play;
