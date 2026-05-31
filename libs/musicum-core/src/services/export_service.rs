@@ -119,6 +119,7 @@ pub async fn export_audio(
     output_path: &Path,
     options: ExportOptions,
     registry: &EditRegistry,
+    progress: impl Fn(f64, f64),
 ) -> Result<ExportResult> {
     // ── Step 2: Check output path ─────────────────────────────────────────
     if output_path.exists() && !options.overwrite {
@@ -147,12 +148,15 @@ pub async fn export_audio(
     // ── Step 5: Build plugin handles ──────────────────────────────────────
     let plugin_handles = build_plugin_handles(edits, registry);
 
-    // ── Step 6: Drain samples, applying plugins per chunk ─────────────────
-    let mut all_samples: Vec<f32> = Vec::new();
+    // ── Step 6: Open temp PCM file and stream decoded chunks ─────────────
+    let tmp_path = std::env::temp_dir().join(format!("musicum-export-{}.pcm", Uuid::new_v4()));
+    let mut f = std::fs::File::create(&tmp_path)
+        .context("failed to create temp PCM file")?;
+
     let mut cursor_secs = 0.0_f64;
     loop {
         let mut chunk = chain.read_at(cursor_secs, CHUNK_SAMPLES);
-        if chunk.is_empty() || cursor_secs >= total_duration {
+        if chunk.is_empty() || (total_duration > 0.0 && cursor_secs >= total_duration) {
             break;
         }
         for handle in &plugin_handles {
@@ -162,19 +166,12 @@ pub async fn export_audio(
             }
         }
         cursor_secs += chunk.len() as f64 / (src_rate as f64 * src_channels as f64);
-        all_samples.extend_from_slice(&chunk);
-    }
-
-    // ── Step 7: Write temp PCM file ───────────────────────────────────────
-    let tmp_path = std::env::temp_dir().join(format!("musicum-export-{}.pcm", Uuid::new_v4()));
-    {
-        let mut f = std::fs::File::create(&tmp_path)
-            .context("failed to create temp PCM file")?;
-        for s in &all_samples {
-            f.write_all(&s.to_le_bytes())
-                .context("failed to write temp PCM file")?;
+        for s in &chunk {
+            f.write_all(&s.to_le_bytes()).context("failed to write temp PCM file")?;
         }
+        progress(cursor_secs, total_duration);
     }
+    drop(f); // flush before ffmpeg reads the file
 
     // ── Step 8: Invoke ffmpeg ─────────────────────────────────────────────
     let ffmpeg_result = invoke_ffmpeg(
@@ -233,6 +230,7 @@ mod tests {
             &out_path,
             opts,
             &registry,
+            |_, _| {},
         ).await;
 
         assert!(result.is_err());
@@ -273,5 +271,43 @@ mod tests {
         assert!(is_lossless("flac"));
         assert!(is_lossless("aiff"));
         assert!(is_lossless("aif"));
+    }
+
+    fn make_temp_wav(frames: usize, sample_rate: u32) -> tempfile::NamedTempFile {
+        use hound::{SampleFormat, WavSpec, WavWriter};
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let spec = WavSpec { channels: 1, sample_rate, bits_per_sample: 32, sample_format: SampleFormat::Float };
+        let mut w = WavWriter::create(tmp.path(), spec).unwrap();
+        for i in 0..frames { w.write_sample(i as f32 / frames as f32).unwrap(); }
+        w.finalize().unwrap();
+        tmp
+    }
+
+    #[tokio::test]
+    async fn progress_callback_invoked_during_export() {
+        use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+        let tmp_src = make_temp_wav(44_100, 44_100); // 1 s mono WAV
+        let out_path = std::env::temp_dir()
+            .join(format!("musicum-progress-test-{}.wav", uuid::Uuid::new_v4()));
+
+        let count = Arc::new(AtomicUsize::new(0));
+        let count2 = count.clone();
+
+        let opts = ExportOptions { sample_rate: None, channels: None, bitrate_kbps: None, overwrite: true };
+        let registry = crate::audio::EditRegistry::default();
+
+        let result = export_audio(
+            tmp_src.path(),
+            &[],
+            &out_path,
+            opts,
+            &registry,
+            move |_, _| { count2.fetch_add(1, Ordering::Relaxed); },
+        ).await;
+
+        let _ = std::fs::remove_file(&out_path);
+        if result.is_ok() {
+            assert!(count.load(Ordering::Relaxed) > 0, "progress callback was never called");
+        }
     }
 }

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use clap::Args;
+use indicatif::{ProgressBar, ProgressStyle};
 use musicum_core::{
     deserialize_processor_edits,
     edit::ProcessorEdit,
@@ -51,17 +52,47 @@ pub struct ExportArgs {
 pub async fn run(db: &DatabaseConnection, args: ExportArgs) -> Result<()> {
     let (file_path, edits) = resolve_target(db, &args.slug, args.file, args.clip).await?;
 
-    println!("Exporting {} → {}...", args.slug, args.output.display());
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.set_message(format!("Exporting {} → {}", args.slug, args.output.display()));
+    pb.enable_steady_tick(std::time::Duration::from_millis(120));
 
+    let pb2 = pb.clone();
     let options = ExportOptions {
         sample_rate:  args.samplerate,
         channels:     args.channels,
         bitrate_kbps: args.bitrate,
         overwrite:    args.overwrite,
     };
-
     let registry = EditRegistry::default();
-    let result = export_audio(&file_path, &edits, &args.output, options, &registry).await?;
+
+    let result = export_audio(
+        &file_path,
+        &edits,
+        &args.output,
+        options,
+        &registry,
+        move |cursor_secs, total_secs| {
+            if total_secs > 0.0 && pb2.length().is_none() {
+                pb2.set_length((total_secs * 1000.0) as u64);
+                pb2.set_style(
+                    ProgressStyle::with_template(
+                        "{spinner:.green} {msg} [{bar:40.cyan/blue}] {percent}% ({elapsed}/{eta})"
+                    )
+                    .unwrap()
+                    .progress_chars("█░"),
+                );
+            }
+            if total_secs > 0.0 {
+                pb2.set_position((cursor_secs * 1000.0) as u64);
+            }
+        },
+    ).await?;
+
+    pb.finish_and_clear();
 
     let mut items = vec![
         DetailItem::Field("slug",     args.slug.clone()),

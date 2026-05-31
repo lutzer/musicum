@@ -26,7 +26,7 @@
     * [ ] generate spectogram
     * [ ] generate duration
     * [ ] add function to clean up orphaned data files
-* [ ] bug: rexport function hangs
+* [ ] speed up export. it is very slow
 
 ## cli
 * [x] add collection feature
