@@ -80,7 +80,7 @@ pub async fn run(db: &DatabaseConnection, args: ExportArgs) -> Result<()> {
                 pb2.set_length((total_secs * 1000.0) as u64);
                 pb2.set_style(
                     ProgressStyle::with_template(
-                        "{spinner:.green} {msg} [{bar:40.cyan/blue}] {percent}% ({elapsed}/{eta})"
+                        "{spinner:.green} {msg} [{bar:40}] {percent}% ({elapsed}/{eta})"
                     )
                     .unwrap()
                     .progress_chars("█░"),
