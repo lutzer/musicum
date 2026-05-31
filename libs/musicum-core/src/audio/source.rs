@@ -22,7 +22,8 @@ pub struct FileAudioSource {
     channels: u16,
     duration_secs: f64,
     current_pos_secs: f64,
-    leftover: Vec<f32>, // samples decoded from last packet but not yet returned
+    leftover: Vec<f32>,                  // samples decoded from last packet but not yet returned
+    sample_buf: Option<SampleBuffer<f32>>, // reused across packets to avoid per-packet allocation
 }
 
 impl FileAudioSource {
@@ -67,6 +68,7 @@ impl FileAudioSource {
             duration_secs,
             current_pos_secs: 0.0,
             leftover: Vec::new(),
+            sample_buf: None,
         })
     }
 
@@ -105,13 +107,16 @@ impl AudioSource for FileAudioSource {
             match self.decoder.decode(&packet) {
                 Ok(audio_buf) => {
                     let spec = *audio_buf.spec();
-                    let mut sample_buf = SampleBuffer::<f32>::new(audio_buf.capacity() as u64, spec);
-                    sample_buf.copy_interleaved_ref(audio_buf);
-                    let samples = sample_buf.samples();
+                    let capacity = audio_buf.capacity();
+                    let buf = match &mut self.sample_buf {
+                        Some(b) if b.capacity() >= capacity => b,
+                        slot => slot.insert(SampleBuffer::<f32>::new(capacity as u64, spec)),
+                    };
+                    buf.copy_interleaved_ref(audio_buf);
+                    let samples = buf.samples();
                     let needed = num_samples - result.len();
                     let take = needed.min(samples.len());
                     result.extend_from_slice(&samples[..take]);
-                    // Save excess samples for the next read_at call.
                     self.leftover.extend_from_slice(&samples[take..]);
                 }
                 Err(symphonia::core::errors::Error::DecodeError(_)) => continue,
