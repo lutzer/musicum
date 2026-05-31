@@ -26,6 +26,7 @@
     * [ ] generate spectogram
     * [ ] generate duration
     * [ ] add function to clean up orphaned data files
+* [ ] bug: rexport function hangs
 
 ## cli
 * [x] add collection feature
@@ -34,13 +35,13 @@
 * [x] export audio files in a certain format
 * [x] now i want you to integrate the audio plugins in the cli client, they should be listed in the processors list. the list should also show the type, structural or audio-plugin. also i should be able to add them through the editor in presets and clips
 * [x] remove plugin dependencies from the cli, should only be in the core library. there should be a registry that exposes the available plugins and processors and that lets you update edits and there should be a an engine function to update processors and plugins while its playing. i want to reuse this interface also with the tauri gui at a later point, so please design that interface to be reusable
-* [ ] list available output devices and add option for player to play on a specific one
+* [x] list available output devices and add option for player to play on a specific one
 * [ ] add option to start player with a certain preset without writing it to the database
 * [x] document code completion setup
 * [ ] bug: code completion doesnt seem to work reliably
 * [x] musicum clip create <file_slug> should create a clip with the same slug
 * [x] rename cli points files -> file, collextions -> collection, clips -> clip, presets -> preset, processors -> processor
-* [ ] renanme "processor list" to "list-processors"
+* [x] renanme "processor list" to "list-processors"
 
 
 ## gui
