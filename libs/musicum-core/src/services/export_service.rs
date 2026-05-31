@@ -1,13 +1,12 @@
 use std::{
-    io::Write as _,
+    io::{BufWriter, Write as _},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Child, Command, Stdio},
     sync::atomic::Ordering,
 };
 
 use anyhow::{bail, Context, Result};
 use structural_processor_sdk::chain::build_chain;
-use uuid::Uuid;
 
 use crate::audio::{build_plugin_handles, structural_edits_from, EditRegistry, FileAudioSource};
 use crate::edit::ProcessorEdit;
@@ -36,7 +35,7 @@ pub struct ExportResult {
 
 const SUPPORTED_EXTS: &[&str] = &["wav", "mp3", "flac", "aiff", "aif"];
 
-const CHUNK_SAMPLES: usize = 4_096;
+const CHUNK_SAMPLES: usize = 16_384;
 
 fn is_lossless(ext: &str) -> bool {
     matches!(ext, "wav" | "flac" | "aiff" | "aif")
@@ -58,14 +57,13 @@ fn validate_extension(output_path: &Path) -> Result<String> {
 
 // ── ffmpeg helper ─────────────────────────────────────────────────────────────
 
-fn invoke_ffmpeg(
-    tmp_path: &Path,
+fn spawn_ffmpeg(
     output_path: &Path,
     src_rate: u32,
     src_channels: u16,
     ext: &str,
     options: &ExportOptions,
-) -> Result<()> {
+) -> Result<Child> {
     let mut cmd = Command::new("ffmpeg");
 
     if options.overwrite {
@@ -75,7 +73,7 @@ fn invoke_ffmpeg(
     cmd.args(["-f", "f32le"])
         .arg("-ar").arg(src_rate.to_string())
         .arg("-ac").arg(src_channels.to_string())
-        .arg("-i").arg(tmp_path);
+        .args(["-i", "pipe:0"]);
 
     if let Some(rate) = options.sample_rate {
         cmd.arg("-ar").arg(rate.to_string());
@@ -90,25 +88,17 @@ fn invoke_ffmpeg(
     }
 
     cmd.arg(output_path);
+    cmd.stdin(Stdio::piped());
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::piped());
 
-    // Suppress stdout; capture stderr for error messages.
-    cmd.stdout(std::process::Stdio::null());
-    cmd.stderr(std::process::Stdio::piped());
-
-    let output = cmd.output().map_err(|e| {
+    cmd.spawn().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
             anyhow::anyhow!("ffmpeg not found. Install ffmpeg to use the export command.")
         } else {
             anyhow::anyhow!("failed to run ffmpeg: {e}")
         }
-    })?;
-
-    if output.status.success() {
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("ffmpeg error: {stderr}")
-    }
+    })
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
@@ -148,10 +138,13 @@ pub async fn export_audio(
     // ── Step 5: Build plugin handles ──────────────────────────────────────
     let plugin_handles = build_plugin_handles(edits, registry);
 
-    // ── Step 6: Open temp PCM file and stream decoded chunks ─────────────
-    let tmp_path = std::env::temp_dir().join(format!("musicum-export-{}.pcm", Uuid::new_v4()));
-    let mut f = std::fs::File::create(&tmp_path)
-        .context("failed to create temp PCM file")?;
+    // ── Step 6: Spawn ffmpeg and stream processed PCM into its stdin ──────
+    let mut child = spawn_ffmpeg(output_path, src_rate, src_channels, &ext, &options)?;
+    let stdin = child.stdin.take().expect("stdin was piped");
+    let mut writer = BufWriter::new(stdin);
+
+    // Pre-allocate byte buffer; reused each iteration to avoid per-chunk allocation.
+    let mut byte_buf: Vec<u8> = Vec::with_capacity(CHUNK_SAMPLES * src_channels as usize * 4);
 
     let mut cursor_secs = 0.0_f64;
     loop {
@@ -166,28 +159,22 @@ pub async fn export_audio(
             }
         }
         cursor_secs += chunk.len() as f64 / (src_rate as f64 * src_channels as f64);
+
+        byte_buf.clear();
         for s in &chunk {
-            f.write_all(&s.to_le_bytes()).context("failed to write temp PCM file")?;
+            byte_buf.extend_from_slice(&s.to_le_bytes());
         }
+        writer.write_all(&byte_buf).context("failed to write to ffmpeg stdin")?;
+
         progress(cursor_secs, total_duration);
     }
-    drop(f); // flush before ffmpeg reads the file
 
-    // ── Step 8: Invoke ffmpeg ─────────────────────────────────────────────
-    let ffmpeg_result = invoke_ffmpeg(
-        &tmp_path,
-        output_path,
-        src_rate,
-        src_channels,
-        &ext,
-        &options,
-    );
-
-    // ── Step 9: Cleanup (best-effort) ─────────────────────────────────────
-    let _ = std::fs::remove_file(&tmp_path);
-
-    // ── Step 10: Return result ────────────────────────────────────────────
-    ffmpeg_result?;
+    // ── Step 7: Signal EOF and wait for ffmpeg to finish encoding ─────────
+    drop(writer);
+    let out = child.wait_with_output().context("failed to wait for ffmpeg")?;
+    if !out.status.success() {
+        bail!("ffmpeg error: {}", String::from_utf8_lossy(&out.stderr));
+    }
 
     let effective_rate     = options.sample_rate.unwrap_or(src_rate);
     let effective_channels = options.channels.unwrap_or(src_channels);
