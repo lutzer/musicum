@@ -108,7 +108,7 @@ pub async fn sync_library(
                         mime_type:   existing.mime_type.clone(),
                     };
                     file_service::upsert_file(
-                        db, path, &mut sc,
+                        db, path, files_dir, &mut sc,
                         &existing.hash, &mtime, size_bytes,
                         &audio, Some(existing),
                     ).await?;
@@ -141,7 +141,7 @@ pub async fn sync_library(
                     mime_type:   ex.mime_type.clone(),
                 };
                 let changed = file_service::upsert_file(
-                    db, path, &mut sc,
+                    db, path, files_dir, &mut sc,
                     &hash, &mtime, size_bytes,
                     &audio, Some(ex),
                 ).await?;
@@ -155,7 +155,7 @@ pub async fn sync_library(
             // Content changed — re-probe audio.
             let audio = file_service::probe_audio(path)?;
             file_service::upsert_file(
-                db, path, &mut sc,
+                db, path, files_dir, &mut sc,
                 &hash, &mtime, size_bytes,
                 &audio, Some(ex),
             ).await?;
@@ -166,7 +166,7 @@ pub async fn sync_library(
             if sidecar::sidecar_path_for_audio(path).exists() {
                 // Has its own sidecar identity — insert immediately.
                 file_service::upsert_file(
-                    db, path, &mut sc,
+                    db, path, files_dir, &mut sc,
                     &hash, &mtime, size_bytes,
                     &audio, None,
                 ).await?;
@@ -242,7 +242,7 @@ pub async fn sync_library(
             };
 
             file_service::upsert_file(
-                db, &pn.path, &mut sc,
+                db, &pn.path, files_dir, &mut sc,
                 &orphan.db_hash, &pn.mtime, pn.size_bytes,
                 &audio, Some(db_rec),
             ).await?;
@@ -275,7 +275,7 @@ pub async fn sync_library(
         }
         let mut sc = sidecar::FileSidecar::default_for_file();
         file_service::upsert_file(
-            db, &pn.path, &mut sc,
+            db, &pn.path, files_dir, &mut sc,
             &pn.hash, &pn.mtime, pn.size_bytes,
             &pn.audio, None,
         ).await?;

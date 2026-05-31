@@ -342,12 +342,23 @@ pub(crate) async fn delete_file_cascade(
     Ok(())
 }
 
+fn slug_conflict_or_db(e: sea_orm::DbErr, slug: &str, path: &str) -> ServiceError {
+    if e.to_string().contains("UNIQUE constraint failed") {
+        ServiceError::InvalidInput(format!(
+            "slug '{slug}' already used by another file — conflict on '{path}'"
+        ))
+    } else {
+        ServiceError::Database(e)
+    }
+}
+
 /// Ensures the sidecar has a UUID (assigns + writes if empty), then persists
 /// the caller-supplied data to the DB. Returns true if metadata or clips changed.
 #[allow(clippy::too_many_arguments)]
 pub async fn upsert_file(
     db: &DatabaseConnection,
     path: &Path,
+    library_root: &Path,
     sc: &mut sidecar::FileSidecar,
     hash: &str,
     mtime: &str,
@@ -362,14 +373,18 @@ pub async fn upsert_file(
 
     let path_str = path.to_string_lossy().to_string();
     let name = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let rel = path.strip_prefix(library_root).unwrap_or(path);
+    let rel_no_ext = rel.with_extension("");
+    let rel_str = rel_no_ext.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/");
+    let slug = slugify(&rel_str);
     let now = chrono::Utc::now().to_rfc3339();
 
     if let Some(ex) = existing {
         file::ActiveModel {
             id:          Set(ex.id.clone()),
-            slug:        Set(slugify(&name)),
+            slug:        Set(slug.clone()),
             name:        Set(name),
-            path:        Set(path_str),
+            path:        Set(path_str.clone()),
             duration:    Set(audio.duration),
             sample_rate: Set(audio.sample_rate as i32),
             channels:    Set(audio.channels as i32),
@@ -381,16 +396,17 @@ pub async fn upsert_file(
             updated_at:  Set(now),
         }
         .update(db)
-        .await?;
+        .await
+        .map_err(|e| slug_conflict_or_db(e, &slug, &path_str))?;
         let meta_changed = upsert_file_metadata(db, &ex.id, &sc.metadata).await?;
         let clips_changed = upsert_clips(db, &ex.id, &sc.clips).await?;
         Ok(meta_changed || clips_changed)
     } else {
         file::ActiveModel {
             id:          Set(sc.id.clone()),
-            slug:        Set(slugify(&name)),
+            slug:        Set(slug.clone()),
             name:        Set(name),
-            path:        Set(path_str),
+            path:        Set(path_str.clone()),
             duration:    Set(audio.duration),
             sample_rate: Set(audio.sample_rate as i32),
             channels:    Set(audio.channels as i32),
@@ -402,7 +418,8 @@ pub async fn upsert_file(
             updated_at:  Set(now),
         }
         .insert(db)
-        .await?;
+        .await
+        .map_err(|e| slug_conflict_or_db(e, &slug, &path_str))?;
         upsert_file_metadata(db, &sc.id, &sc.metadata).await?;
         upsert_clips(db, &sc.id, &sc.clips).await?;
         Ok(true)
@@ -584,7 +601,7 @@ mod tests {
             clips: vec![],
         };
 
-        upsert_file(&db, &audio, &mut sc, "abc123", "2024-01-01T00:00:00+00:00", 4, &dummy_audio(), None).await.unwrap();
+        upsert_file(&db, &audio, dir.path(), &mut sc, "abc123", "2024-01-01T00:00:00+00:00", 4, &dummy_audio(), None).await.unwrap();
 
         assert!(!sc.id.is_empty());
         assert!(uuid::Uuid::parse_str(&sc.id).is_ok());
@@ -609,7 +626,7 @@ mod tests {
             clips: vec![],
         };
 
-        upsert_file(&db, &audio, &mut sc, "hash1", "2024-01-01T00:00:00+00:00", 4, &dummy_audio(), None).await.unwrap();
+        upsert_file(&db, &audio, dir.path(), &mut sc, "hash1", "2024-01-01T00:00:00+00:00", 4, &dummy_audio(), None).await.unwrap();
 
         let row = file::Entity::find_by_id(uuid).one(&db).await.unwrap().unwrap();
         assert_eq!(row.path, audio.to_str().unwrap());
@@ -635,7 +652,7 @@ mod tests {
         };
 
         let new_audio = AudioInfo { duration: 10.0, sample_rate: 48000, channels: 1, mime_type: "audio/wav".to_string() };
-        upsert_file(&db, &audio, &mut sc, "newhash", "2025-01-01T00:00:00+00:00", 99, &new_audio, Some(&existing)).await.unwrap();
+        upsert_file(&db, &audio, dir.path(), &mut sc, "newhash", "2025-01-01T00:00:00+00:00", 99, &new_audio, Some(&existing)).await.unwrap();
 
         let row = file::Entity::find_by_id(uuid).one(&db).await.unwrap().unwrap();
         assert_eq!(row.hash, "newhash");
@@ -675,10 +692,40 @@ mod tests {
             clips: vec![],
         };
 
-        let changed = upsert_file(&db, &audio, &mut sc, "oldhash", "2025-01-01T00:00:00+00:00", 4, &dummy_audio(), Some(&existing)).await.unwrap();
+        let changed = upsert_file(&db, &audio, dir.path(), &mut sc, "oldhash", "2025-01-01T00:00:00+00:00", 4, &dummy_audio(), Some(&existing)).await.unwrap();
         assert!(changed, "metadata changed → should return true");
 
         let meta = file_metadata::Entity::find_by_id(uuid).one(&db).await.unwrap().unwrap();
         assert_eq!(meta.bpm, Some(128.0));
+    }
+
+    #[tokio::test]
+    async fn upsert_file_uses_relative_path_for_slug() {
+        let db = crate::db::test_db().await;
+        let dir = tempdir().unwrap();
+
+        let subdir = dir.path().join("drums");
+        std::fs::create_dir_all(&subdir).unwrap();
+        let audio = subdir.join("kick.wav");
+        std::fs::write(&audio, b"data").unwrap();
+
+        let mut sc = sidecar::FileSidecar {
+            id: "bbbbbbbb-0000-0000-0000-000000000099".to_string(),
+            version: 2,
+            metadata: sidecar::FileMetadataSidecar::default(),
+            attachments: vec![],
+            clips: vec![],
+        };
+
+        upsert_file(&db, &audio, dir.path(), &mut sc, "h", "2024-01-01T00:00:00+00:00", 4, &dummy_audio(), None).await.unwrap();
+
+        let row = file::Entity::find_by_id("bbbbbbbb-0000-0000-0000-000000000099")
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(row.slug, "drums-kick");
+        assert_eq!(row.name, "kick");
     }
 }

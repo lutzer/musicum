@@ -11,8 +11,8 @@
 * [ ] load plugins and structural edits dynamically not at compile time
 * [ ] integrate vst plugins, and maybe replace own plugin system
 * [x] add option to repair filebase: if sidecar doesnt has a soundfile try to find it by its hash and rename the sidecar. if no soundfile with that hash exist ask if sidecar should be removed. also remove the db entry respectivly. have option -f to remove without confirmation
-* [ ] create file slug from path + filename 
-* [ ] add option to rebuild sidecars from database: "sync --rebuild-sidecars", it should remove all sidecars in the library folder and recreate them using the database entries
+* [x] create file slug from path + filename 
+* [x] add option to rebuild sidecars from database: "sync --rebuild-sidecars", it should remove all sidecars in the library folder and recreate them using the database entries
 * [x] refactor config singleton
 
 ## cli
@@ -26,7 +26,7 @@
 * [ ] add option to start player with a certain preset without writing it to the database
 * [x] document code completion setup
 * [ ] bug: code completion doesnt seem to work reliably
-* [ ] musicum clip create <file_slug> should create a clip with the same slug
+* [x] musicum clip create <file_slug> should create a clip with the same slug
 
 
 ## gui
@@ -34,3 +34,12 @@
 * [ ] Filemanager like interface to manage source files, collections, clips and presets with a sidebar
 * [ ] Display all items as rows or cards
 * [ ] Allow selection of multiple files, collections and clips to do batch operations
+
+### Ideas
+
+* [ ] fast play von sample bibliotheken
+* [ ] standard bearbeitung: compress, eq, normalize, distort
+* [ ] bpm
+* [ ] automatic slicing
+* [ ] transient detection (serato sample)
+* [ ] sample / lange files getrennt

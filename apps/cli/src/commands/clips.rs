@@ -35,7 +35,7 @@ pub enum ClipsCommand {
     /// Create a new clip for a file
     Create {
         file_slug: String,
-        title: String,
+        title: Option<String>,
     },
     /// Apply a preset's processor chain to a clip (replaces existing processors)
     ApplyPreset {
@@ -160,6 +160,7 @@ pub async fn run(db: &DatabaseConnection, args: ClipsArgs) -> Result<()> {
             }
         }
         ClipsCommand::Create { file_slug, title } => {
+            let title = title.unwrap_or_else(|| file_slug.clone());
             let clip = clip_service::create_clip(db, &file_slug, &title).await?;
             print_result("Created clip", &[
                 Field("slug", clip.slug.clone()),
