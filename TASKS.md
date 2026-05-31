@@ -14,6 +14,8 @@
 * [x] create file slug from path + filename 
 * [x] add option to rebuild sidecars from database: "sync --rebuild-sidecars", it should remove all sidecars in the library folder and recreate them using the database entries
 * [x] refactor config singleton
+* [ ] create file analysis pipeline for plugins. for example for nomalization, but also for fft analysis
+* [ ] create processors file that wraps structural processors and audio plugins + offline processors into a unified interface
 
 ## cli
 * [x] add collection feature
@@ -27,7 +29,7 @@
 * [x] document code completion setup
 * [ ] bug: code completion doesnt seem to work reliably
 * [x] musicum clip create <file_slug> should create a clip with the same slug
-* [ ] rename cli points files -> file, collextions -> collection, clips -> clip, presets -> preset, processors -> processor
+* [x] rename cli points files -> file, collextions -> collection, clips -> clip, presets -> preset, processors -> processor
 
 
 ## gui

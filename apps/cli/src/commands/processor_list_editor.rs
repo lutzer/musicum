@@ -209,11 +209,18 @@ impl EditorState {
             if let Some(row) = params.get(idx) {
                 self.edit_buf = match &row.value {
                     serde_json::Value::String(s) => s.clone(),
-                    v => v.to_string(),
+                    v => EditorState::format_value(v),
                 };
                 self.status_msg = None;
             }
         }
+    }
+
+    fn format_value(v: &serde_json::Value) -> String {
+        if let Some(f) = v.as_f64() {
+            return format!("{f:.2}");
+        }
+        v.to_string()
     }
 
     fn parse_value(s: &str) -> serde_json::Value {
@@ -576,7 +583,7 @@ fn draw_params(f: &mut Frame, state: &mut EditorState, area: Rect) {
                         Span::styled("[off]", Style::default().fg(Color::DarkGray))
                     }
                 } else {
-                    Span::styled(row.value.to_string(), key_style)
+                    Span::styled(EditorState::format_value(&row.value), key_style)
                 };
                 ListItem::new(Line::from(vec![
                     Span::styled(format!("{}: ", row.key), key_style),
@@ -618,7 +625,7 @@ fn draw_params(f: &mut Frame, state: &mut EditorState, area: Rect) {
                         Span::styled("[off]", Style::default().fg(Color::DarkGray))
                     }
                 } else {
-                    Span::styled(row.value.to_string(), Style::default().fg(Color::Green))
+                    Span::styled(EditorState::format_value(&row.value), Style::default().fg(Color::Green))
                 };
                 ListItem::new(Line::from(vec![
                     Span::raw(format!("{}: ", row.key)),
