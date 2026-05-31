@@ -2,13 +2,15 @@ use std::{
     io::Write as _,
     path::{Path, PathBuf},
     process::Command,
+    sync::atomic::Ordering,
 };
 
 use anyhow::{bail, Context, Result};
-use structural_processor_sdk::chain::{build_chain, StructuralEdit};
+use structural_processor_sdk::chain::build_chain;
 use uuid::Uuid;
 
-use crate::audio::FileAudioSource;
+use crate::audio::{build_plugin_handles, structural_edits_from, EditRegistry, FileAudioSource};
+use crate::edit::ProcessorEdit;
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -113,9 +115,10 @@ fn invoke_ffmpeg(
 
 pub async fn export_audio(
     file_path: &Path,
-    edits: &[StructuralEdit],
+    edits: &[ProcessorEdit],
     output_path: &Path,
     options: ExportOptions,
+    registry: &EditRegistry,
 ) -> Result<ExportResult> {
     // ── Step 2: Check output path ─────────────────────────────────────────
     if output_path.exists() && !options.overwrite {
@@ -133,26 +136,36 @@ pub async fn export_audio(
         FileAudioSource::new(file_path)
             .with_context(|| format!("cannot open source file: {}", file_path.display()))?,
     );
-    let registry = structural_processors::registry();
-    let mut chain = build_chain(source, edits, &registry);
+    let structural = structural_edits_from(edits);
+    let structural_registry = structural_processors::registry();
+    let mut chain = build_chain(source, &structural, &structural_registry);
 
     let src_rate     = chain.sample_rate();
     let src_channels = chain.channels();
     let total_duration = chain.duration_secs();
 
-    // ── Step 5: Drain samples ─────────────────────────────────────────────
+    // ── Step 5: Build plugin handles ──────────────────────────────────────
+    let plugin_handles = build_plugin_handles(edits, registry);
+
+    // ── Step 6: Drain samples, applying plugins per chunk ─────────────────
     let mut all_samples: Vec<f32> = Vec::new();
     let mut cursor_secs = 0.0_f64;
     loop {
-        let chunk = chain.read_at(cursor_secs, CHUNK_SAMPLES);
+        let mut chunk = chain.read_at(cursor_secs, CHUNK_SAMPLES);
         if chunk.is_empty() || cursor_secs >= total_duration {
             break;
+        }
+        for handle in &plugin_handles {
+            if !handle.enabled.load(Ordering::Relaxed) { continue; }
+            if let Ok(mut p) = handle.processor.lock() {
+                p.process(&mut chunk, src_channels as usize, src_rate as f32, cursor_secs);
+            }
         }
         cursor_secs += chunk.len() as f64 / (src_rate as f64 * src_channels as f64);
         all_samples.extend_from_slice(&chunk);
     }
 
-    // ── Step 6: Write temp PCM file ───────────────────────────────────────
+    // ── Step 7: Write temp PCM file ───────────────────────────────────────
     let tmp_path = std::env::temp_dir().join(format!("musicum-export-{}.pcm", Uuid::new_v4()));
     {
         let mut f = std::fs::File::create(&tmp_path)
@@ -163,7 +176,7 @@ pub async fn export_audio(
         }
     }
 
-    // ── Step 7: Invoke ffmpeg ─────────────────────────────────────────────
+    // ── Step 8: Invoke ffmpeg ─────────────────────────────────────────────
     let ffmpeg_result = invoke_ffmpeg(
         &tmp_path,
         output_path,
@@ -173,10 +186,10 @@ pub async fn export_audio(
         &options,
     );
 
-    // ── Step 8: Cleanup (best-effort) ─────────────────────────────────────
+    // ── Step 9: Cleanup (best-effort) ─────────────────────────────────────
     let _ = std::fs::remove_file(&tmp_path);
 
-    // ── Step 9: Return result ─────────────────────────────────────────────
+    // ── Step 10: Return result ────────────────────────────────────────────
     ffmpeg_result?;
 
     let effective_rate     = options.sample_rate.unwrap_or(src_rate);
@@ -201,6 +214,7 @@ mod tests {
     #[tokio::test]
     async fn export_fails_if_output_exists_and_no_overwrite() {
         use tempfile::NamedTempFile;
+        use crate::audio::EditRegistry;
         // Create a real file at the output path so the check fires.
         let tmp = NamedTempFile::new().unwrap();
         let out_path = tmp.path().with_extension("wav");
@@ -212,11 +226,13 @@ mod tests {
             bitrate_kbps: None,
             overwrite: false,
         };
+        let registry = EditRegistry::default();
         let result = export_audio(
             Path::new("/nonexistent/source.wav"),
             &[],
             &out_path,
             opts,
+            &registry,
         ).await;
 
         assert!(result.is_err());

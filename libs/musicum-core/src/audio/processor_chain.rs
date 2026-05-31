@@ -23,14 +23,14 @@ use crate::edit::{EditKind, ProcessorEdit};
 pub(super) const BUFFER_CAPACITY: usize = 48_000 * 2 * 2;
 pub(super) const CHUNK_SAMPLES:   usize = 4_096;
 
-pub(super) struct PluginHandle {
+pub(crate) struct PluginHandle {
     pub uuid:      Uuid,
     pub enabled:   AtomicBool,
     pub processor: Mutex<Box<dyn PluginProcessor>>,
 }
 
 /// Instantiate one `PluginHandle` per plugin edit (enabled and disabled alike).
-pub(super) fn build_plugin_handles(
+pub(crate) fn build_plugin_handles(
     edits: &[ProcessorEdit],
     registry: &EditRegistry,
 ) -> Vec<Arc<PluginHandle>> {

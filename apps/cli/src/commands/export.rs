@@ -3,13 +3,13 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Result};
 use clap::Args;
 use musicum_core::{
-    audio::structural_edits_from,
     deserialize_processor_edits,
+    edit::ProcessorEdit,
+    EditRegistry,
     services::{
         clip_service, file_service,
         export_service::{export_audio, ExportOptions},
     },
-    StructuralEdit,
 };
 use sea_orm::DatabaseConnection;
 
@@ -60,7 +60,8 @@ pub async fn run(db: &DatabaseConnection, args: ExportArgs) -> Result<()> {
         overwrite:    args.overwrite,
     };
 
-    let result = export_audio(&file_path, &edits, &args.output, options).await?;
+    let registry = EditRegistry::default();
+    let result = export_audio(&file_path, &edits, &args.output, options, &registry).await?;
 
     let mut items = vec![
         DetailItem::Field("slug",     args.slug.clone()),
@@ -83,7 +84,7 @@ async fn resolve_target(
     target: &str,
     force_file: bool,
     force_clip: bool,
-) -> Result<(PathBuf, Vec<StructuralEdit>)> {
+) -> Result<(PathBuf, Vec<ProcessorEdit>)> {
     if force_file {
         let file = file_service::get_file_by_slug(db, target)
             .await
@@ -99,7 +100,7 @@ async fn resolve_target(
             .await
             .map_err(|_| anyhow!("parent file for clip '{target}' not found"))?;
         let edits = deserialize_processor_edits(&clip.processors);
-        return Ok((PathBuf::from(file.path), structural_edits_from(&edits)));
+        return Ok((PathBuf::from(file.path), edits));
     }
 
     if let Ok(file) = file_service::get_file_by_slug(db, target).await {
@@ -108,7 +109,7 @@ async fn resolve_target(
     if let Ok(clip) = clip_service::get_clip_by_slug(db, target).await {
         if let Ok(file) = file_service::get_file_by_id(db, &clip.file_id).await {
             let edits = deserialize_processor_edits(&clip.processors);
-            return Ok((PathBuf::from(file.path), structural_edits_from(&edits)));
+            return Ok((PathBuf::from(file.path), edits));
         }
     }
 

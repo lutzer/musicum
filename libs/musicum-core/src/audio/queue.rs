@@ -40,6 +40,8 @@ impl PlaybackQueue {
     pub fn total(&self)          -> usize                { self.items.len() }
     pub fn current_title(&self)  -> &str                { &self.items[self.current_index].title }
     pub fn titles(&self)         -> Vec<&str>           { self.items.iter().map(|i| i.title.as_str()).collect() }
+    pub fn current_edits(&self)  -> &[ProcessorEdit]    { &self.items[self.current_index].edits }
+    pub fn has_any_edits(&self)  -> bool                { self.items.iter().any(|item| item.edits.iter().any(|e| e.enabled)) }
 
     pub fn next(&mut self) -> bool {
         if self.current_index + 1 >= self.items.len() {
@@ -92,9 +94,73 @@ impl PlaybackQueue {
 mod tests {
     use super::*;
     use crate::audio::registry::EditRegistry;
+    use crate::edit::{EditKind, ProcessorEdit};
     use hound::{SampleFormat, WavSpec, WavWriter};
     use std::sync::Arc;
     use tempfile::NamedTempFile;
+    use uuid::Uuid;
+
+    fn enabled_structural_edit() -> ProcessorEdit {
+        ProcessorEdit {
+            uuid: Uuid::new_v4(),
+            enabled: true,
+            kind: EditKind::Structural {
+                processor_id: "trim".to_string(),
+                params: [("start".to_string(), 1.0_f64)].into(),
+            },
+        }
+    }
+
+    fn disabled_plugin_edit() -> ProcessorEdit {
+        ProcessorEdit {
+            uuid: Uuid::new_v4(),
+            enabled: false,
+            kind: EditKind::Plugin {
+                plugin_id: "gain".to_string(),
+                params: [("g".to_string(), 0.5_f32)].into(),
+            },
+        }
+    }
+
+    #[test]
+    fn current_edits_returns_edits_for_current_item() {
+        let tmp = temp_wav(4410, 44_100);
+        let registry = Arc::new(EditRegistry::default());
+        let edit = enabled_structural_edit();
+        let items = vec![QueueItem {
+            title: "a".to_string(),
+            path: tmp.path().to_str().unwrap().to_string(),
+            edits: vec![edit.clone()],
+        }];
+        let queue = PlaybackQueue::new(items, registry).unwrap();
+        assert_eq!(queue.current_edits(), &[edit]);
+    }
+
+    #[test]
+    fn has_any_edits_false_when_all_disabled() {
+        let tmp = temp_wav(4410, 44_100);
+        let registry = Arc::new(EditRegistry::default());
+        let items = vec![QueueItem {
+            title: "a".to_string(),
+            path: tmp.path().to_str().unwrap().to_string(),
+            edits: vec![disabled_plugin_edit()],
+        }];
+        let queue = PlaybackQueue::new(items, registry).unwrap();
+        assert!(!queue.has_any_edits());
+    }
+
+    #[test]
+    fn has_any_edits_true_when_one_enabled() {
+        let tmp = temp_wav(4410, 44_100);
+        let registry = Arc::new(EditRegistry::default());
+        let items = vec![QueueItem {
+            title: "a".to_string(),
+            path: tmp.path().to_str().unwrap().to_string(),
+            edits: vec![disabled_plugin_edit(), enabled_structural_edit()],
+        }];
+        let queue = PlaybackQueue::new(items, registry).unwrap();
+        assert!(queue.has_any_edits());
+    }
 
     fn temp_wav(frames: usize, sample_rate: u32) -> NamedTempFile {
         let tmp = NamedTempFile::new().unwrap();

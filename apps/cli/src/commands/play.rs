@@ -6,10 +6,9 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use musicum_core::{
-    audio::structural_edits_from,
     deserialize_processor_edits,
-    edit::ProcessorEdit,
-    EditRegistry, PlaybackQueue, QueueItem, StructuralEdit,
+    edit::{EditKind, ProcessorEdit},
+    EditRegistry, PlaybackQueue, QueueItem,
     services::{clip_service, collection_service, file_service},
 };
 use ratatui::{
@@ -25,18 +24,31 @@ use std::sync::Arc;
 
 const MAX_QUEUE_VISIBLE: usize = 6;
 
-fn format_processor_display(edits: &[StructuralEdit]) -> String {
+fn format_edit_row(edits: &[ProcessorEdit]) -> String {
     edits
         .iter()
         .filter(|e| e.enabled)
-        .map(|e| {
-            let mut params: Vec<String> = e
-                .params
-                .iter()
-                .map(|(k, v)| format!("{k}={v:.2}s"))
-                .collect();
-            params.sort();
-            format!("{} {}", e.processor_id, params.join(" "))
+        .map(|e| match &e.kind {
+            EditKind::Structural { processor_id, params } => {
+                let mut parts: Vec<String> =
+                    params.iter().map(|(k, v)| format!("{k}={v:.2}s")).collect();
+                parts.sort();
+                if parts.is_empty() {
+                    processor_id.clone()
+                } else {
+                    format!("{processor_id} {}", parts.join(" "))
+                }
+            }
+            EditKind::Plugin { plugin_id, params } => {
+                let mut parts: Vec<String> =
+                    params.iter().map(|(k, v)| format!("{k}={v:.2}")).collect();
+                parts.sort();
+                if parts.is_empty() {
+                    plugin_id.clone()
+                } else {
+                    format!("{plugin_id} {}", parts.join(" "))
+                }
+            }
         })
         .collect::<Vec<_>>()
         .join("  ")
@@ -58,7 +70,7 @@ pub async fn run(
             .map_err(|_| anyhow!("no collection with slug '{slug}'"))?;
         let queue = PlaybackQueue::new(items, Arc::clone(&registry))?;
         if loop_mode { queue.engine().toggle_loop(); }
-        return run_player(queue, Some(title), String::new());
+        return run_player(queue, Some(title));
     }
 
     let target = target.ok_or_else(|| anyhow!("provide a target or --collection <slug>"))?;
@@ -78,7 +90,7 @@ pub async fn run(
         Ok((title, items)) => {
             let queue = PlaybackQueue::new(items, Arc::clone(&registry))?;
             if loop_mode { queue.engine().toggle_loop(); }
-            run_player(queue, Some(title), String::new())
+            run_player(queue, Some(title))
         }
         Err(_) => Err(anyhow!(
             "'{target}' is not a known file, clip, or collection slug, or an existing file path"
@@ -111,7 +123,6 @@ fn play_single_clip(
     loop_mode: bool,
     registry: Arc<EditRegistry>,
 ) -> Result<()> {
-    let processor_display = format_processor_display(&structural_edits_from(&edits));
     let item = QueueItem {
         title: path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string(),
         path:  path.to_string_lossy().to_string(),
@@ -119,7 +130,7 @@ fn play_single_clip(
     };
     let queue = PlaybackQueue::new(vec![item], Arc::clone(&registry))?;
     if loop_mode { queue.engine().toggle_loop(); }
-    run_player(queue, None, processor_display)
+    run_player(queue, None)
 }
 
 async fn resolve_target(
@@ -165,14 +176,14 @@ async fn resolve_target(
 fn run_player(
     mut queue: PlaybackQueue,
     _collection_title: Option<String>,
-    processor_display: String,
 ) -> Result<()> {
     enable_raw_mode()?;
     let backend = CrosstermBackend::new(io::stdout());
 
+    let show_edits_row = queue.has_any_edits();
     let queue_rows = queue.total().min(MAX_QUEUE_VISIBLE) as u16;
     let base_height: u16 = 5 + 2  // status, bar, time, hints, separator + top/bottom border
-        + u16::from(!processor_display.is_empty())
+        + u16::from(show_edits_row)
         + queue_rows;
 
     let mut terminal = Terminal::with_options(
@@ -191,7 +202,7 @@ fn run_player(
             queue_scroll = ci + 1 - MAX_QUEUE_VISIBLE;
         }
 
-        terminal.draw(|f| draw(f, &queue, &processor_display, queue_exhausted, queue_scroll))?;
+        terminal.draw(|f| draw(f, &queue, show_edits_row, queue_exhausted, queue_scroll))?;
 
         if !queue_exhausted && queue.advance_if_finished() {
             // engine replaced; loop continues
@@ -247,14 +258,13 @@ fn run_player(
 fn draw(
     f: &mut Frame,
     queue: &PlaybackQueue,
-    processor_display: &str,
+    show_edits_row: bool,
     queue_exhausted: bool,
     queue_scroll: usize,
 ) {
     let pos = queue.engine().position_secs();
     let dur = queue.engine().duration_secs();
     let queue_rows = queue.total().min(MAX_QUEUE_VISIBLE);
-    let show_processors = !processor_display.is_empty();
 
     let mut constraints = vec![
         Constraint::Length(1), // status + title
@@ -262,7 +272,7 @@ fn draw(
         Constraint::Length(1), // time row
         Constraint::Length(1), // hints
     ];
-    if show_processors {
+    if show_edits_row {
         constraints.push(Constraint::Length(1));
     }
     constraints.push(Constraint::Length(1)); // separator
@@ -326,10 +336,11 @@ fn draw(
     f.render_widget(Paragraph::new(hints), areas[area_idx]);
     area_idx += 1;
 
-    // optional processors
-    if show_processors {
+    // edits row
+    if show_edits_row {
+        let edit_str = format_edit_row(queue.current_edits());
         f.render_widget(
-            Paragraph::new(processor_display).style(Style::default().fg(Color::DarkGray)),
+            Paragraph::new(edit_str).style(Style::default().fg(Color::DarkGray)),
             areas[area_idx],
         );
         area_idx += 1;
@@ -365,4 +376,80 @@ fn draw(
 fn fmt_duration(secs: f64) -> String {
     let s = secs as u64;
     format!("{:02}:{:02}", s / 60, s % 60)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use musicum_core::edit::{EditKind, ProcessorEdit};
+    use uuid::Uuid;
+
+    fn structural(id: &str, params: &[(&str, f64)]) -> ProcessorEdit {
+        ProcessorEdit {
+            uuid: Uuid::new_v4(),
+            enabled: true,
+            kind: EditKind::Structural {
+                processor_id: id.to_string(),
+                params: params.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+            },
+        }
+    }
+
+    fn plugin(id: &str, params: &[(&str, f32)]) -> ProcessorEdit {
+        ProcessorEdit {
+            uuid: Uuid::new_v4(),
+            enabled: true,
+            kind: EditKind::Plugin {
+                plugin_id: id.to_string(),
+                params: params.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+            },
+        }
+    }
+
+    fn disabled(mut e: ProcessorEdit) -> ProcessorEdit {
+        e.enabled = false;
+        e
+    }
+
+    #[test]
+    fn empty_when_no_edits() {
+        assert_eq!(format_edit_row(&[]), "");
+    }
+
+    #[test]
+    fn disabled_edits_are_excluded() {
+        let e = disabled(structural("trim", &[("start", 1.0)]));
+        assert_eq!(format_edit_row(&[e]), "");
+    }
+
+    #[test]
+    fn structural_edit_formatted_with_s_suffix() {
+        let e = structural("trim", &[("start", 1.2)]);
+        assert_eq!(format_edit_row(&[e]), "trim start=1.20s");
+    }
+
+    #[test]
+    fn plugin_edit_formatted_without_suffix() {
+        let e = plugin("gain", &[("g", 0.5)]);
+        assert_eq!(format_edit_row(&[e]), "gain g=0.50");
+    }
+
+    #[test]
+    fn multiple_params_are_sorted() {
+        let e = structural("trim", &[("end", 3.0), ("start", 1.0)]);
+        assert_eq!(format_edit_row(&[e]), "trim end=3.00s start=1.00s");
+    }
+
+    #[test]
+    fn mixed_edits_joined_by_two_spaces() {
+        let s = structural("trim", &[("start", 1.2)]);
+        let p = plugin("gain", &[("g", 0.5)]);
+        assert_eq!(format_edit_row(&[s, p]), "trim start=1.20s  gain g=0.50");
+    }
+
+    #[test]
+    fn edit_with_no_params_shows_id_only() {
+        let e = structural("normalize", &[]);
+        assert_eq!(format_edit_row(&[e]), "normalize");
+    }
 }

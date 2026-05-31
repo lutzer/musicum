@@ -42,6 +42,7 @@ libs/structural-processors/
 - **Logic goes in musicum-core.** CLI is display-only; all business logic lives in the core lib.
 - **CLI output style.** Reuse output functions so all commands share consistent formatting.
 - **Shell completion slug registry.** When adding a subcommand with slug positional args, add an entry to `SLUG_COMPLETIONS` in `apps/cli/src/commands/completions.rs`. No other file needs editing for completion to work.
+- **Audio Player and audio exporter** using the same logic. They should both produce the same output of audio samples with the same source file. Share as much code as possible between these two.
 
 ## Supplemental docs
 - `docs/plans/specs/2026-05-22-tauri-greenfield-setup.md` — full architecture & DB schema

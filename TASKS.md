@@ -9,7 +9,7 @@
 * [ ] create workflow to export slices, add bool to slice tool, to export all slices
 * [ ] add zero crossing cuts to edits
 * [ ] load plugins and structural edits dynamically not at compile time
-* [ ] integrate vst plugins, and maybe replace own plugin system
+* [ ] integrate vst plugins, and maybe replace own plugin system ? 
 * [x] add option to repair filebase: if sidecar doesnt has a soundfile try to find it by its hash and rename the sidecar. if no soundfile with that hash exist ask if sidecar should be removed. also remove the db entry respectivly. have option -f to remove without confirmation
 * [x] create file slug from path + filename 
 * [x] add option to rebuild sidecars from database: "sync --rebuild-sidecars", it should remove all sidecars in the library folder and recreate them using the database entries
@@ -27,6 +27,7 @@
 * [x] document code completion setup
 * [ ] bug: code completion doesnt seem to work reliably
 * [x] musicum clip create <file_slug> should create a clip with the same slug
+* [ ] rename cli points files -> file, collextions -> collection, clips -> clip, presets -> preset, processors -> processor
 
 
 ## gui
@@ -42,4 +43,4 @@
 * [ ] bpm
 * [ ] automatic slicing
 * [ ] transient detection (serato sample)
-* [ ] sample / lange files getrennt
+* [ ] sample / lange files getrennt im player 

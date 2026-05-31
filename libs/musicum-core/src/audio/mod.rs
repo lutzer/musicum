@@ -12,6 +12,8 @@ pub use queue::{PlaybackQueue, QueueItem};
 pub use registry::{EditEntry, EditRegistry, EditType, ParamInfo};
 pub use source::FileAudioSource;
 
+pub(crate) use processor_chain::build_plugin_handles;
+
 /// Extract structural edits from a `ProcessorEdit` slice.
 /// Plugin edits are silently ignored. Used by `export_service`.
 pub fn structural_edits_from(edits: &[ProcessorEdit]) -> Vec<StructuralEdit> {
