@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub library: LibraryConfig,
     pub general: GeneralConfig,
+    pub processors: ProcessorConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,8 +48,8 @@ impl Default for Config {
             general: GeneralConfig {
                 hidden_sidecars: true
             },
-            plugins: ProcessorConfig {
-                processor_dir: home.join(".musicum").join('processors')
+            processors: ProcessorConfig {
+                processor_dir: home.join(".musicum").join("processors")
             }
         }
     }
@@ -135,6 +136,9 @@ generated_dir = "/tmp/mygenerated"
 
 [general]
 hidden_sidecars = false
+
+[processors]
+processor_dir = "/tmp/processors"
 "#).unwrap();
 
         let config = Config::load_from(path);
