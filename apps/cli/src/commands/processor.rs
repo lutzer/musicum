@@ -1,4 +1,6 @@
-use musicum_core::{EditRegistry, EditType, ParamInfo};
+use std::sync::Arc;
+
+use musicum_core::{config::Config, EditRegistry, EditType, ParamInfo, ProcessorRegistry};
 use serde::Serialize;
 
 use crate::output::{print_json, print_table};
@@ -13,14 +15,17 @@ struct ProcessorListEntry {
 }
 
 pub fn run(json: bool) {
-    let registry = EditRegistry::default();
+    let mut proc_reg = ProcessorRegistry::new();
+    proc_reg.load_dir(&Config::get().processors.processor_dir).ok();
+    let registry = EditRegistry::new(Arc::new(proc_reg));
     let mut entries: Vec<ProcessorListEntry> = registry
         .list_entries()
         .into_iter()
         .map(|e| {
             let kind = match e.edit_type {
                 EditType::Structural => "structural",
-                EditType::Plugin     => "audio-plugin",
+                EditType::Stream     => "stream",
+                EditType::Analyzer   => "analyzer",
             }
             .to_string();
             let parameters = e

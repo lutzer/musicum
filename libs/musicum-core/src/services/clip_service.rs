@@ -270,11 +270,11 @@ mod tests {
         setup(&db, &audio).await;
 
         let mut params = HashMap::new();
-        params.insert("gain".to_string(), 0.75_f32);
+        params.insert("gain".to_string(), 0.75_f64);
         let edit = ProcessorEdit {
             uuid: Uuid::new_v4(),
             enabled: true,
-            kind: EditKind::Plugin { plugin_id: "gain".to_string(), params },
+            kind: EditKind::Stream { processor_id: "gain".to_string(), params },
         };
 
         update_clip_processors(&db, "my-clip", vec![edit.clone()]).await.unwrap();

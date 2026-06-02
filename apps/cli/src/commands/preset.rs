@@ -1,9 +1,10 @@
 use anyhow::{bail, Result};
 use clap::{Args, Subcommand};
 use musicum_core::{
+    config::Config,
     deserialize_processor_edits,
     edit::{EditKind, ProcessorEdit},
-    EditRegistry, EditType, ParamInfo,
+    EditRegistry, EditType, ParamInfo, ProcessorRegistry,
     services::preset_service,
 };
 use sea_orm::DatabaseConnection;
@@ -103,12 +104,12 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
                                         .join(", ");
                                     ("structural", processor_id.as_str(), ps)
                                 }
-                                EditKind::Plugin { plugin_id, params } => {
+                                EditKind::Stream { processor_id, params } => {
                                     let ps = params.iter()
                                         .map(|(k, v)| format!("{k}={v}"))
                                         .collect::<Vec<_>>()
                                         .join(", ");
-                                    ("audio-plugin", plugin_id.as_str(), ps)
+                                    ("stream", processor_id.as_str(), ps)
                                 }
                             };
                             let short_uuid = &entry.uuid.to_string()[..8];
@@ -137,7 +138,9 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
         }
 
         PresetCommand::AddProcessor { preset_slug, processor_type } => {
-            let reg = EditRegistry::default();
+            let mut proc_reg = ProcessorRegistry::new();
+            proc_reg.load_dir(&Config::get().processors.processor_dir).ok();
+            let reg = EditRegistry::new(std::sync::Arc::new(proc_reg));
             let all_entries = reg.list_entries();
             let structural: Vec<_> = all_entries.iter()
                 .filter(|e| matches!(e.edit_type, EditType::Structural))
@@ -155,12 +158,15 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
 
             let mut default_params = std::collections::HashMap::new();
             for p in &entry.parameters {
-                let (param_id, val) = match p {
-                    ParamInfo::Time { id, default, .. } => (*id, *default),
-                    ParamInfo::Int  { id, default, .. } => (*id, *default as f64),
-                    _ => continue,
-                };
-                default_params.insert(param_id.to_string(), val);
+                match p {
+                    ParamInfo::Time { id, default, .. } => {
+                        default_params.insert(id.clone(), *default);
+                    }
+                    ParamInfo::Int  { id, default, .. } => {
+                        default_params.insert(id.clone(), *default as f64);
+                    }
+                    _ => {}
+                }
             }
 
             let instance_uuid = Uuid::new_v4();

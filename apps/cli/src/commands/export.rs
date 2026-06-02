@@ -6,7 +6,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use musicum_core::{
     deserialize_processor_edits,
     edit::ProcessorEdit,
-    EditRegistry,
+    EditRegistry, ProcessorRegistry,
     services::{
         clip_service, file_service,
         export_service::{export_audio, ExportOptions},
@@ -67,14 +67,16 @@ pub async fn run(db: &DatabaseConnection, args: ExportArgs) -> Result<()> {
         bitrate_kbps: args.bitrate,
         overwrite:    args.overwrite,
     };
-    let registry = EditRegistry::default();
+    let mut proc_reg = ProcessorRegistry::new();
+    proc_reg.load_dir(&musicum_core::config::Config::get().processors.processor_dir).ok();
+    let registry = EditRegistry::new(std::sync::Arc::new(proc_reg));
 
     let result = export_audio(
         &file_path,
         &edits,
         &args.output,
         options,
-        &registry,
+        registry.registry(),
         move |cursor_secs, total_secs| {
             if total_secs > 0.0 && pb2.length().is_none() {
                 pb2.set_length((total_secs * 1000.0) as u64);

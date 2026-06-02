@@ -139,12 +139,12 @@ pub async fn run(db: &DatabaseConnection, args: ClipArgs) -> Result<()> {
                                         .join(" ");
                                     ("structural", processor_id.as_str(), ps)
                                 }
-                                EditKind::Plugin { plugin_id, params } => {
+                                EditKind::Stream { processor_id, params } => {
                                     let ps = params.iter()
                                         .map(|(k, v)| format!("{k}={v}"))
                                         .collect::<Vec<_>>()
                                         .join(" ");
-                                    ("audio-plugin", plugin_id.as_str(), ps)
+                                    ("stream", processor_id.as_str(), ps)
                                 }
                             };
                             vec![

@@ -8,7 +8,7 @@ use crossterm::{
 use musicum_core::{
     deserialize_processor_edits,
     edit::{EditKind, ProcessorEdit},
-    EditRegistry, PlaybackQueue, QueueItem,
+    EditRegistry, PlaybackQueue, QueueItem, ProcessorRegistry,
     services::{clip_service, collection_service, file_service},
 };
 use ratatui::{
@@ -39,14 +39,14 @@ fn format_edit_row(edits: &[ProcessorEdit]) -> String {
                     format!("{processor_id} {}", parts.join(" "))
                 }
             }
-            EditKind::Plugin { plugin_id, params } => {
+            EditKind::Stream { processor_id, params } => {
                 let mut parts: Vec<String> =
                     params.iter().map(|(k, v)| format!("{k}={v:.2}")).collect();
                 parts.sort();
                 if parts.is_empty() {
-                    plugin_id.clone()
+                    processor_id.clone()
                 } else {
-                    format!("{plugin_id} {}", parts.join(" "))
+                    format!("{processor_id} {}", parts.join(" "))
                 }
             }
         })
@@ -63,7 +63,9 @@ pub async fn run(
     loop_mode: bool,
     device: Option<String>,
 ) -> Result<()> {
-    let registry = Arc::new(EditRegistry::default());
+    let mut proc_reg = ProcessorRegistry::new();
+    proc_reg.load_dir(&musicum_core::config::Config::get().processors.processor_dir).ok();
+    let registry = Arc::new(EditRegistry::new(Arc::new(proc_reg)));
 
     if let Some(slug) = collection {
         let (title, items) = build_collection_queue(db, &slug)
@@ -397,12 +399,12 @@ mod tests {
         }
     }
 
-    fn plugin(id: &str, params: &[(&str, f32)]) -> ProcessorEdit {
+    fn stream(id: &str, params: &[(&str, f64)]) -> ProcessorEdit {
         ProcessorEdit {
             uuid: Uuid::new_v4(),
             enabled: true,
-            kind: EditKind::Plugin {
-                plugin_id: id.to_string(),
+            kind: EditKind::Stream {
+                processor_id: id.to_string(),
                 params: params.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
             },
         }
@@ -431,8 +433,8 @@ mod tests {
     }
 
     #[test]
-    fn plugin_edit_formatted_without_suffix() {
-        let e = plugin("gain", &[("g", 0.5)]);
+    fn stream_edit_formatted_without_suffix() {
+        let e = stream("gain", &[("g", 0.5)]);
         assert_eq!(format_edit_row(&[e]), "gain g=0.50");
     }
 
@@ -445,7 +447,7 @@ mod tests {
     #[test]
     fn mixed_edits_joined_by_two_spaces() {
         let s = structural("trim", &[("start", 1.2)]);
-        let p = plugin("gain", &[("g", 0.5)]);
+        let p = stream("gain", &[("g", 0.5)]);
         assert_eq!(format_edit_row(&[s, p]), "trim start=1.20s  gain g=0.50");
     }
 

@@ -6,16 +6,35 @@ use abi_stable::{
     StableAbi,
 };
 
-use crate::processor::{ProcessorContext, ProcessorDescriptor, ProcessorParamaterInfo};
+use crate::processor::{ProcessorContext, ProcessorDescriptor, ProcessorParamaterInfo, ProcessorType};
 
 // ── Descriptor FFI types ──────────────────────────────────────────────────────
+
+#[repr(u8)]
+#[derive(StableAbi, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ProcessorTypeFFI {
+    Structural,
+    Stream,
+    Analyzer,
+}
+
+impl From<&ProcessorType> for ProcessorTypeFFI {
+    fn from(t: &ProcessorType) -> Self {
+        match t {
+            ProcessorType::StructuralProcessor => ProcessorTypeFFI::Structural,
+            ProcessorType::StreamProcessor     => ProcessorTypeFFI::Stream,
+            ProcessorType::Analyzer            => ProcessorTypeFFI::Analyzer,
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(StableAbi, Clone)]
 pub struct ProcessorDescriptorFFI {
-    pub id:     RStr<'static>,
-    pub name:   RStr<'static>,
-    pub params: RVec<ProcessorParamFFI>,
+    pub id:             RStr<'static>,
+    pub name:           RStr<'static>,
+    pub processor_type: ProcessorTypeFFI,
+    pub params:         RVec<ProcessorParamFFI>,
 }
 
 #[repr(u8)]
@@ -56,9 +75,10 @@ pub enum ProcessorParamFFI {
 impl From<&'static ProcessorDescriptor> for ProcessorDescriptorFFI {
     fn from(d: &'static ProcessorDescriptor) -> Self {
         Self {
-            id:     RStr::from(d.id),
-            name:   RStr::from(d.name),
-            params: d.parameters.iter().map(ProcessorParamFFI::from).collect(),
+            id:             RStr::from(d.id),
+            name:           RStr::from(d.name),
+            processor_type: ProcessorTypeFFI::from(&d.processor_type),
+            params:         d.parameters.iter().map(ProcessorParamFFI::from).collect(),
         }
     }
 }

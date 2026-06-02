@@ -167,40 +167,5 @@ mod tests {
         let loaded = read_file_sidecar(&audio).unwrap();
         assert_eq!(loaded.clips[0].processors[0], edit);
     }
-
-    #[test]
-    fn read_sidecar_with_old_processor_entry_format() {
-        // Simulate a sidecar file written before this change
-        let dir = tempdir().unwrap();
-        let audio = dir.path().join("test.wav");
-        let old_json = r#"{
-            "version": 1,
-            "metadata": {},
-            "clips": [{
-                "slug": "c", "title": "C", "notes": "",
-                "processors": [{
-                    "type": "structural",
-                    "id": "550e8400-e29b-41d4-a716-446655440000",
-                    "enabled": true,
-                    "processor": {"id": "trim", "params": {"start": 2.0}}
-                }]
-            }]
-        }"#;
-        let sidecar_path = sidecar_path_for_audio(&audio);
-        std::fs::write(&sidecar_path, old_json).unwrap();
-
-        let sc = read_file_sidecar(&audio).unwrap();
-        assert_eq!(sc.clips.len(), 1);
-        assert_eq!(sc.clips[0].processors.len(), 1);
-        let edit = &sc.clips[0].processors[0];
-        assert_eq!(edit.uuid.to_string(), "550e8400-e29b-41d4-a716-446655440000");
-        match &edit.kind {
-            EditKind::Structural { processor_id, params } => {
-                assert_eq!(processor_id, "trim");
-                assert_eq!(params["start"], 2.0);
-            }
-            _ => panic!("expected Structural"),
-        }
-    }
 }
 

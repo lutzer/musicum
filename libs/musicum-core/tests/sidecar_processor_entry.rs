@@ -1,35 +1,33 @@
-// These tests verify that the migration path from the old ProcessorEntry format
-// to the new ProcessorEdit format works correctly.
-use musicum_core::edit::{deserialize_processor_edits, EditKind};
+use musicum_core::edit::{deserialize_processor_edits, EditKind, ProcessorEdit};
+use std::collections::HashMap;
+use uuid::Uuid;
 
 #[test]
-fn structural_entry_round_trips_via_migration() {
-    // Old format JSON
-    let old_json = r#"[{"type":"structural","id":"uuid-1","enabled":true,"processor":{"id":"trim","params":{"start":0.0,"end":0.0}}}]"#;
-    let edits = deserialize_processor_edits(old_json);
-    assert_eq!(edits.len(), 1);
-    assert_eq!(edits[0].enabled, true);
-    match &edits[0].kind {
-        EditKind::Structural { processor_id, params } => {
-            assert_eq!(processor_id, "trim");
-            assert_eq!(params["start"], 0.0);
-        }
-        _ => panic!("expected Structural"),
-    }
+fn round_trips_structural_edit() {
+    let mut params = HashMap::new();
+    params.insert("start".to_string(), 1.0_f64);
+    let edit = ProcessorEdit {
+        uuid: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+        enabled: true,
+        kind: EditKind::Structural { processor_id: "trim_processor".to_string(), params },
+    };
+    let json = serde_json::to_string(&vec![&edit]).unwrap();
+    let loaded = deserialize_processor_edits(&json);
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0], edit);
 }
 
 #[test]
-fn audio_plugin_entry_round_trips_via_migration() {
-    // Old format JSON
-    let old_json = r#"[{"type":"audio-plugin","id":"uuid-2","enabled":false,"processor":{"id":"gain","params":{"gain":0.8}}}]"#;
-    let edits = deserialize_processor_edits(old_json);
-    assert_eq!(edits.len(), 1);
-    assert_eq!(edits[0].enabled, false);
-    match &edits[0].kind {
-        EditKind::Plugin { plugin_id, params } => {
-            assert_eq!(plugin_id, "gain");
-            assert!((params["gain"] - 0.8).abs() < 1e-6);
-        }
-        _ => panic!("expected Plugin"),
-    }
+fn round_trips_stream_edit() {
+    let mut params = HashMap::new();
+    params.insert("gain".to_string(), 0.8_f64);
+    let edit = ProcessorEdit {
+        uuid: Uuid::parse_str("660e8400-e29b-41d4-a716-446655440001").unwrap(),
+        enabled: false,
+        kind: EditKind::Stream { processor_id: "gain_plugin".to_string(), params },
+    };
+    let json = serde_json::to_string(&vec![&edit]).unwrap();
+    let loaded = deserialize_processor_edits(&json);
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0], edit);
 }

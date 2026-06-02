@@ -6,7 +6,11 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use musicum_core::{edit::{EditKind, ProcessorEdit}, EditRegistry, EditType, ParamInfo};
+use musicum_core::{
+    config::Config,
+    edit::{EditKind, ProcessorEdit},
+    EditRegistry, EditType, ParamInfo, ProcessorRegistry,
+};
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -30,7 +34,7 @@ struct ParamRow {
 #[derive(Clone, PartialEq)]
 enum AvailableKind {
     Structural,
-    Plugin,
+    Stream,
 }
 
 #[derive(Clone)]
@@ -69,16 +73,20 @@ struct EditorState {
 
 impl EditorState {
     fn new(title: String, processors: Vec<ProcessorEdit>) -> Self {
-        let edit_registry = EditRegistry::default();
+        let mut proc_reg = ProcessorRegistry::new();
+        proc_reg.load_dir(&Config::get().processors.processor_dir).ok();
+        let edit_registry = EditRegistry::new(std::sync::Arc::new(proc_reg));
         let mut available_types: Vec<AvailableType> = edit_registry
             .list_entries()
             .into_iter()
+            .filter(|e| !matches!(e.edit_type, EditType::Analyzer))
             .map(|e| AvailableType {
                 id:   e.id,
-                name: e.name.to_string(),
+                name: e.name,
                 kind: match e.edit_type {
                     EditType::Structural => AvailableKind::Structural,
-                    EditType::Plugin     => AvailableKind::Plugin,
+                    EditType::Stream     => AvailableKind::Stream,
+                    EditType::Analyzer   => unreachable!(),
                 },
             })
             .collect();
@@ -121,13 +129,13 @@ impl EditorState {
                     is_bool: false,
                 })
                 .collect(),
-            EditKind::Plugin { plugin_id, params } => {
+            EditKind::Stream { processor_id, params } => {
                 let bool_keys: std::collections::HashSet<&str> = self
                     .edit_registry
-                    .get_entry(plugin_id.as_str())
+                    .get_entry(processor_id.as_str())
                     .map(|entry| {
                         entry.parameters.iter().filter_map(|p| {
-                            if let ParamInfo::Bool { id, .. } = p { Some(*id) } else { None }
+                            if let ParamInfo::Bool { id, .. } = p { Some(id.as_str()) } else { None }
                         }).collect()
                     })
                     .unwrap_or_default();
@@ -149,8 +157,8 @@ impl EditorState {
         match &entry.kind {
             EditKind::Structural { processor_id, .. } =>
                 format!("[structural] {processor_id}{flag}  ({short_uuid})"),
-            EditKind::Plugin { plugin_id, .. } =>
-                format!("[audio-plugin] {plugin_id}{flag}  ({short_uuid})"),
+            EditKind::Stream { processor_id, .. } =>
+                format!("[stream] {processor_id}{flag}  ({short_uuid})"),
         }
     }
 
@@ -242,8 +250,8 @@ impl EditorState {
                 EditKind::Structural { params, .. } => {
                     params.insert(key.to_string(), f);
                 }
-                EditKind::Plugin { params, .. } => {
-                    params.insert(key.to_string(), f as f32);
+                EditKind::Stream { params, .. } => {
+                    params.insert(key.to_string(), f);
                 }
             }
         }
@@ -257,11 +265,11 @@ impl EditorState {
                 let mut params = std::collections::HashMap::new();
                 for p in &entry.parameters {
                     let (id, val) = match p {
-                        ParamInfo::Time { id, default, .. } => (*id, *default),
-                        ParamInfo::Int  { id, default, .. } => (*id, *default as f64),
+                        ParamInfo::Time { id, default, .. } => (id.clone(), *default),
+                        ParamInfo::Int  { id, default, .. } => (id.clone(), *default as f64),
                         _ => continue,
                     };
-                    params.insert(id.to_string(), val);
+                    params.insert(id, val);
                 }
                 self.processors.insert(insert_at, ProcessorEdit {
                     uuid:    Uuid::new_v4(),
@@ -269,13 +277,15 @@ impl EditorState {
                     kind:    EditKind::Structural { processor_id: available.id.clone(), params },
                 });
             }
-            AvailableKind::Plugin => {
+            AvailableKind::Stream => {
                 let mut params = std::collections::HashMap::new();
                 for p in &entry.parameters {
                     match p {
-                        ParamInfo::Float { id, default, .. } => { params.insert(id.to_string(), *default); }
-                        ParamInfo::Bool  { id, default, .. } => {
-                            params.insert(id.to_string(), if *default { 1.0_f32 } else { 0.0_f32 });
+                        ParamInfo::Float { id, default, .. } => {
+                            params.insert(id.clone(), *default as f64);
+                        }
+                        ParamInfo::Bool { id, default, .. } => {
+                            params.insert(id.clone(), if *default { 1.0_f64 } else { 0.0_f64 });
                         }
                         _ => {}
                     }
@@ -283,7 +293,7 @@ impl EditorState {
                 self.processors.insert(insert_at, ProcessorEdit {
                     uuid:    Uuid::new_v4(),
                     enabled: true,
-                    kind:    EditKind::Plugin { plugin_id: available.id.clone(), params },
+                    kind:    EditKind::Stream { processor_id: available.id.clone(), params },
                 });
             }
         }
@@ -693,7 +703,7 @@ fn draw_picker_overlay(f: &mut Frame, state: &EditorState, area: Rect) {
             };
             let badge = match avail.kind {
                 AvailableKind::Structural => "[structural]  ",
-                AvailableKind::Plugin     => "[audio-plugin]",
+                AvailableKind::Stream      => "[stream]       ",
             };
             ListItem::new(Line::from(vec![
                 Span::styled(format!("{badge} "), Style::default().fg(Color::DarkGray)),

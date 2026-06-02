@@ -94,9 +94,9 @@ pub async fn set_processor_param(
                 params.insert(key.to_string(), v);
             }
         }
-        EditKind::Plugin { params, .. } => {
+        EditKind::Stream { params, .. } => {
             if let Some(v) = value.as_f64() {
-                params.insert(key.to_string(), v as f32);
+                params.insert(key.to_string(), v);
             }
         }
     }
