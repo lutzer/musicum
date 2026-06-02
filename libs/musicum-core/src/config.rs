@@ -22,7 +22,7 @@ pub struct GeneralConfig {
 
 pub fn home_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-    return PathBuf::from(home);
+    PathBuf::from(home)
 }
 
 pub fn default_config_path() -> PathBuf {

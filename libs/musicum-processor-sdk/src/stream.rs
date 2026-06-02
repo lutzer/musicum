@@ -1,6 +1,5 @@
 use crate::processor::BaseProcessor;
 
-
 pub trait ProcessorAudioStream {
     fn sample_rate(&self) -> u32;
     fn channels(&self) -> u16;
@@ -11,7 +10,9 @@ pub trait ProcessorAudioStream {
     fn map(&self, processor: &dyn BaseProcessor) -> Box<dyn ProcessorAudioStream>;
 }
 
-pub fn apply_processors_on_stream<'a>(stream: &'a mut dyn ProcessorAudioStream, processors: &[&'a dyn BaseProcessor]) -> Box<&'a mut dyn ProcessedAudioStream> {
-    // apply structural edits and also process audio 
-    return Box::new(stream);
+pub fn apply_processors_on_stream<'a>(
+    stream: &'a mut dyn ProcessorAudioStream,
+    _processors: &[&'a dyn BaseProcessor],
+) -> &'a mut dyn ProcessorAudioStream {
+    stream
 }

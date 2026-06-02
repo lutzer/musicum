@@ -1,3 +1,4 @@
+use abi_stable::StableAbi;
 use crate::analyzer::AnalysisContext;
 
 pub enum ProcessorParamaterInfo {
@@ -25,10 +26,12 @@ pub struct ProcessorDescriptor {
     pub parameters: &'static [ProcessorParamaterInfo],
 }
 
+#[repr(C)]
+#[derive(StableAbi, Clone, Copy)]
 pub struct ProcessorContext {
-    playing: bool,
-    sample_rate: u32,
-    number_channels: u32
+    pub playing: bool,
+    pub sample_rate: u32,
+    pub number_channels: u32,
 }
 
 pub trait BaseProcessor: Send + Sync {
@@ -40,8 +43,8 @@ pub trait BaseProcessor: Send + Sync {
     /// gets the processors descriptor
     fn descriptor(&self) ->  &'static ProcessorDescriptor;
 
-    fn get_parameter(&self, id: &str) -> f32;
-    fn set_parameter(&mut self, id: &str, value: f32);
+    fn get_parameter(&self, id: &str) -> f64;
+    fn set_parameter(&mut self, id: &str, value: f64);
 
     /// tells the processor pipeline that this processor needs to run an analysis
     fn requires_analysis(&self) -> bool;
@@ -60,7 +63,7 @@ pub trait StructuralProcessor: BaseProcessor {
     /// Map a time in the *source* domain forward to the *processed* domain.
     /// `duration` is the audio length (seconds) *before* this edit.
     fn map_source_time(&self, 
-        time: f64,
+        source_time: f64,
         duration: f64,
         context: &ProcessorContext) -> f64;
     
@@ -68,7 +71,7 @@ pub trait StructuralProcessor: BaseProcessor {
     /// `duration` is the audio length (seconds) *before* this edit.
     fn map_processed_time(
         &self,
-        time: f64,
+        processed_time: f64,
         duration: f64,
         context: &ProcessorContext
     ) -> f64;
