@@ -1,0 +1,15 @@
+{
+  "name": "musicum-processors",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "libs/musicum-processors",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bash build-processors.sh",
+        "cwd": "libs/musicum-processors"
+      }
+    } 
+  }
+}

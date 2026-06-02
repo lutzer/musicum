@@ -1,0 +1,3 @@
+[workspace]
+members = ["gain", "trim"]
+resolver = "2"

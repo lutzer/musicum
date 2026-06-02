@@ -20,6 +20,11 @@ pub struct GeneralConfig {
     pub hidden_sidecars: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProcessorConfig {
+    pub processor_dir: PathBuf,
+}
+
 pub fn home_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
     PathBuf::from(home)
@@ -42,6 +47,9 @@ impl Default for Config {
             general: GeneralConfig {
                 hidden_sidecars: true
             },
+            plugins: ProcessorConfig {
+                processor_dir: home.join(".musicum").join('processors')
+            }
         }
     }
 }
