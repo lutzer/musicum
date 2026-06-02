@@ -26,7 +26,10 @@
     * [ ] generate spectogram
     * [ ] generate duration
     * [ ] add function to clean up orphaned data files
-* [ ] speed up export. it is very slow
+* [x] speed up export. it is very slow
+* [ ] design processor manager with offline processors, structural processors, audio plugins and combined ones. multipass?
+* [ ] workflow to export multiple slices?
+* [ ] export collection
 
 ## cli
 * [x] add collection feature

@@ -28,6 +28,14 @@
       "path": "libs/structural-processor-sdk",
       "name": "structural-processor-sdk"
     },
+    {
+      "path": "libs/musicum-processor-sdk",
+      "name": "musicum-processor-sdk"
+    },
+    {
+      "path": "libs/musicum-processors",
+      "name": "musicum-processors"
+    },
   ],
   "settings": {}
 }

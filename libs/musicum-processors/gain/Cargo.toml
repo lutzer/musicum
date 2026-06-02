@@ -1,0 +1,11 @@
+[package]
+name = "gain"
+version = "0.1.0"
+edition = "2021"
+description = "Gain audio plugin for Musicum"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+musicum-processor-sdk = { path = "../../musicum-processor-sdk" }

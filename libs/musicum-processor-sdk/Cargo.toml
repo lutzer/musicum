@@ -1,0 +1,8 @@
+[package]
+name = "musicum-processor-sdk"
+version = "0.1.0"
+edition = "2024"
+
+crate-type = ["rlib"]
+
+[dependencies]
