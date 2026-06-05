@@ -2,8 +2,7 @@ use anyhow::{bail, Result};
 use clap::{Args, Subcommand};
 use musicum_core::{
     config::Config,
-    deserialize_processor_edits,
-    edit::{EditKind, ProcessorEdit},
+    edit::{ProcessorEdit, ProcessorEditType},
     EditRegistry, EditType, ParamInfo, ProcessorRegistry,
     services::preset_service,
 };
@@ -82,7 +81,7 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
             if json {
                 print_json(&preset);
             } else {
-                let processors = deserialize_processor_edits(&preset.processors);
+                let processors = preset.processors.0.clone();
                 print_detail(&[
                     Field("slug", preset.slug.clone()),
                     Field("title", preset.title.clone()),
@@ -96,24 +95,17 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
                         "processors",
                         &["UUID", "KIND", "PROC", "ENABLED", "PARAMS"],
                         processors.iter().map(|entry| {
-                            let (kind, proc_id, params_str) = match &entry.kind {
-                                EditKind::Structural { processor_id, params } => {
-                                    let ps = params.iter()
-                                        .map(|(k, v)| format!("{k}={v}"))
-                                        .collect::<Vec<_>>()
-                                        .join(", ");
-                                    ("structural", processor_id.as_str(), ps)
-                                }
-                                EditKind::Stream { processor_id, params } => {
-                                    let ps = params.iter()
-                                        .map(|(k, v)| format!("{k}={v}"))
-                                        .collect::<Vec<_>>()
-                                        .join(", ");
-                                    ("stream", processor_id.as_str(), ps)
-                                }
+                            let kind = match &entry.kind {
+                                ProcessorEditType::StructuralProcessor => "structural",
+                                ProcessorEditType::StreamProcessor => "stream",
+                                ProcessorEditType::Analyzer => "analyzer",
                             };
+                            let params_str = entry.params.iter()
+                                .map(|(k, v)| format!("{k}={v}"))
+                                .collect::<Vec<_>>()
+                                .join(", ");
                             let short_uuid = &entry.uuid.to_string()[..8];
-                            vec![short_uuid.to_string(), kind.to_string(), proc_id.to_string(),
+                            vec![short_uuid.to_string(), kind.to_string(), entry.processor_id.clone(),
                                  entry.enabled.to_string(), params_str]
                         }).collect(),
                     );
@@ -171,18 +163,17 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
 
             let instance_uuid = Uuid::new_v4();
             let new_entry = ProcessorEdit {
-                uuid:    instance_uuid,
-                enabled: true,
-                kind:    EditKind::Structural {
-                    processor_id: processor_type.clone(),
-                    params:       default_params,
-                },
+                uuid:         instance_uuid,
+                enabled:      true,
+                processor_id: processor_type.clone(),
+                kind:         ProcessorEditType::StructuralProcessor,
+                params:       default_params,
             };
 
             let preset = preset_service::get_preset_by_slug(db, &preset_slug).await?;
-            let mut processors = deserialize_processor_edits(&preset.processors);
+            let mut processors = preset.processors.0;
             processors.push(new_entry);
-            preset_service::update_preset_processors(db, &preset_slug, processors).await?;
+            preset_service::update_preset_processors(db, &preset_slug, &processors).await?;
 
             print_result("Added processor", &[
                 Field("id", instance_uuid.to_string()),
@@ -197,7 +188,7 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
 
         PresetCommand::SetParam { preset_slug, instance_uuid, key, value } => {
             let parsed = parse_param_value(&value);
-            preset_service::set_processor_param(db, &preset_slug, &instance_uuid, &key, parsed).await?;
+            preset_service::set_processor_param(db, &preset_slug, &instance_uuid, &key, parsed.as_f64().unwrap_or(0.0)).await?;
             print_result("Set parameter", &[
                 Field("preset", preset_slug.clone()),
                 Field("processor", instance_uuid.clone()),
@@ -208,13 +199,13 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
 
         PresetCommand::RemoveProcessor { preset_slug, instance_uuid } => {
             let preset = preset_service::get_preset_by_slug(db, &preset_slug).await?;
-            let mut processors = deserialize_processor_edits(&preset.processors);
+            let mut processors = preset.processors.0;
             let original_len = processors.len();
             processors.retain(|e| e.uuid.to_string() != instance_uuid);
             if processors.len() == original_len {
                 bail!("processor '{instance_uuid}' not found in preset '{preset_slug}'");
             }
-            preset_service::update_preset_processors(db, &preset_slug, processors).await?;
+            preset_service::update_preset_processors(db, &preset_slug, &processors).await?;
             print_result(&format!("Removed processor '{instance_uuid}'"), &[
                 Field("preset", preset_slug.clone()),
             ]);

@@ -1,6 +1,8 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::db::entities::edit::ProcessorEditList;
+
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "clip")]
 pub struct Model {
@@ -10,7 +12,7 @@ pub struct Model {
     pub slug: String,
     pub file_id: String,
     pub title: String,
-    pub processors: String,
+    pub processors: ProcessorEditList,
     pub duration: Option<f64>,
     pub notes: String,
     pub created_at: String,

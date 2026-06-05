@@ -1,5 +1,6 @@
 use musicum_core::db;
 use musicum_core::db::entities::{clip, collection, collection_clip, file, file_metadata, preset};
+use musicum_core::db::entities::edit::ProcessorEditList;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait,
     QueryFilter,
@@ -167,7 +168,7 @@ async fn insert_clip_and_query_by_file() {
         slug: Set("pad-reverb".into()),
         file_id: Set(file_id.clone()),
         title: Set("With Reverb".into()),
-        processors: Set(r#"[{"type":"plugin","id":"reverb","enabled":true,"params":{}}]"#.into()),
+        processors: Set(ProcessorEditList(vec![])),
         duration: Set(None),
         notes: Set(String::new()),
         created_at: Set(now()),
@@ -217,7 +218,7 @@ async fn collection_clip_unique_constraint() {
         slug: Set("my-clip".into()),
         file_id: Set(file_id.clone()),
         title: Set("Clip".into()),
-        processors: Set("[]".into()),
+        processors: Set(ProcessorEditList(vec![])),
         duration: Set(None),
         notes: Set(String::new()),
         created_at: Set(now()),
@@ -272,7 +273,7 @@ async fn insert_and_query_preset() {
         slug: Set("warm-reverb".into()),
         title: Set("Warm Reverb".into()),
         description: Set("A warm reverb preset".into()),
-        processors: Set(r#"[{"type":"plugin","id":"reverb","enabled":true,"params":{}}]"#.into()),
+        processors: Set(ProcessorEditList(vec![])),
         created_at: Set(now()),
         updated_at: Set(now()),
     }

@@ -1,8 +1,7 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use musicum_core::{
-    deserialize_processor_edits,
-    edit::{EditKind, ProcessorEdit},
+    edit::{ProcessorEdit, ProcessorEditType},
     services::{clip_service, file_service, preset_service},
 };
 use sea_orm::DatabaseConnection;
@@ -108,7 +107,7 @@ pub async fn run(db: &DatabaseConnection, args: ClipArgs) -> Result<()> {
             if json {
                 print_json(&serde_json::json!({ "clip": clip, "file": file }));
             } else {
-                let processors = deserialize_processor_edits(&clip.processors);
+                let processors = clip.processors.0.clone();
                 print_detail(&[
                     Section("clip"),
                     Field("slug", clip.slug.clone()),
@@ -131,26 +130,19 @@ pub async fn run(db: &DatabaseConnection, args: ClipArgs) -> Result<()> {
                         "processors",
                         &["#", "TYPE", "PROCESSOR", "ENABLED", "PARAMS"],
                         processors.iter().enumerate().map(|(i, p)| {
-                            let (type_str, proc_id, params_str) = match &p.kind {
-                                EditKind::Structural { processor_id, params } => {
-                                    let ps = params.iter()
-                                        .map(|(k, v)| format!("{k}={v}"))
-                                        .collect::<Vec<_>>()
-                                        .join(" ");
-                                    ("structural", processor_id.as_str(), ps)
-                                }
-                                EditKind::Stream { processor_id, params } => {
-                                    let ps = params.iter()
-                                        .map(|(k, v)| format!("{k}={v}"))
-                                        .collect::<Vec<_>>()
-                                        .join(" ");
-                                    ("stream", processor_id.as_str(), ps)
-                                }
+                            let type_str = match &p.kind {
+                                ProcessorEditType::StructuralProcessor => "structural",
+                                ProcessorEditType::StreamProcessor => "stream",
+                                ProcessorEditType::Analyzer => "analyzer",
                             };
+                            let params_str = p.params.iter()
+                                .map(|(k, v)| format!("{k}={v}"))
+                                .collect::<Vec<_>>()
+                                .join(" ");
                             vec![
                                 (i + 1).to_string(),
                                 type_str.to_string(),
-                                proc_id.to_string(),
+                                p.processor_id.clone(),
                                 p.enabled.to_string(),
                                 params_str,
                             ]
@@ -170,7 +162,7 @@ pub async fn run(db: &DatabaseConnection, args: ClipArgs) -> Result<()> {
 
         ClipCommand::ApplyPreset { clip_slug, preset_slug } => {
             let preset = preset_service::get_preset_by_slug(db, &preset_slug).await?;
-            let source_processors = deserialize_processor_edits(&preset.processors);
+            let source_processors = preset.processors.0;
             // Re-assign new UUIDs so each clip application is independent
             let new_processors: Vec<ProcessorEdit> = source_processors
                 .into_iter()
@@ -194,7 +186,7 @@ pub async fn run(db: &DatabaseConnection, args: ClipArgs) -> Result<()> {
 
         ClipCommand::Edit { slug } => {
             let clip = clip_service::get_clip_by_slug(db, &slug).await?;
-            let processors = deserialize_processor_edits(&clip.processors);
+            let processors = clip.processors.0;
             let title = format!("Clip: {slug}");
 
             let save: SaveFn<'_> = Box::new(|procs| {

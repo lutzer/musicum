@@ -267,6 +267,7 @@ mod tests {
     }
 
     use crate::db::entities::{clip, file};
+    use crate::db::entities::edit::ProcessorEditList;
 
     async fn insert_file_and_clip(db: &DatabaseConnection, clip_slug: &str) -> clip::Model {
         let now = chrono::Utc::now().to_rfc3339();
@@ -295,7 +296,7 @@ mod tests {
             slug:       Set(clip_slug.to_string()),
             file_id:    Set(file_id),
             title:      Set(clip_slug.to_string()),
-            processors: Set("[]".to_string()),
+            processors: Set(ProcessorEditList(vec![])),
             duration:   Set(None),
             notes:      Set(String::new()),
             created_at: Set(now.clone()),

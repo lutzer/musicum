@@ -3,8 +3,8 @@ use slug::slugify;
 use uuid::Uuid;
 use std::path::Path;
 
+use crate::db::entities::edit::{ProcessorEdit, ProcessorEditList};
 use crate::db::entities::{clip, collection_clip};
-use crate::edit::ProcessorEdit;
 use crate::sidecar::{self, ClipSidecar};
 use crate::services::file_service;
 use crate::ServiceError;
@@ -70,7 +70,7 @@ pub async fn create_clip(
         slug: Set(clip_slug),
         file_id: Set(file.id),
         title: Set(title.to_string()),
-        processors: Set("[]".to_string()),
+        processors: Set(ProcessorEditList(vec![])),
         duration: Set(None),
         notes: Set(String::new()),
         created_at: Set(now.clone()),
@@ -100,14 +100,13 @@ pub async fn update_clip_processors(
     entry.processors = processors.clone();
     sidecar::write_file_sidecar(audio_path, &sc)?;
 
-    let processors_json = serde_json::to_string(&processors)?;
     let now = chrono::Utc::now().to_rfc3339();
     clip::ActiveModel {
         id:          Set(clip.id),
         slug:        Set(clip.slug),
         file_id:     Set(clip.file_id),
         title:       Set(clip.title),
-        processors: Set(processors_json),
+        processors: Set(ProcessorEditList(processors)),
         duration:   Set(clip.duration),
         notes:      Set(clip.notes),
         created_at: Set(clip.created_at),
@@ -229,7 +228,7 @@ mod tests {
             slug:       Set("my-clip".to_string()),
             file_id:    Set(file_id),
             title:      Set("My Clip".to_string()),
-            processors: Set("[]".to_string()),
+            processors: Set(ProcessorEditList(vec![])),
             duration:   Set(None),
             notes:      Set(String::new()),
             created_at: Set(now.clone()),
@@ -259,7 +258,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_processors_stores_new_format() {
-        use crate::edit::{EditKind, ProcessorEdit};
+        use crate::edit::{ProcessorEdit, ProcessorEditType};
         use std::collections::HashMap;
         use uuid::Uuid;
 
@@ -273,14 +272,16 @@ mod tests {
         params.insert("gain".to_string(), 0.75_f64);
         let edit = ProcessorEdit {
             uuid: Uuid::new_v4(),
+            processor_id: "gain".to_string(),
             enabled: true,
-            kind: EditKind::Stream { processor_id: "gain".to_string(), params },
+            kind: ProcessorEditType::StreamProcessor,
+            params,
         };
 
         update_clip_processors(&db, "my-clip", vec![edit.clone()]).await.unwrap();
 
         let clip = get_clip_by_slug(&db, "my-clip").await.unwrap();
-        let loaded: Vec<ProcessorEdit> = serde_json::from_str(&clip.processors).unwrap();
+        let loaded = clip.processors.0;
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].uuid, edit.uuid);
     }

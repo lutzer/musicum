@@ -6,6 +6,7 @@ use slug::slugify;
 use uuid::Uuid;
 
 use crate::db::entities::{clip, collection_clip, file, file_attachment, file_metadata};
+use crate::db::entities::edit::ProcessorEditList;
 use crate::sidecar::{self, ClipSidecar};
 use crate::ServiceError;
 
@@ -256,7 +257,7 @@ async fn upsert_clips(
 ) -> Result<bool, ServiceError> {
     let mut any_changed = false;
     for cs in clip_sidecars {
-        let processors_json = serde_json::to_string(&cs.processors)?;
+        let processors_list = ProcessorEditList(cs.processors.clone());
         let existing = clip::Entity::find()
             .filter(clip::Column::Slug.eq(&cs.slug))
             .one(db)
@@ -265,7 +266,7 @@ async fn upsert_clips(
 
         if let Some(ex) = existing {
             let differs = ex.title != cs.title
-                || ex.processors != processors_json
+                || ex.processors != processors_list
                 || ex.notes != cs.notes;
             if differs {
                 clip::ActiveModel {
@@ -273,7 +274,7 @@ async fn upsert_clips(
                     slug:       Set(cs.slug.clone()),
                     file_id:    Set(file_id.to_string()),
                     title:      Set(cs.title.clone()),
-                    processors: Set(processors_json),
+                    processors: Set(processors_list),
                     duration:   Set(ex.duration),
                     notes:      Set(cs.notes.clone()),
                     created_at: Set(ex.created_at.clone()),
@@ -289,7 +290,7 @@ async fn upsert_clips(
                 slug:       Set(cs.slug.clone()),
                 file_id:    Set(file_id.to_string()),
                 title:      Set(cs.title.clone()),
-                processors: Set(processors_json),
+                processors: Set(processors_list),
                 duration:   Set(None),
                 notes:      Set(cs.notes.clone()),
                 created_at: Set(now.clone()),

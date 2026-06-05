@@ -1,6 +1,10 @@
-use musicum_core::edit::{deserialize_processor_edits, EditKind, ProcessorEdit};
+use musicum_core::edit::{ProcessorEdit, ProcessorEditType};
 use std::collections::HashMap;
 use uuid::Uuid;
+
+pub fn deserialize_processor_edits(s: &str) -> Vec<ProcessorEdit> {
+    serde_json::from_str(s).unwrap_or_default()
+}
 
 #[test]
 fn round_trips_structural_edit() {
@@ -9,7 +13,9 @@ fn round_trips_structural_edit() {
     let edit = ProcessorEdit {
         uuid: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
         enabled: true,
-        kind: EditKind::Structural { processor_id: "trim_processor".to_string(), params },
+        processor_id: "trim_processor".to_string(),
+        kind: ProcessorEditType::StructuralProcessor,
+        params,
     };
     let json = serde_json::to_string(&vec![&edit]).unwrap();
     let loaded = deserialize_processor_edits(&json);
@@ -24,7 +30,9 @@ fn round_trips_stream_edit() {
     let edit = ProcessorEdit {
         uuid: Uuid::parse_str("660e8400-e29b-41d4-a716-446655440001").unwrap(),
         enabled: false,
-        kind: EditKind::Stream { processor_id: "gain_plugin".to_string(), params },
+        processor_id: "gain_plugin".to_string(),
+        kind: ProcessorEditType::StreamProcessor,
+        params,
     };
     let json = serde_json::to_string(&vec![&edit]).unwrap();
     let loaded = deserialize_processor_edits(&json);

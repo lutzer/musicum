@@ -4,7 +4,6 @@ use anyhow::{anyhow, Result};
 use clap::Args;
 use indicatif::{ProgressBar, ProgressStyle};
 use musicum_core::{
-    deserialize_processor_edits,
     edit::ProcessorEdit,
     EditRegistry, ProcessorRegistry,
     services::{
@@ -132,7 +131,7 @@ async fn resolve_target(
         let file = file_service::get_file_by_id(db, &clip.file_id)
             .await
             .map_err(|_| anyhow!("parent file for clip '{target}' not found"))?;
-        let edits = deserialize_processor_edits(&clip.processors);
+        let edits = clip.processors.0;
         return Ok((PathBuf::from(file.path), edits));
     }
 
@@ -141,7 +140,7 @@ async fn resolve_target(
     }
     if let Ok(clip) = clip_service::get_clip_by_slug(db, target).await {
         if let Ok(file) = file_service::get_file_by_id(db, &clip.file_id).await {
-            let edits = deserialize_processor_edits(&clip.processors);
+            let edits = clip.processors.0;
             return Ok((PathBuf::from(file.path), edits));
         }
     }

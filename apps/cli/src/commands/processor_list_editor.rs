@@ -8,7 +8,7 @@ use crossterm::{
 };
 use musicum_core::{
     config::Config,
-    edit::{EditKind, ProcessorEdit},
+    edit::{ProcessorEdit, ProcessorEditType},
     EditRegistry, EditType, ParamInfo, ProcessorRegistry,
 };
 use ratatui::{
@@ -120,46 +120,39 @@ impl EditorState {
             Some(i) => i,
             None => return vec![],
         };
-        match &self.processors[idx].kind {
-            EditKind::Structural { params, .. } => params
-                .iter()
-                .map(|(k, v)| ParamRow {
-                    key:     k.clone(),
-                    value:   serde_json::json!(v),
-                    is_bool: false,
-                })
-                .collect(),
-            EditKind::Stream { processor_id, params } => {
-                let bool_keys: std::collections::HashSet<&str> = self
-                    .edit_registry
-                    .get_entry(processor_id.as_str())
+        let proc = &self.processors[idx];
+        let bool_keys: std::collections::HashSet<&str> =
+            if proc.kind == ProcessorEditType::StreamProcessor {
+                self.edit_registry
+                    .get_entry(proc.processor_id.as_str())
                     .map(|entry| {
                         entry.parameters.iter().filter_map(|p| {
                             if let ParamInfo::Bool { id, .. } = p { Some(id.as_str()) } else { None }
                         }).collect()
                     })
-                    .unwrap_or_default();
-                params
-                    .iter()
-                    .map(|(k, v)| ParamRow {
-                        key:     k.clone(),
-                        value:   serde_json::json!(v),
-                        is_bool: bool_keys.contains(k.as_str()),
-                    })
-                    .collect()
-            }
-        }
+                    .unwrap_or_default()
+            } else {
+                std::collections::HashSet::new()
+            };
+        proc.params
+            .iter()
+            .map(|(k, v)| ParamRow {
+                key:     k.clone(),
+                value:   serde_json::json!(v),
+                is_bool: bool_keys.contains(k.as_str()),
+            })
+            .collect()
     }
 
     fn proc_label(entry: &ProcessorEdit) -> String {
         let flag = if entry.enabled { "" } else { " [off]" };
         let short_uuid = &entry.uuid.to_string()[..8];
-        match &entry.kind {
-            EditKind::Structural { processor_id, .. } =>
-                format!("[structural] {processor_id}{flag}  ({short_uuid})"),
-            EditKind::Stream { processor_id, .. } =>
-                format!("[stream] {processor_id}{flag}  ({short_uuid})"),
-        }
+        let kind_str = match entry.kind {
+            ProcessorEditType::StructuralProcessor => "structural",
+            ProcessorEditType::StreamProcessor => "stream",
+            ProcessorEditType::Analyzer => "analyzer",
+        };
+        format!("[{kind_str}] {}{flag}  ({short_uuid})", entry.processor_id)
     }
 
     fn move_up(&mut self) {
@@ -246,14 +239,7 @@ impl EditorState {
     fn apply_edit_to_processors(&mut self, key: &str, value: serde_json::Value) {
         if let Some(idx) = self.selected_proc_index() {
             let f = value.as_f64().unwrap_or(0.0);
-            match &mut self.processors[idx].kind {
-                EditKind::Structural { params, .. } => {
-                    params.insert(key.to_string(), f);
-                }
-                EditKind::Stream { params, .. } => {
-                    params.insert(key.to_string(), f);
-                }
-            }
+            self.processors[idx].params.insert(key.to_string(), f);
         }
     }
 
@@ -272,9 +258,11 @@ impl EditorState {
                     params.insert(id, val);
                 }
                 self.processors.insert(insert_at, ProcessorEdit {
-                    uuid:    Uuid::new_v4(),
-                    enabled: true,
-                    kind:    EditKind::Structural { processor_id: available.id.clone(), params },
+                    uuid:         Uuid::new_v4(),
+                    enabled:      true,
+                    processor_id: available.id.clone(),
+                    kind:         ProcessorEditType::StructuralProcessor,
+                    params,
                 });
             }
             AvailableKind::Stream => {
@@ -291,9 +279,11 @@ impl EditorState {
                     }
                 }
                 self.processors.insert(insert_at, ProcessorEdit {
-                    uuid:    Uuid::new_v4(),
-                    enabled: true,
-                    kind:    EditKind::Stream { processor_id: available.id.clone(), params },
+                    uuid:         Uuid::new_v4(),
+                    enabled:      true,
+                    processor_id: available.id.clone(),
+                    kind:         ProcessorEditType::StreamProcessor,
+                    params,
                 });
             }
         }

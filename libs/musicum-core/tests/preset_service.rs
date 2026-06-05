@@ -1,6 +1,6 @@
 mod common;
 
-use musicum_core::{db, edit::{EditKind, ProcessorEdit}, services::preset_service};
+use musicum_core::{db, edit::{ProcessorEdit, ProcessorEditType}, services::preset_service};
 use std::collections::HashMap;
 use tempfile::tempdir;
 use uuid::Uuid;
@@ -21,7 +21,7 @@ async fn create_preset_writes_db() {
 
     assert_eq!(model.slug, "my-preset");
     assert_eq!(model.title, "My Preset");
-    assert_eq!(model.processors, "[]");
+    assert!(model.processors.0.is_empty());
 }
 
 #[tokio::test]
@@ -56,14 +56,13 @@ async fn update_preset_processors_persists_to_db() {
     let processors = vec![ProcessorEdit {
         uuid: Uuid::new_v4(),
         enabled: true,
-        kind: EditKind::Structural {
-            processor_id: "trim".to_string(),
-            params,
-        },
+        processor_id: "trim".to_string(),
+        kind: ProcessorEditType::StructuralProcessor,
+        params,
     }];
 
-    preset_service::update_preset_processors(&db, "p1", processors).await.unwrap();
+    preset_service::update_preset_processors(&db, "p1", &processors).await.unwrap();
 
     let model = preset_service::get_preset_by_slug(&db, "p1").await.unwrap();
-    assert!(model.processors.contains("trim"));
+    assert!(model.processors.0.iter().any(|e| e.processor_id == "trim"));
 }

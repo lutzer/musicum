@@ -104,6 +104,7 @@ mod tests {
         assert_eq!(config.library.files_dir, base.join("files"));
         assert_eq!(config.library.catalog_dir, base.join("catalog"));
         assert_eq!(config.library.generated_dir, base.join(".generated"));
+        assert_eq!(config.processors.processor_dir, home_dir().join(".musicum").join("processors"));
         assert!(config.general.hidden_sidecars);
     }
 
@@ -146,6 +147,7 @@ processor_dir = "/tmp/processors"
         assert_eq!(config.library.files_dir, PathBuf::from("/tmp/myfiles"));
         assert_eq!(config.library.catalog_dir, PathBuf::from("/tmp/mycatalog"));
         assert_eq!(config.library.generated_dir, PathBuf::from("/tmp/mygenerated"));
+        assert_eq!(config.processors.processor_dir, PathBuf::from("/tmp/processors"));
         assert!(!config.general.hidden_sidecars);
     }
 }

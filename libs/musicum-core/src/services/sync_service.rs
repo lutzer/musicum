@@ -373,7 +373,7 @@ pub async fn rebuild_sidecars(
             slug:       c.slug,
             title:      c.title,
             notes:      c.notes,
-            processors: crate::edit::deserialize_processor_edits(&c.processors),
+            processors: c.processors.0,
         }).collect();
 
         let sc = sidecar::FileSidecar {

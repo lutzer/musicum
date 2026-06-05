@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use crate::edit::{deserialize_processor_edits, ProcessorEdit};
+use crate::edit::{ProcessorEdit};
 use crate::ServiceError;
 use crate::config;
 
@@ -92,10 +92,8 @@ fn deserialize_clip_processors<'de, D>(d: D) -> Result<Vec<ProcessorEdit>, D::Er
 where
     D: serde::Deserializer<'de>,
 {
-    // Capture raw JSON array value, then run migration-aware helper
     let raw = serde_json::Value::deserialize(d)?;
-    let json_str = raw.to_string();
-    Ok(deserialize_processor_edits(&json_str))
+    serde_json::from_value(raw).map_err(serde::de::Error::custom)
 }
 
 // ── Read/write helpers ────────────────────────────────────────────────────
@@ -132,7 +130,7 @@ pub fn sidecar_path_for_audio(audio_path: &Path) -> std::path::PathBuf {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use crate::edit::{EditKind, ProcessorEdit};
+    use crate::edit::{ProcessorEdit, ProcessorEditType};
     use std::collections::HashMap;
     use uuid::Uuid;
 
@@ -147,7 +145,9 @@ mod tests {
         let edit = ProcessorEdit {
             uuid: Uuid::new_v4(),
             enabled: true,
-            kind: EditKind::Structural { processor_id: "trim".to_string(), params },
+            processor_id: "trim".to_string(),
+            kind: ProcessorEditType::StructuralProcessor,
+            params,
         };
 
         let sc = FileSidecar {

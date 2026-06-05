@@ -5,3 +5,4 @@ pub mod file;
 pub mod file_attachment;
 pub mod file_metadata;
 pub mod preset;
+pub mod edit;
