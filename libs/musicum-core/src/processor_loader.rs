@@ -34,7 +34,7 @@ impl std::fmt::Debug for ProcessorLoadError {
 impl std::error::Error for ProcessorLoadError {}
 
 struct RegistryEntry {
-    descriptor: ProcessorDescriptorFFI,
+    descriptor: &'static ProcessorDescriptorFFI,
     lib: Arc<Library>,
     create_fn: unsafe extern "C" fn() -> ProcessorEntry,
 }
@@ -80,12 +80,12 @@ impl ProcessorRegistry {
         };
 
         // Check for the descriptor symbol. If absent, not a processor plugin — skip.
-        let descriptor: ProcessorDescriptorFFI = unsafe {
+        let descriptor: &'static ProcessorDescriptorFFI = unsafe {
             let sym: Result<Symbol<unsafe extern "C" fn() -> &'static ProcessorDescriptorFFI>, _> =
                 lib.get(b"musicum_processor_descriptor\0");
             match sym {
                 Err(_) => return Ok(()),
-                Ok(f) => f().clone(),
+                Ok(f) => f(),
             }
         };
 
@@ -121,7 +121,7 @@ impl ProcessorRegistry {
     }
 
     pub fn descriptors(&self) -> impl Iterator<Item = &ProcessorDescriptorFFI> {
-        self.entries.values().map(|e| &e.descriptor)
+        self.entries.values().map(|e| e.descriptor)
     }
 }
 
