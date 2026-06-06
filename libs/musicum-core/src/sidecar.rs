@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use crate::edit::{ProcessorEdit};
+use crate::edit::{ProcessorEdit, ProcessorEditType};
 use crate::ServiceError;
 use crate::config;
 
@@ -12,22 +12,6 @@ use crate::config;
 pub(crate) struct ProcessorRef {
     pub(crate) id:     String,
     pub(crate) params: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "kebab-case")]
-pub(crate) enum ProcessorEntry {
-    Structural {
-        id:        String,
-        enabled:   bool,
-        processor: ProcessorRef,
-    },
-    #[serde(rename = "audio-plugin")]
-    AudioPlugin {
-        id:        String,
-        enabled:   bool,
-        processor: ProcessorRef,
-    },
 }
 
 // ── Audio-file sidecar ────────────────────────────────────────────────────
@@ -83,7 +67,6 @@ pub struct ClipSidecar {
     #[serde(default)]
     pub notes: String,
     /// Processor and plugin edits for this clip.
-    /// Deserialized with migration support for old `ProcessorEntry` format.
     #[serde(default, deserialize_with = "deserialize_clip_processors")]
     pub processors: Vec<ProcessorEdit>,
 }
