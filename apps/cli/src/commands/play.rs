@@ -6,8 +6,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use musicum_core::{
-    EditRegistry, PlaybackQueue, QueueItem, ProcessorRegistry,
-    services::{clip_service, collection_service, file_service},
+    EditRegistry, PlaybackQueue, ProcessorEdit, ProcessorRegistry, QueueItem, services::{clip_service, collection_service, file_service}
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -33,36 +32,6 @@ pub async fn run(
 ) -> anyhow::Result<()> {
     anyhow::bail!("play command is not yet implemented")
 }
-
-// fn format_edit_row(edits: &[ProcessorEdit]) -> String {
-//     edits
-//         .iter()
-//         .filter(|e| e.enabled)
-//         .map(|e| match &e.kind {
-//             EditKind::Structural { processor_id, params } => {
-//                 let mut parts: Vec<String> =
-//                     params.iter().map(|(k, v)| format!("{k}={v:.2}s")).collect();
-//                 parts.sort();
-//                 if parts.is_empty() {
-//                     processor_id.clone()
-//                 } else {
-//                     format!("{processor_id} {}", parts.join(" "))
-//                 }
-//             }
-//             EditKind::Stream { processor_id, params } => {
-//                 let mut parts: Vec<String> =
-//                     params.iter().map(|(k, v)| format!("{k}={v:.2}")).collect();
-//                 parts.sort();
-//                 if parts.is_empty() {
-//                     processor_id.clone()
-//                 } else {
-//                     format!("{processor_id} {}", parts.join(" "))
-//                 }
-//             }
-//         })
-//         .collect::<Vec<_>>()
-//         .join("  ")
-// }
 
 // pub async fn run(
 //     db: &DatabaseConnection,
@@ -269,128 +238,147 @@ pub async fn run(
 //     Ok(())
 // }
 
-// fn draw(
-//     f: &mut Frame,
-//     queue: &PlaybackQueue,
-//     show_edits_row: bool,
-//     queue_exhausted: bool,
-//     queue_scroll: usize,
-// ) {
-//     let pos = queue.engine().position_secs();
-//     let dur = queue.engine().duration_secs();
-//     let queue_rows = queue.total().min(MAX_QUEUE_VISIBLE);
+fn draw(
+    f: &mut Frame,
+    queue: &PlaybackQueue,
+    show_edits_row: bool,
+    queue_exhausted: bool,
+    queue_scroll: usize,
+) {
+    let pos = queue.engine().position_secs();
+    let dur = queue.engine().duration_secs();
+    let queue_rows = queue.length().min(MAX_QUEUE_VISIBLE);
 
-//     let mut constraints = vec![
-//         Constraint::Length(1), // status + title
-//         Constraint::Length(1), // progress bar
-//         Constraint::Length(1), // time row
-//         Constraint::Length(1), // hints
-//     ];
-//     if show_edits_row {
-//         constraints.push(Constraint::Length(1));
-//     }
-//     constraints.push(Constraint::Length(1)); // separator
-//     for _ in 0..queue_rows {
-//         constraints.push(Constraint::Length(1));
-//     }
+    let mut constraints = vec![
+        Constraint::Length(1), // status + title
+        Constraint::Length(1), // progress bar
+        Constraint::Length(1), // time row
+        Constraint::Length(1), // hints
+    ];
+    if show_edits_row {
+        constraints.push(Constraint::Length(1));
+    }
+    constraints.push(Constraint::Length(1)); // separator
+    for _ in 0..queue_rows {
+        constraints.push(Constraint::Length(1));
+    }
 
-//     let border = Block::default().borders(Borders::ALL).padding(Padding::horizontal(1));
-//     f.render_widget(border.clone(), f.area());
-//     let inner = border.inner(f.area());
-//     let areas = Layout::vertical(constraints).split(inner);
-//     let mut area_idx = 0usize;
+    let border = Block::default().borders(Borders::ALL).padding(Padding::horizontal(1));
+    f.render_widget(border.clone(), f.area());
+    let inner = border.inner(f.area());
+    let areas = Layout::vertical(constraints).split(inner);
+    let mut area_idx = 0usize;
 
-//     // status + title
-//     let (status_icon, status_color) = if queue_exhausted {
-//         ("■", Color::DarkGray)
-//     } else if queue.engine().is_paused() {
-//         ("⏸", Color::Yellow)
-//     } else {
-//         ("▶", Color::Green)
-//     };
-//     let title_line = Line::from(vec![
-//         Span::styled(status_icon, Style::default().fg(status_color)),
-//         Span::raw("  "),
-//         Span::styled(queue.current_title(), Style::default().add_modifier(Modifier::BOLD)),
-//     ]);
-//     f.render_widget(Paragraph::new(title_line), areas[area_idx]);
-//     area_idx += 1;
+    // status + title
+    let (status_icon, status_color) = if queue_exhausted {
+        ("■", Color::DarkGray)
+    } else if queue.engine().is_paused() {
+        ("⏸", Color::Yellow)
+    } else {
+        ("▶", Color::Green)
+    };
+    let title_line = Line::from(vec![
+        Span::styled(status_icon, Style::default().fg(status_color)),
+        Span::raw("  "),
+        Span::styled(queue.current_item().title, Style::default().add_modifier(Modifier::BOLD)),
+    ]);
+    f.render_widget(Paragraph::new(title_line), areas[area_idx]);
+    area_idx += 1;
 
-//     // progress bar
-//     let ratio = if dur > 0.0 { (pos / dur).clamp(0.0, 1.0) } else { 0.0 };
-//     let bar_width = areas[area_idx].width as usize;
-//     let filled = (ratio * bar_width as f64).floor() as usize;
-//     let unfilled = bar_width.saturating_sub(filled);
-//     let bar_str = format!("{}{}", "█".repeat(filled), "░".repeat(unfilled));
-//     f.render_widget(
-//         Paragraph::new(bar_str).style(Style::default().fg(Color::White)),
-//         areas[area_idx],
-//     );
-//     area_idx += 1;
+    // progress bar
+    let ratio = if dur > 0.0 { (pos / dur).clamp(0.0, 1.0) } else { 0.0 };
+    let bar_width = areas[area_idx].width as usize;
+    let filled = (ratio * bar_width as f64).floor() as usize;
+    let unfilled = bar_width.saturating_sub(filled);
+    let bar_str = format!("{}{}", "█".repeat(filled), "░".repeat(unfilled));
+    f.render_widget(
+        Paragraph::new(bar_str).style(Style::default().fg(Color::White)),
+        areas[area_idx],
+    );
+    area_idx += 1;
 
-//     // time row
-//     let elapsed = fmt_duration(pos);
-//     let total = fmt_duration(dur);
-//     let time_width = areas[area_idx].width as usize;
-//     let gap = time_width.saturating_sub(elapsed.len() + total.len());
-//     let time_str = format!("{}{}{}", elapsed, " ".repeat(gap), total);
-//     f.render_widget(
-//         Paragraph::new(time_str).style(Style::default().fg(Color::DarkGray)),
-//         areas[area_idx],
-//     );
-//     area_idx += 1;
+    // time row
+    let elapsed = fmt_duration(pos);
+    let total = fmt_duration(dur);
+    let time_width = areas[area_idx].width as usize;
+    let gap = time_width.saturating_sub(elapsed.len() + total.len());
+    let time_str = format!("{}{}{}", elapsed, " ".repeat(gap), total);
+    f.render_widget(
+        Paragraph::new(time_str).style(Style::default().fg(Color::DarkGray)),
+        areas[area_idx],
+    );
+    area_idx += 1;
 
-//     // hints
-//     let loop_color = if queue.engine().is_looping() { Color::Cyan } else { Color::DarkGray };
-//     let hints = Line::from(vec![
-//         Span::styled("[p] pause  ", Style::default().fg(Color::DarkGray)),
-//         Span::styled("[l] loop  ", Style::default().fg(loop_color)),
-//         Span::styled("[↑↓] skip  [←/→] 3s  [S←/S→] 15s  [q] quit", Style::default().fg(Color::DarkGray)),
-//     ]);
-//     f.render_widget(Paragraph::new(hints), areas[area_idx]);
-//     area_idx += 1;
+    // hints
+    let loop_color = if queue.engine().is_looping() { Color::Cyan } else { Color::DarkGray };
+    let hints = Line::from(vec![
+        Span::styled("[p] pause  ", Style::default().fg(Color::DarkGray)),
+        Span::styled("[l] loop  ", Style::default().fg(loop_color)),
+        Span::styled("[↑↓] skip  [←/→] 3s  [S←/S→] 15s  [q] quit", Style::default().fg(Color::DarkGray)),
+    ]);
+    f.render_widget(Paragraph::new(hints), areas[area_idx]);
+    area_idx += 1;
 
-//     // edits row
-//     if show_edits_row {
-//         let edit_str = format_edit_row(queue.current_edits());
-//         f.render_widget(
-//             Paragraph::new(edit_str).style(Style::default().fg(Color::DarkGray)),
-//             areas[area_idx],
-//         );
-//         area_idx += 1;
-//     }
+    // edits row
+    if show_edits_row {
+        let edit_str = fmt_edit_row(&queue.current_item().edits);
+        f.render_widget(
+            Paragraph::new(edit_str).style(Style::default().fg(Color::DarkGray)),
+            areas[area_idx],
+        );
+        area_idx += 1;
+    }
 
-//     // separator
-//     let sep = "─".repeat(areas[area_idx].width as usize);
-//     f.render_widget(
-//         Paragraph::new(sep).style(Style::default().fg(Color::DarkGray)),
-//         areas[area_idx],
-//     );
-//     area_idx += 1;
+    // separator
+    let sep = "─".repeat(areas[area_idx].width as usize);
+    f.render_widget(
+        Paragraph::new(sep).style(Style::default().fg(Color::DarkGray)),
+        areas[area_idx],
+    );
+    area_idx += 1;
 
-//     // queue list
-//     let titles = queue.titles();
-//     let visible = &titles[queue_scroll..(queue_scroll + queue_rows).min(titles.len())];
-//     let ci = queue.current_index();
-//     for (i, title) in visible.iter().enumerate() {
-//         let abs_idx = queue_scroll + i;
-//         let line = if abs_idx == ci {
-//             Line::from(vec![
-//                 Span::raw("▶ "),
-//                 Span::styled(*title, Style::default().add_modifier(Modifier::BOLD)),
-//             ])
-//         } else {
-//             Line::from(vec![Span::raw(format!("  {title}"))])
-//         };
-//         f.render_widget(Paragraph::new(line), areas[area_idx]);
-//         area_idx += 1;
-//     }
-// }
+    // queue list
+    let items = queue.items();
+    let visible = &items[queue_scroll..(queue_scroll + queue_rows).min(items.len())];
+    let ci = queue.current_index();
+    for (i, item) in visible.iter().enumerate() {
+        let abs_idx = queue_scroll + i;
+        let title = item.title;
+        let line = if abs_idx == ci {
+            Line::from(vec![
+                Span::raw("▶ "),
+                Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
+            ])
+        } else {
+            Line::from(vec![Span::raw(format!("  {title}"))])
+        };
+        f.render_widget(Paragraph::new(line), areas[area_idx]);
+        area_idx += 1;
+    }
+}
 
-// fn fmt_duration(secs: f64) -> String {
-//     let s = secs as u64;
-//     format!("{:02}:{:02}", s / 60, s % 60)
-// }
+fn fmt_duration(secs: f64) -> String {
+    let s = secs as u64;
+    format!("{:02}:{:02}", s / 60, s % 60)
+}
+
+fn fmt_edit_row(edits: &Vec<ProcessorEdit>) -> String {
+    edits
+        .iter()
+        .filter(|e| e.enabled)
+        .map(|e| {
+            let processor_id = &e.processor_id;
+            let mut parts: Vec<String> = e.params.iter().map(|(k, v)| format!("{k}={v:.2}s")).collect();
+            parts.sort();
+            if parts.is_empty() {
+                processor_id.clone()
+            } else {
+                format!("{processor_id} {}", parts.join(" "))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("  ")
+}
 
 // #[cfg(test)]
 // mod tests {

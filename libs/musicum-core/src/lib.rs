@@ -17,4 +17,4 @@ pub use error::ServiceError;
 pub use processor_loader::{LoadedProcessor, ProcessorLoadError, ProcessorRegistry};
 
 pub use audio::devices::{list_output_devices};
-pub use audio::queue::{PlaybackQueue, QueueItem};
+pub use audio::queue::{PlaybackQueue, PlaybackQueueItem};

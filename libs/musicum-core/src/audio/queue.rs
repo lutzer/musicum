@@ -1,18 +1,25 @@
 use crate::edit::{ProcessorEdit};
 
-pub struct QueueItem {
+pub struct PlaybackQueueItem {
     pub title: String,
     pub path:  String,
     pub edits: Vec<ProcessorEdit>,
 }
 
 pub struct PlaybackQueue {
-    items:         Vec<QueueItem>,
+    items:         Vec<PlaybackQueueItem>,
     current_index: usize,
 }
 
 impl PlaybackQueue {
-    fn next(&mut self) -> Option<&QueueItem> {
+
+    pub fn new(items: Vec<PlaybackQueueItem>) -> PlaybackQueue {
+        return PlaybackQueue {
+            items, current_index: 0
+        }
+    }
+
+    pub fn next(&mut self) -> Option<&PlaybackQueueItem> {
         if self.current_index < self.length() - 2 {
             self.current_index += 1;
             return Some(&self.items[self.current_index]);
@@ -21,7 +28,7 @@ impl PlaybackQueue {
         }
     }
 
-    fn previous(&mut self) -> Option<&QueueItem> {
+    pub fn previous(&mut self) -> Option<&PlaybackQueueItem> {
          if self.current_index > 0 {
             self.current_index -= 1;
             return Some(&self.items[self.current_index]);
@@ -30,5 +37,11 @@ impl PlaybackQueue {
         }
     }
 
-    fn length(&self) -> usize { self.items.len() }
+    pub fn length(&self) -> usize { self.items.len() }
+
+    pub fn current_index(&self) -> usize { self.current_index }
+
+    pub fn current_item(&self) -> &PlaybackQueueItem { &self.items[self.current_index] }
+
+    pub fn items(&self) -> &Vec<PlaybackQueueItem> { &self.items }
 }
