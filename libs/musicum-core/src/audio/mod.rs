@@ -1,5 +1,7 @@
 pub mod devices;
 pub mod queue;
-pub mod engine;
+pub mod output;
 pub mod player;
 pub mod source;
+#[cfg(test)]
+mod tests;
