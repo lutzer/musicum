@@ -6,7 +6,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use musicum_core::{
-    EditRegistry, PlaybackQueue, ProcessorEdit, ProcessorRegistry, QueueItem, services::{clip_service, collection_service, file_service}
+    AudioPlayer, EditRegistry, PlaybackQueue, PlaybackQueueItem, ProcessorEdit, ProcessorRegistry, audio::output::{self, CpalOutput}, services::{clip_service, collection_service, file_service}
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -21,16 +21,64 @@ use std::sync::Arc;
 
 const MAX_QUEUE_VISIBLE: usize = 6;
 
+// pub async fn run(
+//     _db: &DatabaseConnection,
+//     _target: Option<String>,
+//     _collection: Option<String>,
+//     _force_file: bool,
+//     _force_clip: bool,
+//     _loop_mode: bool,
+//     _device: Option<String>,
+// ) -> anyhow::Result<()> {
+//     anyhow::bail!("play command is not yet implemented")
+// }
+
 pub async fn run(
-    _db: &DatabaseConnection,
-    _target: Option<String>,
-    _collection: Option<String>,
-    _force_file: bool,
-    _force_clip: bool,
-    _loop_mode: bool,
-    _device: Option<String>,
-) -> anyhow::Result<()> {
-    anyhow::bail!("play command is not yet implemented")
+    db: &DatabaseConnection,
+    target: Option<String>,
+    collection: Option<String>,
+    force_file: bool,
+    force_clip: bool,
+    loop_mode: bool,
+    device: Option<String>,
+) -> Result<()> {
+
+    let target = target.ok_or_else(|| anyhow!("provide a target or --collection <slug>"))?;
+
+    if let Ok((path, edits)) = resolve_target(db, &target, force_file, force_clip).await {
+        return play_single_clip(path, edits, loop_mode);
+    }
+
+    Err(anyhow!(
+        "'{target}' is not a known file, clip, or collection slug, or an existing file path"
+    ))
+}
+
+fn play_single_clip(
+    path: PathBuf,
+    edits: Vec<ProcessorEdit>,
+    loop_mode: bool
+) -> Result<()> {
+    let item = PlaybackQueueItem {
+        title: path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string(),
+        path:  path.to_string_lossy().to_string(),
+        edits,
+    };
+
+    let mut output = CpalOutput::new()?;
+
+    let mut player = AudioPlayer::from_item(item, &mut output);
+    player.prepare()?;
+    player.play();
+
+    loop {
+        if player.is_paused() {
+            break;
+        }
+    }
+
+    Ok(())
+    
 }
 
 // pub async fn run(
@@ -99,62 +147,50 @@ pub async fn run(
 //     Ok((col.title, items))
 // }
 
-// fn play_single_clip(
-//     path: PathBuf,
-//     edits: Vec<ProcessorEdit>,
-//     loop_mode: bool,
-//     registry: Arc<EditRegistry>,
-//     device: Option<String>,
-// ) -> Result<()> {
-//     let item = QueueItem {
-//         title: path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string(),
-//         path:  path.to_string_lossy().to_string(),
-//         edits,
-//     };
-//     let queue = PlaybackQueue::new(vec![item], Arc::clone(&registry), device)?;
-//     if loop_mode { queue.engine().toggle_loop(); }
-//     run_player(queue, None)
-// }
 
-// async fn resolve_target(
-//     db: &DatabaseConnection,
-//     target: &str,
-//     force_file: bool,
-//     force_clip: bool,
-// ) -> Result<(PathBuf, Vec<ProcessorEdit>)> {
-//     if force_file {
-//         let file = file_service::get_file_by_slug(db, target)
-//             .await
-//             .map_err(|_| anyhow!("no file with slug '{target}'"))?;
-//         return Ok((PathBuf::from(file.path), vec![]));
-//     }
 
-//     if force_clip {
-//         let clip = clip_service::get_clip_by_slug(db, target)
-//             .await
-//             .map_err(|_| anyhow!("no clip with slug '{target}'"))?;
-//         let file = file_service::get_file_by_id(db, &clip.file_id)
-//             .await
-//             .map_err(|_| anyhow!("parent file for clip '{target}' not found"))?;
-//         let edits = deserialize_processor_edits(&clip.processors);
-//         return Ok((PathBuf::from(file.path), edits));
-//     }
+/// Finds out which file, clip or collection could be targeted by the target string
+async fn resolve_target(
+    db: &DatabaseConnection,
+    target: &str,
+    force_file: bool,
+    force_clip: bool
+) -> Result<(PathBuf, Vec<ProcessorEdit>)> {
+    if force_file {
+        let file = file_service::get_file_by_slug(db, target)
+            .await
+            .map_err(|_| anyhow!("no file with slug '{target}'"))?;
+        return Ok((PathBuf::from(file.path), vec![]));
+    }
 
-//     if let Ok(file) = file_service::get_file_by_slug(db, target).await {
-//         return Ok((PathBuf::from(file.path), vec![]));
-//     }
-//     if let Ok(clip) = clip_service::get_clip_by_slug(db, target).await {
-//         if let Ok(file) = file_service::get_file_by_id(db, &clip.file_id).await {
-//             let edits = deserialize_processor_edits(&clip.processors);
-//             return Ok((PathBuf::from(file.path), edits));
-//         }
-//     }
-//     let path = PathBuf::from(target);
-//     if path.exists() {
-//         return Ok((path, vec![]));
-//     }
-//     Err(anyhow!("'{target}' is not a known slug or an existing file path"))
-// }
+    if force_clip {
+        let clip = clip_service::get_clip_by_slug(db, target)
+            .await
+            .map_err(|_| anyhow!("no clip with slug '{target}'"))?;
+        let file = file_service::get_file_by_id(db, &clip.file_id)
+            .await
+            .map_err(|_| anyhow!("parent file for clip '{target}' not found"))?;
+        let edits = clip.processors.0;
+        return Ok((PathBuf::from(file.path), edits));
+    }
+
+     if let Ok(clip) = clip_service::get_clip_by_slug(db, target).await {
+        if let Ok(file) = file_service::get_file_by_id(db, &clip.file_id).await {
+            let edits = clip.processors.0;
+            return Ok((PathBuf::from(file.path), edits));
+        }
+    }
+
+    if let Ok(file) = file_service::get_file_by_slug(db, target).await {
+        return Ok((PathBuf::from(file.path), vec![]));
+    }
+
+    let path = PathBuf::from(target);
+    if path.exists() {
+        return Ok((path, vec![]));
+    }
+    Err(anyhow!("'{target}' is not a known slug or an existing file path"))
+}
 
 // fn run_player(
 //     mut queue: PlaybackQueue,
@@ -240,13 +276,14 @@ pub async fn run(
 
 fn draw(
     f: &mut Frame,
-    queue: &PlaybackQueue,
+    player: &AudioPlayer,
     show_edits_row: bool,
     queue_exhausted: bool,
     queue_scroll: usize,
 ) {
-    let pos = queue.engine().position_secs();
-    let dur = queue.engine().duration_secs();
+    let queue = player.queue();
+    let pos = player.position_secs();
+    let dur = player.duration_secs();
     let queue_rows = queue.length().min(MAX_QUEUE_VISIBLE);
 
     let mut constraints = vec![
@@ -272,7 +309,7 @@ fn draw(
     // status + title
     let (status_icon, status_color) = if queue_exhausted {
         ("■", Color::DarkGray)
-    } else if queue.engine().is_paused() {
+    } else if player.is_paused() {
         ("⏸", Color::Yellow)
     } else {
         ("▶", Color::Green)
@@ -280,7 +317,7 @@ fn draw(
     let title_line = Line::from(vec![
         Span::styled(status_icon, Style::default().fg(status_color)),
         Span::raw("  "),
-        Span::styled(queue.current_item().title, Style::default().add_modifier(Modifier::BOLD)),
+        Span::styled(queue.current_item().title.clone(), Style::default().add_modifier(Modifier::BOLD)),
     ]);
     f.render_widget(Paragraph::new(title_line), areas[area_idx]);
     area_idx += 1;
@@ -310,7 +347,7 @@ fn draw(
     area_idx += 1;
 
     // hints
-    let loop_color = if queue.engine().is_looping() { Color::Cyan } else { Color::DarkGray };
+    let loop_color = if player.is_looping() { Color::Cyan } else { Color::DarkGray };
     let hints = Line::from(vec![
         Span::styled("[p] pause  ", Style::default().fg(Color::DarkGray)),
         Span::styled("[l] loop  ", Style::default().fg(loop_color)),
@@ -343,7 +380,7 @@ fn draw(
     let ci = queue.current_index();
     for (i, item) in visible.iter().enumerate() {
         let abs_idx = queue_scroll + i;
-        let title = item.title;
+        let title = item.title.clone();
         let line = if abs_idx == ci {
             Line::from(vec![
                 Span::raw("▶ "),

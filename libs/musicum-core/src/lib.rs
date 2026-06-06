@@ -18,3 +18,4 @@ pub use processor_loader::{LoadedProcessor, ProcessorLoadError, ProcessorRegistr
 
 pub use audio::devices::{list_output_devices};
 pub use audio::queue::{PlaybackQueue, PlaybackQueueItem};
+pub use audio::player::{AudioPlayer};
