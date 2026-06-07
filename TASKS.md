@@ -54,11 +54,11 @@
 * [ ] Allow selection of multiple files, collections and clips to do batch operations
 
 ## audio engine
-* needs to be designed with a producer and consumer thread. 
+* needs to be designed with a producer and consumer thread with a rimgbuffer in between
 * uses cpal for the consumer and symfonia for the producer
-* since it needs to support remapping of the input buffer, it needs to load everything into a immutable buffer to allow easy remapping of the samples
+* since it needs to support remapping of the input buffer, it needs to load everything into a immutable buffer to allow remapping of the samples
 * audio should already start playing when the buffer is beeing loaded and not wait for the whole buffer to fill, so the producer needs to implement a function to fill the buffer at a certain position from the playhead on and fill the buffer gradually until its full. ideally the buffer should also work when ram is low
-* remapping mechanism needs to work through transform nodes
+* remapping mechanism needs to work through transform nodes, the transform nodes output a mapping
 * there is also a dsp pipeline. plugins are loaded at runtime and inserted in the signal processing chain aus AudioNodes. parameters of these plugins need to be able to be adjusted while its playing
 * the engine also needs to support an analyiss step before the playback starts. each plugin or transform processor can request an anlysis, which is run on the whole audio buffer. 
 * the analysis results are written back to an analysiscontext struct, that will be written to a temporary file to be loaded from on the next start, so it only has to be recomputed if needed

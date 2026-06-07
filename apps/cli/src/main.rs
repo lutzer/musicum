@@ -51,7 +51,7 @@ enum Commands {
         target: Option<String>,
         /// Force resolution as a collection (use when slug is ambiguous across types)
         #[arg(long, conflicts_with_all = ["file", "clip"])]
-        collection: Option<String>,
+        collection: bool,
         /// Resolve target as a file slug (skips clip lookup)
         #[arg(long, conflicts_with = "clip")]
         file: bool,

@@ -1,4 +1,4 @@
-use std::{io, path::PathBuf, time::Duration};
+use std::{ffi::OsStr, io, path::PathBuf, time::Duration};
 
 use anyhow::{anyhow, Result};
 use crossterm::{
@@ -21,32 +21,21 @@ use std::sync::Arc;
 
 const MAX_QUEUE_VISIBLE: usize = 6;
 
-// pub async fn run(
-//     _db: &DatabaseConnection,
-//     _target: Option<String>,
-//     _collection: Option<String>,
-//     _force_file: bool,
-//     _force_clip: bool,
-//     _loop_mode: bool,
-//     _device: Option<String>,
-// ) -> anyhow::Result<()> {
-//     anyhow::bail!("play command is not yet implemented")
-// }
-
 pub async fn run(
     db: &DatabaseConnection,
     target: Option<String>,
-    collection: Option<String>,
     force_file: bool,
     force_clip: bool,
+    force_collection: bool,
     loop_mode: bool,
     device: Option<String>,
 ) -> Result<()> {
 
     let target = target.ok_or_else(|| anyhow!("provide a target or --collection <slug>"))?;
 
-    if let Ok((path, edits)) = resolve_target(db, &target, force_file, force_clip).await {
-        return play_single_clip(path, edits, loop_mode);
+    if let Ok(queue) = resolve_target(db, &target, force_file, force_clip, force_collection).await {
+        // return play_single_clip(path, edits, loop_mode);
+        return run_player(queue);
     }
 
     Err(anyhow!(
@@ -54,33 +43,33 @@ pub async fn run(
     ))
 }
 
-fn play_single_clip(
-    path: PathBuf,
-    edits: Vec<ProcessorEdit>,
-    loop_mode: bool
-) -> Result<()> {
-    let item = PlaybackQueueItem {
-        title: path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string(),
-        path:  path.to_string_lossy().to_string(),
-        edits,
-    };
+// fn play_single_clip(
+//     path: PathBuf,
+//     edits: Vec<ProcessorEdit>,
+//     loop_mode: bool
+// ) -> Result<()> {
+//     let item = PlaybackQueueItem {
+//         title: path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string(),
+//         path:  path.to_string_lossy().to_string(),
+//         edits,
+//     };
 
-    let mut output = CpalOutput::new()?;
+//     let mut output = CpalOutput::new()?;
 
-    let mut player = AudioPlayer::from_item(item, &mut output);
-    player.prepare()?;
-    player.play();
+//     let mut player = AudioPlayer::from_item(item, &mut output);
+//     player.prepare()?;
+//     player.play();
 
-    loop {
-        if player.is_paused() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
+//     loop {
+//         if player.is_paused() {
+//             break;
+//         }
+//         std::thread::sleep(std::time::Duration::from_millis(50));
+//     }
 
-    Ok(())
+//     Ok(())
     
-}
+// }
 
 // pub async fn run(
 //     db: &DatabaseConnection,
@@ -155,13 +144,20 @@ async fn resolve_target(
     db: &DatabaseConnection,
     target: &str,
     force_file: bool,
-    force_clip: bool
-) -> Result<(PathBuf, Vec<ProcessorEdit>)> {
+    force_clip: bool,
+    force_collection: bool,
+) -> Result<PlaybackQueue> {
     if force_file {
         let file = file_service::get_file_by_slug(db, target)
             .await
             .map_err(|_| anyhow!("no file with slug '{target}'"))?;
-        return Ok((PathBuf::from(file.path), vec![]));
+        return Ok(PlaybackQueue::new(vec![
+            PlaybackQueueItem {
+                title: file.name,
+                path: file.path,
+                edits: vec![]
+            }
+        ]));
     }
 
     if force_clip {
@@ -172,108 +168,124 @@ async fn resolve_target(
             .await
             .map_err(|_| anyhow!("parent file for clip '{target}' not found"))?;
         let edits = clip.processors.0;
-        return Ok((PathBuf::from(file.path), edits));
+        return Ok(PlaybackQueue::new(vec![
+            PlaybackQueueItem {
+                title: clip.title,
+                path: file.path,
+                edits: edits
+            }
+        ]));
     }
 
      if let Ok(clip) = clip_service::get_clip_by_slug(db, target).await {
         if let Ok(file) = file_service::get_file_by_id(db, &clip.file_id).await {
             let edits = clip.processors.0;
-            return Ok((PathBuf::from(file.path), edits));
+            return Ok(PlaybackQueue::new(vec![
+                PlaybackQueueItem {
+                    title: clip.title,
+                    path: file.path,
+                    edits: edits
+                }
+            ]));
         }
     }
 
     if let Ok(file) = file_service::get_file_by_slug(db, target).await {
-        return Ok((PathBuf::from(file.path), vec![]));
+        return Ok(PlaybackQueue::new(vec![
+            PlaybackQueueItem {
+                title: file.name,
+                path: file.path,
+                edits: vec![]
+            }
+        ]));
     }
 
     let path = PathBuf::from(target);
     if path.exists() {
-        return Ok((path, vec![]));
+        return Ok(PlaybackQueue::new(vec![
+            PlaybackQueueItem {
+                title: path.file_name().unwrap_or(OsStr::new("unknown")).to_string_lossy().into_owned(),
+                path: path.to_string_lossy().into_owned(),
+                edits: vec![]
+            }
+        ]));
     }
     Err(anyhow!("'{target}' is not a known slug or an existing file path"))
 }
 
-// fn run_player(
-//     mut queue: PlaybackQueue,
-//     _collection_title: Option<String>,
-// ) -> Result<()> {
-//     enable_raw_mode()?;
-//     let backend = CrosstermBackend::new(io::stdout());
+fn run_player(
+    queue: PlaybackQueue
+) -> Result<()> {
+    enable_raw_mode()?;
+    let backend = CrosstermBackend::new(io::stdout());
 
-//     let show_edits_row = queue.has_any_edits();
-//     let queue_rows = queue.total().min(MAX_QUEUE_VISIBLE) as u16;
-//     let base_height: u16 = 5 + 2  // status, bar, time, hints, separator + top/bottom border
-//         + u16::from(show_edits_row)
-//         + queue_rows;
+    let show_edits_row = true;
 
-//     let mut terminal = Terminal::with_options(
-//         backend,
-//         TerminalOptions { viewport: Viewport::Inline(base_height) },
-//     )?;
+    let queue_rows = queue.length().min(MAX_QUEUE_VISIBLE) as u16;
+    let base_height: u16 = 5 + 2  // status, bar, time, hints, separator + top/bottom border
+        + u16::from(show_edits_row)
+        + queue_rows;
 
-//     let mut queue_scroll: usize = 0;
-//     let mut queue_exhausted = false;
+    let mut terminal = Terminal::with_options(
+        backend,
+        TerminalOptions { viewport: Viewport::Inline(base_height) },
+    )?;
 
-//     loop {
-//         let ci = queue.current_index();
-//         if ci < queue_scroll {
-//             queue_scroll = ci;
-//         } else if ci >= queue_scroll + MAX_QUEUE_VISIBLE {
-//             queue_scroll = ci + 1 - MAX_QUEUE_VISIBLE;
-//         }
+    let mut queue_scroll: usize = 0;
 
-//         terminal.draw(|f| draw(f, &queue, show_edits_row, queue_exhausted, queue_scroll))?;
+    let mut output = CpalOutput::new()?;
+    let mut player = AudioPlayer::from_queue(queue, &mut output);
+    player.prepare()?;
+    player.play();
 
-//         if !queue_exhausted && queue.advance_if_finished() {
-//             // engine replaced; loop continues
-//         }
-//         if !queue_exhausted && queue.engine().is_finished() && queue.current_index() + 1 >= queue.total() {
-//             queue_exhausted = true;
-//         }
+    loop {
+        let ci = player.queue().current_index();
+        if ci < queue_scroll {
+            queue_scroll = ci;
+        } else if ci >= queue_scroll + MAX_QUEUE_VISIBLE {
+            queue_scroll = ci + 1 - MAX_QUEUE_VISIBLE;
+        }
 
-//         if event::poll(Duration::from_millis(50))? {
-//             if let Event::Key(key) = event::read()? {
-//                 match (key.code, key.modifiers) {
-//                     (KeyCode::Char('q'), _)
-//                     | (KeyCode::Esc, _)
-//                     | (KeyCode::Char('c'), KeyModifiers::CONTROL) => break,
-//                     _ if queue_exhausted => {}
-//                     (KeyCode::Char('p'), _) => queue.engine_mut().toggle_pause(),
-//                     (KeyCode::Char('l'), _) => queue.engine_mut().toggle_loop(),
-//                     (KeyCode::Up, KeyModifiers::NONE) => {
-//                         if queue.prev() && queue_exhausted {
-//                             queue_exhausted = false;
-//                         }
-//                     }
-//                     (KeyCode::Down, KeyModifiers::NONE) => {
-//                         queue.next();
-//                     }
-//                     (KeyCode::Right, KeyModifiers::NONE) => {
-//                         let pos = queue.engine().position_secs();
-//                         queue.engine_mut().seek(pos + 3.0);
-//                     }
-//                     (KeyCode::Left, KeyModifiers::NONE) => {
-//                         let pos = queue.engine().position_secs();
-//                         queue.engine_mut().seek((pos - 3.0).max(0.0));
-//                     }
-//                     (KeyCode::Right, KeyModifiers::SHIFT) => {
-//                         let pos = queue.engine().position_secs();
-//                         queue.engine_mut().seek(pos + 15.0);
-//                     }
-//                     (KeyCode::Left, KeyModifiers::SHIFT) => {
-//                         let pos = queue.engine().position_secs();
-//                         queue.engine_mut().seek((pos - 15.0).max(0.0));
-//                     }
-//                     _ => {}
-//                 }
-//             }
-//         }
-//     }
+        terminal.draw(|f| draw(f, &player, show_edits_row, false, queue_scroll))?;
 
-//     disable_raw_mode()?;
-//     terminal.clear()?;
-//     Ok(())
-// }
+
+        if event::poll(Duration::from_millis(50))? {
+            if let Event::Key(key) = event::read()? {
+                match (key.code, key.modifiers) {
+                    (KeyCode::Char('q'), _)
+                    | (KeyCode::Esc, _)
+                    | (KeyCode::Char('c'), KeyModifiers::CONTROL) => break,
+                    (KeyCode::Char('p'), _) => player.pause(),
+                    (KeyCode::Char('l'), _) => player.set_looping(!player.is_looping()),
+                    (KeyCode::Up, KeyModifiers::NONE) => {
+                        player.previous();
+                    }
+                    (KeyCode::Down, KeyModifiers::NONE) => {
+                        player.next();
+                    }
+                    (KeyCode::Right, KeyModifiers::NONE) => {
+                        // let pos = queue.engine().position_secs();
+                        player.seek(player.position_secs() + 3.0);
+                    }
+                    (KeyCode::Left, KeyModifiers::NONE) => {
+                        player.seek((player.position_secs() - 3.0).max(0.0));
+                    }
+                    (KeyCode::Right, KeyModifiers::SHIFT) => {
+                        player.seek(player.position_secs() + 15.0);
+                    }
+                    (KeyCode::Left, KeyModifiers::SHIFT) => {
+                        player.seek((player.position_secs() - 15.0).max(0.0));
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    disable_raw_mode()?;
+    terminal.clear()?;
+    Ok(())
+}
 
 fn draw(
     f: &mut Frame,

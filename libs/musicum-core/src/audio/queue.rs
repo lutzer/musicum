@@ -20,7 +20,7 @@ impl PlaybackQueue {
     }
 
     pub fn next(&mut self) -> Option<&PlaybackQueueItem> {
-        if self.current_index < self.length() - 2 {
+        if self.current_index < self.length() - 1 {
             self.current_index += 1;
             return Some(&self.items[self.current_index]);
         } else {

@@ -154,7 +154,6 @@ impl BufferedSource {
 impl AudioSource for BufferedSource {
     fn sample_rate(&self) -> u32  { self.sample_rate }
     fn channels(&self)    -> u8   { self.channels }
-    fn bit_depth(&self)   -> u8   { 32 }
     fn duration(&self)    -> f64  { self.duration }
     fn is_exhausted(&self) -> bool { self.exhausted }
     fn seek(&mut self, _position: f64) {}

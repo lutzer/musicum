@@ -28,6 +28,7 @@ pub trait AudioOutput {
     fn play(&mut self)  -> Result<(), AudioOutputError>;
     fn pause(&mut self) -> Result<(), AudioOutputError>;
     fn set_source(&mut self, source: Box<dyn AudioSource>) -> Result<(), AudioOutputError>;
+    fn get_source(&self) -> &Arc<Mutex<Option<Box<dyn AudioSource>>>>;
 }
 
 pub struct CpalOutput {
@@ -89,5 +90,9 @@ impl AudioOutput for CpalOutput {
     fn set_source(&mut self, source: Box<dyn AudioSource>) -> Result<(), AudioOutputError> {
         *self.source.lock().map_err(|_| AudioOutputError::LockPoisoned)? = Some(source);
         Ok(())
+    }
+
+    fn get_source(&self) -> &Arc<Mutex<Option<Box<dyn AudioSource>>>> {
+        &self.source
     }
 }

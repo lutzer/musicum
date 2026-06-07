@@ -20,13 +20,6 @@ impl<'a> AudioPlayer<'a> {
         Self { queue, output, looping: false, position: 0.0, seek_handle: None }
     }
 
-    pub fn from_item(item: PlaybackQueueItem, output: &'a mut dyn AudioOutput) -> Self {
-        Self {
-            queue: PlaybackQueue::new(vec![item]),
-            output, looping: false, position: 0.0, seek_handle: None,
-        }
-    }
-
     pub fn prepare(&mut self) -> anyhow::Result<()> {
         let item = self.queue.current_item();
         let decoder = SymphoniaSource::new(
@@ -80,7 +73,14 @@ impl<'a> AudioPlayer<'a> {
 
     pub fn queue(&self) -> &PlaybackQueue { &self.queue }
     pub fn position_secs(&self) -> f64 { self.position }
-    pub fn duration_secs(&self) -> f64 { 0.0 }
+    pub fn duration_secs(&self) -> f64 { 
+        let guard = self.output.get_source().lock().unwrap();
+        guard.as_ref().map(|s| s.duration()).unwrap_or(0.0)
+    }
     pub fn is_paused(&self)  -> bool { !self.output.is_playing() }
     pub fn is_looping(&self) -> bool { self.looping }
+    pub fn file_ended(&self) -> bool { 
+        let guard = self.output.get_source().lock().unwrap();
+        guard.as_ref().map(|s| s.is_exhausted()).unwrap_or(false)
+    }
 }
