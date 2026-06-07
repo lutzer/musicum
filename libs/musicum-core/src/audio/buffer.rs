@@ -129,13 +129,15 @@ impl AudioProducer {
 }
 
 pub struct BufferedSource {
-    ring_rx:       rtrb::Consumer<f32>,
-    sample_rate:   u32,
-    channels:      u8,
-    duration:      f64,
-    exhausted:     bool,
-    seek_pending:  Arc<AtomicBool>,
-    producer_done: Arc<AtomicBool>,
+    ring_rx:          rtrb::Consumer<f32>,
+    sample_rate:      u32,
+    channels:         u8,
+    duration:         f64,
+    exhausted:        bool,
+    seek_pending:     Arc<AtomicBool>,
+    seek_frame:       Arc<AtomicU64>,
+    producer_done:    Arc<AtomicBool>,
+    samples_consumed: u64,
 }
 
 impl BufferedSource {
@@ -145,22 +147,33 @@ impl BufferedSource {
         channels:      u8,
         duration:      f64,
         seek_pending:  Arc<AtomicBool>,
+        seek_frame:    Arc<AtomicU64>,
         producer_done: Arc<AtomicBool>,
     ) -> Self {
-        Self { ring_rx, sample_rate, channels, duration, exhausted: false, seek_pending, producer_done }
+        Self {
+            ring_rx, sample_rate, channels, duration, exhausted: false,
+            seek_pending, seek_frame, producer_done, samples_consumed: 0,
+        }
     }
 }
 
 impl AudioSource for BufferedSource {
-    fn sample_rate(&self) -> u32  { self.sample_rate }
-    fn channels(&self)    -> u8   { self.channels }
-    fn duration(&self)    -> f64  { self.duration }
+    fn sample_rate(&self) -> u32   { self.sample_rate }
+    fn channels(&self)    -> u8    { self.channels }
+    fn duration_secs(&self) -> f64 { self.duration }
     fn is_exhausted(&self) -> bool { self.exhausted }
     fn seek(&mut self, _position: f64) {}
+
+    fn position_secs(&self) -> f64 {
+        let frames = self.samples_consumed / self.channels as u64;
+        frames as f64 / self.sample_rate as f64
+    }
 
     fn fill_buffer(&mut self, buffer: &mut [f32]) -> usize {
         if self.seek_pending.load(Ordering::Acquire) {
             while self.ring_rx.pop().is_ok() {}
+            let frame = self.seek_frame.load(Ordering::Acquire);
+            self.samples_consumed = frame * self.channels as u64;
             buffer.fill(0.0);
             return buffer.len();
         }
@@ -172,6 +185,7 @@ impl AudioSource for BufferedSource {
                 Err(_) => { *slot = 0.0; }
             }
         }
+        self.samples_consumed += filled as u64;
 
         if filled < buffer.len() && self.producer_done.load(Ordering::Acquire) {
             self.exhausted = true;

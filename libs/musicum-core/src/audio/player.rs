@@ -30,7 +30,7 @@ impl<'a> AudioPlayer<'a> {
 
         let sample_rate = decoder.sample_rate();
         let channels    = decoder.channels();
-        let duration    = decoder.duration();
+        let duration    = decoder.duration_secs();
         let ring_cap    = 2 * sample_rate as usize * channels as usize;
         let store_cap   = 30 * sample_rate as usize * channels as usize;
 
@@ -46,7 +46,7 @@ impl<'a> AudioPlayer<'a> {
         );
         let source = BufferedSource::new(
             ring_rx, sample_rate, channels, duration,
-            seek_pending.clone(), producer_done,
+            seek_pending.clone(), seek_frame.clone(), producer_done,
         );
 
         std::thread::spawn(|| producer.run());
@@ -72,10 +72,13 @@ impl<'a> AudioPlayer<'a> {
     pub fn previous(&mut self) { let _ = self.queue.previous(); }
 
     pub fn queue(&self) -> &PlaybackQueue { &self.queue }
-    pub fn position_secs(&self) -> f64 { self.position }
+    pub fn position_secs(&self) -> f64 { 
+        let guard = self.output.get_source().lock().unwrap();
+        guard.as_ref().map(|s| s.position_secs()).unwrap_or(0.0)
+    }
     pub fn duration_secs(&self) -> f64 { 
         let guard = self.output.get_source().lock().unwrap();
-        guard.as_ref().map(|s| s.duration()).unwrap_or(0.0)
+        guard.as_ref().map(|s| s.duration_secs()).unwrap_or(0.0)
     }
     pub fn is_paused(&self)  -> bool { !self.output.is_playing() }
     pub fn is_looping(&self) -> bool { self.looping }

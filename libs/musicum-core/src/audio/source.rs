@@ -16,8 +16,9 @@ pub trait AudioSource: Send {
     fn sample_rate(&self) -> u32;
     fn channels(&self) -> u8;
     fn is_exhausted(&self) -> bool;
+    fn position_secs(&self) -> f64;
     fn seek(&mut self, position: f64);
-    fn duration(&self) -> f64;
+    fn duration_secs(&self) -> f64;
 }
 
 // ── SymphoniaSource ──────────────────────────────────────────────────────────
@@ -191,7 +192,8 @@ impl AudioSource for SymphoniaSource {
     fn sample_rate(&self) -> u32  { self.out_rate }
     fn channels(&self)    -> u8   { self.channels }
     fn is_exhausted(&self) -> bool { self.exhausted }
-    fn duration(&self)    -> f64  { self.duration }
+    fn duration_secs(&self)    -> f64  { self.duration }
+    fn position_secs(&self) -> f64 { 0.0 }
 
     fn fill_buffer(&mut self, buffer: &mut [f32]) -> usize {
         if self.exhausted { return 0; }
