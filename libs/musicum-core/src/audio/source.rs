@@ -36,17 +36,18 @@ pub struct PluginNode {}
 const RUBATO_CHUNK: usize = 1024;
 
 pub struct SymphoniaSource {
-    format:     Box<dyn symphonia::core::formats::FormatReader>,
-    decoder:    Box<dyn symphonia::core::codecs::Decoder>,
-    track_id:   u32,
-    src_rate:   u32,
-    out_rate:   u32,
-    channels:   u8,
-    duration:   f64,
-    resampler:  Option<FftFixedIn<f32>>,
-    decode_buf: Vec<Vec<f32>>,
-    pending:    VecDeque<f32>,
-    exhausted:  bool,
+    format:           Box<dyn symphonia::core::formats::FormatReader>,
+    decoder:          Box<dyn symphonia::core::codecs::Decoder>,
+    track_id:         u32,
+    src_rate:         u32,
+    out_rate:         u32,
+    channels:         u8,
+    duration:         f64,
+    resampler:        Option<FftFixedIn<f32>>,
+    decode_buf:       Vec<Vec<f32>>,
+    resample_staging: Vec<Vec<f32>>,
+    pending:          VecDeque<f32>,
+    exhausted:        bool,
 }
 
 impl SymphoniaSource {
@@ -94,7 +95,8 @@ impl SymphoniaSource {
             None
         };
 
-        let decode_buf = vec![vec![0.0f32; RUBATO_CHUNK]; channels as usize];
+        let decode_buf       = vec![vec![0.0f32; RUBATO_CHUNK]; channels as usize];
+        let resample_staging = vec![Vec::new(); channels as usize];
 
         Ok(Self {
             format,
@@ -106,6 +108,7 @@ impl SymphoniaSource {
             duration,
             resampler,
             decode_buf,
+            resample_staging,
             pending: VecDeque::new(),
             exhausted: false,
         })
@@ -147,21 +150,27 @@ impl SymphoniaSource {
             return;
         }
 
-        // Fill planar decode_buf for rubato
-        let chunk_frames = frames.min(RUBATO_CHUNK);
-        for c in 0..ch {
-            self.decode_buf[c].resize(chunk_frames, 0.0);
-            for f in 0..chunk_frames {
-                self.decode_buf[c][f] = samples[f * ch + c];
+        // De-interleave into planar staging buffer
+        for f in 0..frames {
+            for c in 0..ch {
+                self.resample_staging[c].push(samples[f * ch + c]);
             }
-            self.decode_buf[c].resize(RUBATO_CHUNK, 0.0);
         }
 
-        if let Some(resampler) = &mut self.resampler {
-            if let Ok(out) = resampler.process(&self.decode_buf, None) {
-                let out_frames = out[0].len();
-                for f in 0..out_frames {
-                    self.pending.extend((0..ch).map(|c| out[c][f]));
+        // Feed the resampler in exact RUBATO_CHUNK-frame blocks; leftover stays in staging
+        while self.resample_staging[0].len() >= RUBATO_CHUNK {
+            for c in 0..ch {
+                self.decode_buf[c].clear();
+                self.decode_buf[c].extend_from_slice(&self.resample_staging[c][..RUBATO_CHUNK]);
+                self.resample_staging[c].drain(..RUBATO_CHUNK);
+            }
+            if let Some(resampler) = &mut self.resampler {
+                if let Ok(out) = resampler.process(&self.decode_buf, None) {
+                    for f in 0..out[0].len() {
+                        for c in 0..ch {
+                            self.pending.push_back(out[c][f]);
+                        }
+                    }
                 }
             }
         }
@@ -229,6 +238,7 @@ impl AudioSource for SymphoniaSource {
             }
         }
         self.pending.clear();
+        for v in &mut self.resample_staging { v.clear(); }
         self.exhausted = false;
     }
 }

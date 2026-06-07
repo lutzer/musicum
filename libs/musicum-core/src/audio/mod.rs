@@ -1,3 +1,4 @@
+pub mod buffer;
 pub mod devices;
 pub mod queue;
 pub mod output;

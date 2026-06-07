@@ -75,6 +75,7 @@ fn play_single_clip(
         if player.is_paused() {
             break;
         }
+        std::thread::sleep(std::time::Duration::from_millis(50));
     }
 
     Ok(())
