@@ -2,7 +2,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU64};
 
-use crate::audio::buffer::{AudioProducer, AudioStore, BufferedSource, SeekHandle};
+use crate::audio::buffer::{AudioProducer, AudioStore, BufferedSource, SourceHandle};
 use crate::audio::output::{AudioOutput, AudioOutputError, CpalOutput};
 use crate::audio::source::{AudioSource, SymphoniaSource};
 
@@ -21,17 +21,21 @@ pub trait AudioEngine: Send {
 
 pub struct CpalEngine {
     output:      CpalOutput,
-    seek_handle: Option<SeekHandle>,
+    source_handle: Option<SourceHandle>,
 }
 
 impl CpalEngine {
     pub fn new() -> Result<Self, AudioOutputError> {
-        Ok(Self { output: CpalOutput::new()?, seek_handle: None })
+        Ok(Self { output: CpalOutput::new()?, source_handle: None })
     }
 }
 
 impl AudioEngine for CpalEngine {
     fn load(&mut self, path: &Path) -> anyhow::Result<()> {
+        if let Some(h) = &self.source_handle {
+            h.shutdown();
+        }
+
         let sample_rate = self.output.sample_rate();
         let channels    = self.output.channels();
 
@@ -47,10 +51,12 @@ impl AudioEngine for CpalEngine {
         let seek_pending  = Arc::new(AtomicBool::new(false));
         let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(false));
+        let shutdown      = Arc::new(AtomicBool::new(false));
 
         let producer = AudioProducer::new(
             decoder, store, ring_tx, ring_cap,
             seek_pending.clone(), seek_frame.clone(), producer_done.clone(),
+            shutdown.clone(),
         );
         let source = BufferedSource::new(
             ring_rx, src_rate, src_ch, duration,
@@ -59,7 +65,7 @@ impl AudioEngine for CpalEngine {
 
         std::thread::spawn(|| producer.run());
         self.output.set_source(Box::new(source))?;
-        self.seek_handle = Some(SeekHandle::new(seek_pending, seek_frame, src_rate));
+        self.source_handle = Some(SourceHandle::new(seek_pending, seek_frame, shutdown, src_rate));
         Ok(())
     }
 
@@ -72,7 +78,7 @@ impl AudioEngine for CpalEngine {
     }
 
     fn seek(&mut self, secs: f64) {
-        if let Some(h) = &self.seek_handle { h.seek(secs); }
+        if let Some(h) = &self.source_handle { h.seek(secs); }
     }
 
     fn position_secs(&self) -> f64 {

@@ -181,7 +181,16 @@ fn run_player(
                     (KeyCode::Char('q'), _)
                     | (KeyCode::Esc, _)
                     | (KeyCode::Char('c'), KeyModifiers::CONTROL) => break,
-                    (KeyCode::Char('p'), _) => player.pause(),
+                    (KeyCode::Char('p'), _) => {
+                        if player.file_ended() {
+                            player.seek(0.0);
+                            player.play();
+                        } else if player.is_paused() {
+                            player.play();
+                        } else {
+                            player.pause();
+                        }
+                    }
                     (KeyCode::Char('l'), _) => player.set_looping(!player.is_looping()),
                     (KeyCode::Up, KeyModifiers::NONE) => {
                         player.previous();

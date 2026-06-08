@@ -83,7 +83,7 @@ mod source_tests {
 mod buffer_tests {
     use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    use crate::audio::buffer::{AudioStore, AudioProducer, BufferedSource, DecodedChunk, SeekHandle};
+    use crate::audio::buffer::{AudioStore, AudioProducer, BufferedSource, DecodedChunk, SourceHandle};
     use crate::audio::source::{AudioSource, SymphoniaSource};
 
     fn make_chunk(start_frame: usize, frame_count: usize, channels: u8) -> DecodedChunk {
@@ -132,7 +132,8 @@ mod buffer_tests {
     fn seek_handle_sets_frame_and_pending() {
         let seek_pending = Arc::new(AtomicBool::new(false));
         let seek_frame   = Arc::new(AtomicU64::new(0));
-        let handle = SeekHandle::new(seek_pending.clone(), seek_frame.clone(), 48000);
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let handle = SourceHandle::new(seek_pending.clone(), seek_frame.clone(), shutdown, 48000);
         handle.seek(2.0);
         assert!(seek_pending.load(Ordering::Acquire));
         assert_eq!(seek_frame.load(Ordering::Acquire), 96000);
@@ -152,10 +153,11 @@ mod buffer_tests {
         let seek_pending  = Arc::new(AtomicBool::new(false));
         let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(false));
+        let shutdown      = Arc::new(AtomicBool::new(false));
 
         let producer = AudioProducer::new(
             decoder, store, ring_tx, ring_cap,
-            seek_pending, seek_frame, producer_done.clone(),
+            seek_pending, seek_frame, producer_done.clone(), shutdown,
         );
         std::thread::spawn(|| producer.run());
 
@@ -182,10 +184,11 @@ mod buffer_tests {
         let seek_pending  = Arc::new(AtomicBool::new(false));
         let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(false));
+        let shutdown      = Arc::new(AtomicBool::new(false));
 
         let producer = AudioProducer::new(
             decoder, store, ring_tx, ring_cap,
-            seek_pending.clone(), seek_frame.clone(), producer_done.clone(),
+            seek_pending.clone(), seek_frame.clone(), producer_done.clone(), shutdown,
         );
         let source = BufferedSource::new(
             ring_rx, sample_rate, channels, duration,

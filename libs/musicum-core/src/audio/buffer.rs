@@ -39,25 +39,31 @@ impl AudioStore {
 }
 
 #[derive(Clone)]
-pub struct SeekHandle {
+pub struct SourceHandle {
     seek_pending: Arc<AtomicBool>,
     seek_frame:   Arc<AtomicU64>,
+    shutdown:     Arc<AtomicBool>,
     sample_rate:  u32,
 }
 
-impl SeekHandle {
+impl SourceHandle {
     pub fn new(
         seek_pending: Arc<AtomicBool>,
         seek_frame:   Arc<AtomicU64>,
+        shutdown:     Arc<AtomicBool>,
         sample_rate:  u32,
     ) -> Self {
-        Self { seek_pending, seek_frame, sample_rate }
+        Self { seek_pending, seek_frame, shutdown, sample_rate }
     }
 
     pub fn seek(&self, position_secs: f64) {
         let frame = (position_secs * self.sample_rate as f64) as u64;
         self.seek_frame.store(frame, Ordering::Release);
         self.seek_pending.store(true, Ordering::Release);
+    }
+
+    pub fn shutdown(&self) {
+        self.shutdown.store(true, Ordering::Release);
     }
 }
 
@@ -71,6 +77,7 @@ pub struct AudioProducer {
     seek_pending:  Arc<AtomicBool>,
     seek_frame:    Arc<AtomicU64>,
     producer_done: Arc<AtomicBool>,
+    shutdown:      Arc<AtomicBool>,
 }
 
 impl AudioProducer {
@@ -82,8 +89,9 @@ impl AudioProducer {
         seek_pending:  Arc<AtomicBool>,
         seek_frame:    Arc<AtomicU64>,
         producer_done: Arc<AtomicBool>,
+        shutdown:      Arc<AtomicBool>,
     ) -> Self {
-        Self { decoder, store, ring_tx, ring_capacity, seek_pending, seek_frame, producer_done }
+        Self { decoder, store, ring_tx, ring_capacity, seek_pending, seek_frame, producer_done, shutdown }
     }
 
     pub fn run(mut self) {
@@ -107,7 +115,15 @@ impl AudioProducer {
             let written = self.decoder.fill_buffer(&mut chunk_buf);
             if written == 0 {
                 self.producer_done.store(true, Ordering::Release);
-                break;
+                loop {
+                    if self.shutdown.load(Ordering::Acquire) { return; }
+                    if self.seek_pending.load(Ordering::Acquire) {
+                        self.producer_done.store(false, Ordering::Release);
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+                continue;
             }
 
             let samples: Arc<[f32]> = Arc::from(&chunk_buf[..written]);
@@ -174,6 +190,7 @@ impl AudioSource for BufferedSource {
             while self.ring_rx.pop().is_ok() {}
             let frame = self.seek_frame.load(Ordering::Acquire);
             self.samples_consumed = frame * self.channels as u64;
+            self.exhausted = false;
             buffer.fill(0.0);
             return buffer.len();
         }

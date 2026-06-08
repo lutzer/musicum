@@ -31,9 +31,12 @@ impl AudioPlayer {
     }
 
     pub fn tick(&mut self) {
-        if self.looping && self.engine.is_exhausted() {
+        if self.engine.is_exhausted() && self.looping {
             self.engine.seek(0.0);
             let _ = self.engine.play();
+        } else if self.engine.is_exhausted() {
+            self.engine.seek(0.0);
+            let _ = self.engine.pause();
         }
     }
 
