@@ -31,7 +31,7 @@ mod source_tests {
         assert_eq!(src.sample_rate(), 48000);
         assert_eq!(src.channels(), 2);
         assert!(!src.is_exhausted());
-        assert!(src.duration() > 0.9 && src.duration() < 1.1);
+        assert!(src.duration_secs() > 0.9 && src.duration_secs() < 1.1);
     }
 
     #[test]
@@ -173,7 +173,7 @@ mod buffer_tests {
         let decoder     = SymphoniaSource::new(&path, output.sample_rate(), output.channels()).unwrap();
         let sample_rate = decoder.sample_rate();
         let channels    = decoder.channels();
-        let duration    = decoder.duration();
+        let duration    = decoder.duration_secs();
         let ring_cap    = 2 * sample_rate as usize * channels as usize;
         let store_cap   = 30 * sample_rate as usize * channels as usize;
 
@@ -189,7 +189,7 @@ mod buffer_tests {
         );
         let source = BufferedSource::new(
             ring_rx, sample_rate, channels, duration,
-            seek_pending.clone(), producer_done,
+            seek_pending.clone(), seek_frame.clone(), producer_done,
         );
 
         std::thread::spawn(|| producer.run());
@@ -211,8 +211,9 @@ mod buffer_tests {
     fn buffered_source_reads_samples_from_ring() {
         let (_tx, rx) = prefilled_ring(256);
         let seek_pending  = Arc::new(AtomicBool::new(false));
+        let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(false));
-        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, producer_done);
+        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, seek_frame, producer_done);
 
         let mut buf = vec![0.0f32; 128];
         let n = src.fill_buffer(&mut buf);
@@ -224,8 +225,9 @@ mod buffer_tests {
     fn buffered_source_outputs_silence_when_seek_pending() {
         let (_tx, rx) = prefilled_ring(256);
         let seek_pending  = Arc::new(AtomicBool::new(true));
+        let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(false));
-        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, producer_done);
+        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, seek_frame, producer_done);
 
         let mut buf = vec![1.0f32; 128];
         src.fill_buffer(&mut buf);
@@ -236,8 +238,9 @@ mod buffer_tests {
     fn buffered_source_exhausted_when_ring_empty_and_producer_done() {
         let (_tx, rx) = rtrb::RingBuffer::<f32>::new(64); // empty ring
         let seek_pending  = Arc::new(AtomicBool::new(false));
+        let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(true));
-        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, producer_done);
+        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, seek_frame, producer_done);
 
         let mut buf = vec![0.0f32; 64];
         src.fill_buffer(&mut buf);

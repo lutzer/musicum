@@ -54,6 +54,7 @@
 * [ ] Allow selection of multiple files, collections and clips to do batch operations
 
 ## audio engine
+* wrap consumer and procducer and ringbuffer into an engine struct
 * needs to be designed with a producer and consumer thread with a rimgbuffer in between
 * uses cpal for the consumer and symfonia for the producer
 * since it needs to support remapping of the input buffer, it needs to load everything into a immutable buffer to allow remapping of the samples

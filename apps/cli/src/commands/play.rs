@@ -6,7 +6,9 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use musicum_core::{
-    AudioPlayer, EditRegistry, PlaybackQueue, PlaybackQueueItem, ProcessorEdit, ProcessorRegistry, audio::output::{self, CpalOutput}, services::{clip_service, collection_service, file_service}
+    AudioPlayer, CpalEngine, PlaybackQueue, PlaybackQueueItem,
+    ProcessorEdit,
+    services::{clip_service, collection_service, file_service},
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -17,7 +19,6 @@ use ratatui::{
     Frame, Terminal, TerminalOptions, Viewport,
 };
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 
 const MAX_QUEUE_VISIBLE: usize = 6;
 
@@ -158,8 +159,8 @@ fn run_player(
 
     let mut queue_scroll: usize = 0;
 
-    let mut output = CpalOutput::new()?;
-    let mut player = AudioPlayer::from_queue(queue, &mut output);
+    let engine = CpalEngine::new()?;
+    let mut player = AudioPlayer::new(queue, Box::new(engine));
     player.prepare()?;
     player.play();
 
@@ -172,7 +173,7 @@ fn run_player(
         }
 
         terminal.draw(|f| draw(f, &player, show_edits_row, false, queue_scroll))?;
-
+        player.tick();
 
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
