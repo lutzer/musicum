@@ -36,7 +36,7 @@ pub async fn run(
 
     if let Ok(queue) = resolve_target(db, &target, force_file, force_clip, force_collection).await {
         // return play_single_clip(path, edits, loop_mode);
-        return run_player(queue);
+        return run_player(queue, loop_mode, device);
     }
 
     Err(anyhow!(
@@ -140,7 +140,9 @@ async fn get_collection_queue(db: &DatabaseConnection, target: &str) -> Result<P
 }
 
 fn run_player(
-    queue: PlaybackQueue
+    queue: PlaybackQueue,
+    looping: bool,
+    _device: Option<String>
 ) -> Result<()> {
     enable_raw_mode()?;
     let backend = CrosstermBackend::new(io::stdout());
@@ -162,6 +164,7 @@ fn run_player(
     let engine = CpalEngine::new()?;
     let mut player = AudioPlayer::new(queue, Box::new(engine));
     player.prepare()?;
+    player.set_looping(looping);
     player.play();
 
     loop {
@@ -173,6 +176,13 @@ fn run_player(
         }
 
         terminal.draw(|f| draw(f, &player, show_edits_row, false, queue_scroll))?;
+
+        if (player.file_ended() && player.is_looping()) {
+            player.seek(0.0);
+        }  else if player.file_ended() {
+            let next = player.next();
+            if !next { player.pause(); }
+        }
 
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {

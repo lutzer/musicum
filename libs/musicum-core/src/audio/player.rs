@@ -43,16 +43,20 @@ impl AudioPlayer {
     pub fn set_volume(&mut self, _volume: f32) {}
     pub fn set_looping(&mut self, looping: bool) { self.looping = looping; }
 
-    pub fn next(&mut self) {
+    pub fn next(&mut self) -> bool {
         if self.queue.next().is_some() {
             let _ = self.load_current();
+            return true
         }
+        false
     }
 
-    pub fn previous(&mut self) {
+    pub fn previous(&mut self) -> bool {
         if self.queue.previous().is_some() {
             let _ = self.load_current();
+            return true
         }
+        false
     }
 
     pub fn queue(&self)          -> &PlaybackQueue { &self.queue }
