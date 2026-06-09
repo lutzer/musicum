@@ -4,7 +4,7 @@ use sea_orm::{
 };
 use uuid::Uuid;
 
-use crate::db::entities::edit::{ProcessorEdit, ProcessorEditList, ProcessorEditType};
+use crate::db::entities::edit::{ProcessorEdit, ProcessorEditList};
 use crate::db::entities::preset;
 use crate::ServiceError;
 

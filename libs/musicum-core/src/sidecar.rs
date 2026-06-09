@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use crate::edit::{ProcessorEdit, ProcessorEditType};
+use crate::edit::{ProcessorEdit};
 use crate::ServiceError;
 use crate::config;
 

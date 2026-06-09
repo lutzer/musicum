@@ -23,22 +23,16 @@ impl AudioPlayer {
         self.engine.load(&path)
     }
 
-    pub fn play(&mut self)  { let _ = self.engine.play(); }
+    pub fn play(&mut self)  { 
+        if !self.engine.is_exhausted() {
+            let _ = self.engine.play(); 
+        }
+    }
     pub fn pause(&mut self) { let _ = self.engine.pause(); }
 
     pub fn seek(&mut self, time: f64) {
         self.engine.seek(time);
     }
-
-    // pub fn tick(&mut self) {
-    //     if self.engine.is_exhausted() && self.looping {
-    //         self.engine.seek(0.0);
-    //         let _ = self.engine.play();
-    //     } else if self.engine.is_exhausted() {
-    //         self.engine.seek(0.0);
-    //         let _ = self.engine.pause();
-    //     }
-    // }
 
     pub fn set_volume(&mut self, _volume: f32) {}
     pub fn set_looping(&mut self, looping: bool) { self.looping = looping; }

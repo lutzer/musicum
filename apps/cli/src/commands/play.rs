@@ -122,7 +122,7 @@ async fn get_file_queue(db: &DatabaseConnection, target: &str) -> Result<Playbac
 }
 
 async fn get_collection_queue(db: &DatabaseConnection, target: &str) -> Result<PlaybackQueue> {
-    let (collection,clips) = collection_service::get_collection_with_clips(db, target)
+    let (_,clips) = collection_service::get_collection_with_clips(db, target)
         .await
         .map_err(|_| anyhow!("no collection with slug '{target}'"))?;
     let mut items = Vec::new();
@@ -177,7 +177,7 @@ fn run_player(
 
         terminal.draw(|f| draw(f, &player, show_edits_row, false, queue_scroll))?;
 
-        if (player.file_ended() && player.is_looping()) {
+        if player.file_ended() && player.is_looping() {
             player.seek(0.0);
         }  else if player.file_ended() {
             let next = player.next();

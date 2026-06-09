@@ -67,6 +67,8 @@ impl SourceHandle {
     pub fn seek(&self, position_secs: f64) {
         let frame = (position_secs * self.sample_rate as f64) as u64;
         self.seek_frame.store(frame, Ordering::Release);
+        self.exhausted.store(false, Ordering::Release);
+        self.playhead.store(frame * self.channels as u64, Ordering::Release);
         self.seek_pending.store(true, Ordering::Release);
     }
 
