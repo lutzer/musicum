@@ -1,6 +1,6 @@
-use musicum_processor_sdk::processor::{
-    BaseProcessor, StructuralProcessor, ProcessorDescriptor, ProcessorType, ProcessorParamaterInfo,
-};
+use musicum_processor_sdk::{parameters::ProcessorParamaterInfo, processor::{
+    BaseProcessor, ProcessorDescriptor, ProcessorType, StructuralProcessor
+}};
 
 static TRIM_PARAMS: [ProcessorParamaterInfo; 2] = [
     ProcessorParamaterInfo::Time { id: "start", name: "Start", default: 0.0, editable: true },

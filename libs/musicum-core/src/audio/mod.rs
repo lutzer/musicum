@@ -17,6 +17,7 @@ pub mod source;
 pub mod engine;
 pub mod producer;
 pub mod node;
+pub mod chain;
 
 #[cfg(test)]
 mod tests;

@@ -16,6 +16,7 @@ pub use edit_registry::{EditRegistry, EditRegistryEntry, EditType, ParamInfo};
 pub use error::ServiceError;
 pub use processor_loader::{LoadedProcessor, ProcessorLoadError, ProcessorRegistry};
 
+pub use audio::chain::{ProcessorChain, ProcessorHandle};
 pub use audio::devices::{list_output_devices};
 pub use audio::queue::{PlaybackQueue, PlaybackQueueItem};
 pub use audio::engine::{AudioEngine, CpalEngine};

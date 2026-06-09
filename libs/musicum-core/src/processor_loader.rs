@@ -5,7 +5,12 @@ use std::{
 };
 
 use libloading::{Library, Symbol};
-use musicum_processor_sdk::ffi::{ProcessorDescriptorFFI, ProcessorEntry};
+use musicum_processor_sdk::{
+    abi_stable::std_types::{RBox, RSliceMut},
+    analyzer::AnalysisContext,
+    ffi::{AbiStreamProcessor_TO, ProcessorDescriptorFFI, ProcessorEntry},
+    processor::{BaseProcessor, ProcessorContext, ProcessorDescriptor, StreamProcessor},
+};
 
 pub enum ProcessorLoadError {
     Io(std::io::Error),
@@ -42,6 +47,37 @@ struct RegistryEntry {
 pub struct LoadedProcessor {
     pub entry: ProcessorEntry,
     _lib: Arc<Library>,
+}
+
+impl LoadedProcessor {
+    pub fn into_stream_processor(self) -> Option<Box<dyn StreamProcessor>> {
+        match self.entry {
+            ProcessorEntry::Stream(inner) =>
+                Some(Box::new(FfiStreamProcessor { inner, _lib: self._lib })),
+            _ => None,
+        }
+    }
+}
+
+pub struct FfiStreamProcessor {
+    inner: AbiStreamProcessor_TO<'static, RBox<()>>,
+    _lib:  Arc<Library>,
+}
+
+impl BaseProcessor for FfiStreamProcessor {
+    fn prepare(&mut self, ctx: &ProcessorContext, _: &mut AnalysisContext) {
+        self.inner.prepare(*ctx);
+    }
+    fn descriptor(&self) -> &'static ProcessorDescriptor { unimplemented!() }
+    fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }
+    fn set_parameter(&mut self, id: &str, value: f64) { self.inner.set_parameter(id.into(), value); }
+    fn requires_analysis(&self) -> bool { self.inner.requires_analysis() }
+}
+
+impl StreamProcessor for FfiStreamProcessor {
+    fn process(&mut self, buffer: &mut [f32], time: f64, ctx: &ProcessorContext) {
+        self.inner.process(RSliceMut::from_mut_slice(buffer), time, *ctx);
+    }
 }
 
 pub struct ProcessorRegistry {

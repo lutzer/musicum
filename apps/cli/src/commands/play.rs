@@ -98,12 +98,11 @@ async fn get_clip_queue(db: &DatabaseConnection, target: &str) -> Result<Playbac
     let file = file_service::get_file_by_id(db, &clip.file_id)
         .await
         .map_err(|_| anyhow!("parent file for clip '{target}' not found"))?;
-    let edits = clip.processors.0;
     return Ok(PlaybackQueue::new(vec![
         PlaybackQueueItem {
             title: clip.title,
             path: file.path,
-            edits: edits
+            edits: clip.processors.0
         }
     ]));
 }
@@ -126,13 +125,13 @@ async fn get_collection_queue(db: &DatabaseConnection, target: &str) -> Result<P
         .await
         .map_err(|_| anyhow!("no collection with slug '{target}'"))?;
     let mut items = Vec::new();
-    for c in &clips {
+    for c in clips {
         let file = file_service::get_file_by_id(&db, &c.file_id).await
             .map_err(|_| anyhow!("parent file for clip '{}' not found", c.title))?;
         items.push(PlaybackQueueItem {
-            title: c.title.clone(),
+            title: c.title,
             path: file.path,
-            edits: c.processors.0.clone(),
+            edits: c.processors.0,
         });
     }
     if items.len() == 0 { bail!("collection does not contain any clips") }
@@ -162,7 +161,7 @@ fn run_player(
     let mut queue_scroll: usize = 0;
 
     let engine = CpalEngine::new()?;
-    let mut player = AudioPlayer::new(queue, Box::new(engine));
+    let mut player = AudioPlayer::new(queue, Box::new(engine))?;
     player.prepare()?;
     player.set_looping(looping);
     player.play();

@@ -1,6 +1,6 @@
-use musicum_processor_sdk::processor::{
-    BaseProcessor, StreamProcessor, ProcessorDescriptor, ProcessorType, ProcessorParamaterInfo,
-};
+use musicum_processor_sdk::{parameters::{FloatParam, ProcessorParamaterInfo}, processor::{
+    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor
+}};
 
 static GAIN_PARAMS: [ProcessorParamaterInfo; 1] = [ProcessorParamaterInfo::Float {
     id: "gain",
@@ -21,12 +21,12 @@ static DESCRIPTOR: ProcessorDescriptor = ProcessorDescriptor {
 };
 
 pub struct GainPlugin {
-    gain: f32,
+    gain: FloatParam,
 }
 
 impl Default for GainPlugin {
     fn default() -> Self {
-        Self { gain: 1.0 }
+        Self { gain: GAIN_PARAMS[0].get_param().unwrap_or_default() }
     }
 }
 
@@ -43,12 +43,12 @@ impl BaseProcessor for GainPlugin {
     }
 
     fn get_parameter(&self, id: &str) -> f64 {
-        if id == "gain" { self.gain as f64 } else { 0.0 }
+        if id == "gain" { self.gain.get() as f64 } else { 0.0 }
     }
 
     fn set_parameter(&mut self, id: &str, value: f64) {
         if id == "gain" {
-            self.gain = value as f32;
+            self.gain.set(value as f32);
         }
     }
 
@@ -60,12 +60,12 @@ impl BaseProcessor for GainPlugin {
 impl StreamProcessor for GainPlugin {
     fn process(
         &mut self,
-        sample_buffer: &mut [f32],
+        samples: &mut [f32],
         _time: f64,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
     ) {
-        for s in sample_buffer.iter_mut() {
-            *s *= self.gain;
+        for s in samples.iter_mut() {
+            *s *= self.gain.get();
         }
     }
 }

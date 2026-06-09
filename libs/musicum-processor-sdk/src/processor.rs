@@ -1,21 +1,6 @@
 use abi_stable::StableAbi;
-use crate::analyzer::AnalysisContext;
+use crate::{analyzer::AnalysisContext, parameters::ProcessorParamaterInfo};
 
-pub enum ProcessorParamaterInfo {
-    Float {
-        id:      &'static str,
-        name:    &'static str,
-        default: f32,
-        min:     f32,
-        max:     f32,
-        step:    f32,
-        unit:    &'static str,
-        editable: bool
-    },
-    Bool  { id: &'static str, name: &'static str, default: bool, editable: bool },
-    Time  { id: &'static str, name: &'static str, default: f64, editable: bool },
-    Int   { id: &'static str, name: &'static str, default: i64, min: i64, max: i64, editable: bool },
-}
 
 pub enum ProcessorType { StructuralProcessor, StreamProcessor, Analyzer }
 
@@ -53,7 +38,7 @@ pub trait BaseProcessor: Send + Sync {
 pub trait StreamProcessor: BaseProcessor {
     /// Processes the sample buffer in place and returns a buffer of the same length.
     fn process( &mut self,
-        sample_buffer: &mut [f32],
+        samples: &mut [f32],
         time: f64,
         context: &ProcessorContext);
 }

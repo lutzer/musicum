@@ -6,7 +6,7 @@ use abi_stable::{
     StableAbi,
 };
 
-use crate::processor::{ProcessorContext, ProcessorDescriptor, ProcessorParamaterInfo, ProcessorType};
+use crate::{parameters::ProcessorParamaterInfo, processor::{ProcessorContext, ProcessorDescriptor, ProcessorType}};
 
 // ── Descriptor FFI types ──────────────────────────────────────────────────────
 

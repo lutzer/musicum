@@ -1,10 +1,8 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use musicum_processor_sdk::processor::StreamProcessor;
-
 use crate::audio::buffer::BufferedSource;
-use crate::audio::node::StreamProcessorNode;
+use crate::audio::chain::ProcessorChain;
 use crate::audio::output::{AudioOutput, AudioOutputError, CpalOutput};
 use crate::audio::producer::{AudioProducer, AudioStore};
 use crate::audio::source::{AudioSource, SharedPipelineState, SourceHandle, SymphoniaSource};
@@ -13,11 +11,11 @@ pub trait AudioEngine: Send {
     fn load_with_processors(
         &mut self,
         path: &Path,
-        processors: Vec<Box<dyn StreamProcessor>>,
+        chain: ProcessorChain,
     ) -> anyhow::Result<()>;
 
     fn load(&mut self, path: &Path) -> anyhow::Result<()> {
-        self.load_with_processors(path, vec![])
+        self.load_with_processors(path, ProcessorChain::empty())
     }
 
     fn play(&mut self)  -> anyhow::Result<()>;
@@ -30,19 +28,25 @@ pub trait AudioEngine: Send {
     fn channels(&self)       -> u8;
     fn is_playing(&self)     -> bool;
     fn is_exhausted(&self)   -> bool;
+    fn processor_chain(&self) -> &ProcessorChain;
 }
 
 // AudioEngine implementation backed by cpal.
 // load() tears down any previous pipeline, constructs a new one, and starts
 // the producer thread. All subsequent calls go through source_handle (lock-free).
 pub struct CpalEngine {
-    output:        CpalOutput,
-    source_handle: Option<SourceHandle>,
+    output:          CpalOutput,
+    source_handle:   Option<SourceHandle>,
+    processor_chain: ProcessorChain,
 }
 
 impl CpalEngine {
     pub fn new() -> Result<Self, AudioOutputError> {
-        Ok(Self { output: CpalOutput::new()?, source_handle: None })
+        Ok(Self {
+            output:          CpalOutput::new()?,
+            source_handle:   None,
+            processor_chain: ProcessorChain::empty(),
+        })
     }
 }
 
@@ -50,7 +54,7 @@ impl AudioEngine for CpalEngine {
     fn load_with_processors(
         &mut self,
         path: &Path,
-        processors: Vec<Box<dyn StreamProcessor>>,
+        chain: ProcessorChain,
     ) -> anyhow::Result<()> {
         if let Some(h) = &self.source_handle {
             h.shutdown();
@@ -59,6 +63,7 @@ impl AudioEngine for CpalEngine {
         let sample_rate = self.output.sample_rate();
         let channels    = self.output.channels();
 
+        // the decoder reads the audio file and resamples it to the output sample rate and channel configuration
         let decoder  = SymphoniaSource::new(path, sample_rate, channels)?;
         let src_rate = decoder.sample_rate();
         let src_ch   = decoder.channels();
@@ -77,16 +82,13 @@ impl AudioEngine for CpalEngine {
         let buffered: Box<dyn AudioSource> =
             Box::new(BufferedSource::new(ring_rx, src_rate, src_ch, duration, state.clone()));
 
-        // create plugin chain
-        let source = processors
-            .into_iter()
-            .fold(buffered, |upstream, processor| {
-                Box::new(StreamProcessorNode::new(upstream, processor)) as Box<dyn AudioSource>
-            });
+        // build plugin chain on top of the buffered source
+        let source = chain.build_source(buffered);
 
         std::thread::spawn(|| producer.run());
         self.output.set_source(source)?;
-        self.source_handle = Some(SourceHandle::new(state, src_rate, src_ch, duration));
+        self.source_handle   = Some(SourceHandle::new(state, src_rate, src_ch, duration));
+        self.processor_chain = chain;
         Ok(())
     }
 
@@ -120,5 +122,9 @@ impl AudioEngine for CpalEngine {
 
     fn is_exhausted(&self) -> bool {
         self.source_handle.as_ref().map_or(false, |h| h.is_exhausted())
+    }
+
+    fn processor_chain(&self) -> &ProcessorChain {
+        &self.processor_chain
     }
 }

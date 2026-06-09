@@ -1,20 +1,29 @@
 use std::path::Path;
 
+use crate::audio::chain::ProcessorChain;
 use crate::audio::engine::AudioEngine;
+use crate::config::Config;
+use crate::processor_loader::{ProcessorLoadError, ProcessorRegistry};
 use crate::PlaybackQueue;
 
 // High-level playback controller. Owns the queue and engine.
 // Delegates transport (play/pause/seek) and position queries to the engine.
 // Callers should poll file_ended() to advance the queue.
 pub struct AudioPlayer {
-    queue:   PlaybackQueue,
-    engine:  Box<dyn AudioEngine>,
-    looping: bool,
+    queue:    PlaybackQueue,
+    engine:   Box<dyn AudioEngine>,
+    looping:  bool,
+    registry: ProcessorRegistry,
 }
 
 impl AudioPlayer {
-    pub fn new(queue: PlaybackQueue, engine: Box<dyn AudioEngine>) -> Self {
-        Self { queue, engine, looping: false }
+    pub fn new(queue: PlaybackQueue, engine: Box<dyn AudioEngine>) -> Result<Self, ProcessorLoadError> {
+        let mut registry = ProcessorRegistry::new();
+        let dir = Config::get().processors.processor_dir.clone();
+        if dir.exists() {
+            registry.load_dir(&dir)?;
+        }
+        Ok(Self { queue, engine, looping: false, registry })
     }
 
     pub fn prepare(&mut self) -> anyhow::Result<()> {
@@ -23,12 +32,13 @@ impl AudioPlayer {
 
     fn load_current(&mut self) -> anyhow::Result<()> {
         let path = Path::new(&self.queue.current_item().path).to_path_buf();
-        self.engine.load(&path)
+        let chain = ProcessorChain::from_edits(&self.queue.current_item().edits, &self.registry);
+        self.engine.load_with_processors(&path, chain)
     }
 
-    pub fn play(&mut self)  { 
+    pub fn play(&mut self)  {
         if !self.engine.is_exhausted() {
-            let _ = self.engine.play(); 
+            let _ = self.engine.play();
         }
     }
     pub fn pause(&mut self) { let _ = self.engine.pause(); }
