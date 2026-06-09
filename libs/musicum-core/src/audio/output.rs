@@ -30,6 +30,9 @@ pub trait AudioOutput {
     fn set_source(&mut self, source: Box<dyn AudioSource>) -> Result<(), AudioOutputError>;
 }
 
+// Wraps a cpal output stream. The stream callback calls fill_buffer() on the
+// currently-loaded AudioSource on every hardware buffer request.
+// Source is swapped via set_source() on load; play/pause toggle the stream.
 pub struct CpalOutput {
     stream:      cpal::Stream,
     sample_rate: u32,

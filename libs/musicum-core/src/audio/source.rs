@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, path::Path};
+use std::{collections::VecDeque, path::Path, sync::{Arc, atomic::{AtomicBool, AtomicU64, Ordering}}};
 
 use anyhow::{anyhow, Context};
 use rubato::{FftFixedIn, Resampler};
@@ -19,10 +19,87 @@ pub trait AudioSource: Send {
     fn duration_secs(&self) -> f64;
 }
 
+
+// All cross-thread coordination state for one loaded source.
+// Shared between AudioProducer (background thread), BufferedSource (audio
+// callback thread), and SourceHandle (main thread) via Arc::clone.
+pub struct SharedPipelineState {
+    pub seek_pending:  AtomicBool, // seek was requested; cleared by producer after flush
+    pub seek_frame:    AtomicU64,  // target frame for the pending seek
+    pub producer_done: AtomicBool, // producer has exhausted the decoder
+    pub shutdown:      AtomicBool, // signal producer thread to exit
+    pub playhead:      AtomicU64,  // total samples consumed (frames × channels)
+    pub exhausted:     AtomicBool, // BufferedSource has played past end of file
+}
+
+impl SharedPipelineState {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            seek_pending:  AtomicBool::new(false),
+            seek_frame:    AtomicU64::new(0),
+            producer_done: AtomicBool::new(false),
+            shutdown:      AtomicBool::new(false),
+            playhead:      AtomicU64::new(0),
+            exhausted:     AtomicBool::new(false),
+        })
+    }
+}
+
+// Main-thread handle into a loaded source pipeline.
+// All reads are lock-free atomic loads; no mutex needed.
+#[derive(Clone)]
+pub struct SourceHandle {
+    state:       Arc<SharedPipelineState>,
+    sample_rate: u32,
+    channels:    u8,
+    duration:    f64,
+}
+
+impl SourceHandle {
+    pub fn new(
+        state:       Arc<SharedPipelineState>,
+        sample_rate: u32,
+        channels:    u8,
+        duration:    f64,
+    ) -> Self {
+        Self { state, sample_rate, channels, duration }
+    }
+
+    pub fn seek(&self, position_secs: f64) {
+        let frame = (position_secs * self.sample_rate as f64) as u64;
+        self.state.seek_frame.store(frame, Ordering::Release);
+        self.state.exhausted.store(false, Ordering::Release);
+        self.state.playhead.store(frame * self.channels as u64, Ordering::Release);
+        self.state.seek_pending.store(true, Ordering::Release);
+    }
+
+    pub fn position_secs(&self) -> f64 {
+        let samples = self.state.playhead.load(Ordering::Acquire);
+        (samples / self.channels as u64) as f64 / self.sample_rate as f64
+    }
+
+    pub fn seekhead_secs(&self) -> Option<f64> {
+        if self.state.seek_pending.load(Ordering::Acquire) {
+            let frame = self.state.seek_frame.load(Ordering::Acquire);
+            Some(frame as f64 / self.sample_rate as f64)
+        } else {
+            None
+        }
+    }
+
+    pub fn duration_secs(&self) -> f64 { self.duration }
+
+    pub fn is_exhausted(&self) -> bool { self.state.exhausted.load(Ordering::Acquire) }
+
+    pub fn shutdown(&self) { self.state.shutdown.store(true, Ordering::Release); }
+}
+
 // ── SymphoniaSource ──────────────────────────────────────────────────────────
 
 const RUBATO_CHUNK: usize = 1024;
 
+// Decodes an audio file with Symphonia and resamples to the output rate with Rubato.
+// Interleaved f32 samples are accumulated in `pending`; callers drain via fill_buffer().
 pub struct SymphoniaSource {
     // format / decoder
     format:    Box<dyn symphonia::core::formats::FormatReader>,
@@ -107,6 +184,8 @@ impl SymphoniaSource {
         })
     }
 
+    // Decodes one packet and pushes the resulting samples through push_decoded().
+    // Returns false when the format reader signals end-of-stream.
     fn decode_next(&mut self) -> bool {
         let ch = self.channels as usize;
 
@@ -134,9 +213,9 @@ impl SymphoniaSource {
         }
     }
 
-    // Appends decoded interleaved samples to pending, resampling if needed.
+    // Appends decoded interleaved samples to `pending`, resampling if needed.
     // FftFixedIn requires exactly RUBATO_CHUNK input frames per call, so frames
-    // are staged until a full block is available; the remainder carries over.
+    // are staged in `resample_staging` until a full block is ready; the remainder carries over.
     fn push_decoded(&mut self, samples: Vec<f32>, frames: usize) {
         let ch = self.channels as usize;
 

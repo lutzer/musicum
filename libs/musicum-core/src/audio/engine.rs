@@ -1,10 +1,10 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicU64};
 
-use crate::audio::buffer::{AudioProducer, AudioStore, BufferedSource, SourceHandle};
+use crate::audio::buffer::BufferedSource;
 use crate::audio::output::{AudioOutput, AudioOutputError, CpalOutput};
-use crate::audio::source::{AudioSource, SymphoniaSource};
+use crate::audio::producer::{AudioProducer, AudioStore};
+use crate::audio::source::{AudioSource, SharedPipelineState, SourceHandle, SymphoniaSource};
 
 pub trait AudioEngine: Send {
     fn load(&mut self, path: &Path) -> anyhow::Result<()>;
@@ -20,8 +20,11 @@ pub trait AudioEngine: Send {
     fn is_exhausted(&self)   -> bool;
 }
 
+// AudioEngine implementation backed by cpal.
+// load() tears down any previous pipeline, constructs a new one, and starts
+// the producer thread. All subsequent calls go through source_handle (lock-free).
 pub struct CpalEngine {
-    output:      CpalOutput,
+    output:        CpalOutput,
     source_handle: Option<SourceHandle>,
 }
 
@@ -40,41 +43,24 @@ impl AudioEngine for CpalEngine {
         let sample_rate = self.output.sample_rate();
         let channels    = self.output.channels();
 
-        let decoder   = SymphoniaSource::new(path, sample_rate, channels)?;
-        let src_rate  = decoder.sample_rate();
-        let src_ch    = decoder.channels();
-        let duration  = decoder.duration_secs();
+        let decoder  = SymphoniaSource::new(path, sample_rate, channels)?;
+        let src_rate = decoder.sample_rate();
+        let src_ch   = decoder.channels();
+        let duration = decoder.duration_secs();
+
+        let state     = SharedPipelineState::new();
         let ring_cap  = 2  * src_rate as usize * src_ch as usize;
         let store_cap = 30 * src_rate as usize * src_ch as usize;
 
         let (ring_tx, ring_rx) = rtrb::RingBuffer::new(ring_cap);
-        let store         = Arc::new(Mutex::new(AudioStore::new(store_cap, src_ch)));
-        let seek_pending  = Arc::new(AtomicBool::new(false));
-        let seek_frame    = Arc::new(AtomicU64::new(0));
-        let producer_done = Arc::new(AtomicBool::new(false));
-        let shutdown      = Arc::new(AtomicBool::new(false));
-        let playhead      = Arc::new(AtomicU64::new(0));
-        let exhausted     = Arc::new(AtomicBool::new(false));
+        let store = Arc::new(Mutex::new(AudioStore::new(store_cap, src_ch)));
 
-        let producer = AudioProducer::new(
-            decoder, store, ring_tx, ring_cap,
-            seek_pending.clone(), seek_frame.clone(), producer_done.clone(),
-            shutdown.clone(),
-        );
-        let source = BufferedSource::new(
-            ring_rx, src_rate, src_ch, duration,
-            seek_pending.clone(), seek_frame.clone(), producer_done,
-            playhead.clone(), exhausted.clone(),
-        );
+        let producer = AudioProducer::new(decoder, store, ring_tx, state.clone());
+        let source   = BufferedSource::new(ring_rx, src_rate, src_ch, duration, state.clone());
 
         std::thread::spawn(|| producer.run());
         self.output.set_source(Box::new(source))?;
-        self.source_handle = Some(SourceHandle::new(
-            seek_pending, seek_frame,
-            playhead, exhausted,
-            shutdown,
-            src_rate, src_ch, duration,
-        ));
+        self.source_handle = Some(SourceHandle::new(state, src_rate, src_ch, duration));
         Ok(())
     }
 

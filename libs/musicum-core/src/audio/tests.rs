@@ -81,10 +81,11 @@ mod source_tests {
 
 #[cfg(test)]
 mod buffer_tests {
-    use std::sync::{Arc, Mutex};
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    use crate::audio::buffer::{AudioStore, AudioProducer, BufferedSource, DecodedChunk, SourceHandle};
-    use crate::audio::source::{AudioSource, SymphoniaSource};
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
+    use crate::audio::producer::{AudioStore, AudioProducer, DecodedChunk,};
+    use crate::audio::buffer::{BufferedSource};
+    use crate::audio::source::{AudioSource, SymphoniaSource, SharedPipelineState, SourceHandle};
 
     fn make_chunk(start_frame: usize, frame_count: usize, channels: u8) -> DecodedChunk {
         DecodedChunk {
@@ -130,22 +131,16 @@ mod buffer_tests {
 
     #[test]
     fn seek_handle_sets_frame_and_pending() {
-        let seek_pending = Arc::new(AtomicBool::new(false));
-        let seek_frame   = Arc::new(AtomicU64::new(0));
-        let playhead     = Arc::new(AtomicU64::new(0));
-        let exhausted    = Arc::new(AtomicBool::new(false));
-        let shutdown     = Arc::new(AtomicBool::new(false));
-        let handle = SourceHandle::new(
-            seek_pending.clone(), seek_frame.clone(),
-            playhead, exhausted, shutdown, 48000, 2, 1.0,
-        );
+        let state = SharedPipelineState::new();
+        let handle = SourceHandle::new(state.clone(), 48000, 2, 1.0);
         handle.seek(2.0);
-        assert!(seek_pending.load(Ordering::Acquire));
-        assert_eq!(seek_frame.load(Ordering::Acquire), 96000);
+        assert!(state.seek_pending.load(Ordering::Acquire));
+        assert_eq!(state.seek_frame.load(Ordering::Acquire), 96000);
     }
 
     #[test]
     fn producer_fills_ring_with_samples() {
+        use std::sync::Mutex;
         let path = super::test_wav_path();
         let decoder = SymphoniaSource::new(&path, 48000, 2).unwrap();
         let sample_rate = decoder.sample_rate() as usize;
@@ -153,26 +148,21 @@ mod buffer_tests {
         let ring_cap    = 2 * sample_rate * channels;
         let store_cap   = 30 * sample_rate * channels;
 
-        let (ring_tx, mut ring_rx) = rtrb::RingBuffer::new(ring_cap);
-        let store         = Arc::new(Mutex::new(AudioStore::new(store_cap, channels as u8)));
-        let seek_pending  = Arc::new(AtomicBool::new(false));
-        let seek_frame    = Arc::new(AtomicU64::new(0));
-        let producer_done = Arc::new(AtomicBool::new(false));
-        let shutdown      = Arc::new(AtomicBool::new(false));
+        let (ring_tx, ring_rx) = rtrb::RingBuffer::new(ring_cap);
+        let store = Arc::new(Mutex::new(AudioStore::new(store_cap, channels as u8)));
+        let state = SharedPipelineState::new();
 
-        let producer = AudioProducer::new(
-            decoder, store, ring_tx, ring_cap,
-            seek_pending, seek_frame, producer_done.clone(), shutdown,
-        );
+        let producer = AudioProducer::new(decoder, store, ring_tx, state.clone());
         std::thread::spawn(|| producer.run());
 
         std::thread::sleep(std::time::Duration::from_millis(200));
-        assert!(ring_rx.slots() > 0 || producer_done.load(Ordering::Acquire));
+        assert!(ring_rx.slots() > 0 || state.producer_done.load(Ordering::Acquire));
     }
 
     #[test]
     #[ignore]
     fn buffered_pipeline_plays_audio() {
+        use std::sync::Mutex;
         use crate::audio::output::{AudioOutput, CpalOutput};
 
         let path = super::test_wav_path();
@@ -185,24 +175,11 @@ mod buffer_tests {
         let store_cap   = 30 * sample_rate as usize * channels as usize;
 
         let (ring_tx, ring_rx) = rtrb::RingBuffer::new(ring_cap);
-        let store         = Arc::new(Mutex::new(AudioStore::new(store_cap, channels)));
-        let seek_pending  = Arc::new(AtomicBool::new(false));
-        let seek_frame    = Arc::new(AtomicU64::new(0));
-        let producer_done = Arc::new(AtomicBool::new(false));
-        let shutdown      = Arc::new(AtomicBool::new(false));
+        let store = Arc::new(Mutex::new(AudioStore::new(store_cap, channels)));
+        let state = SharedPipelineState::new();
 
-        let playhead  = Arc::new(AtomicU64::new(0));
-        let exhausted = Arc::new(AtomicBool::new(false));
-
-        let producer = AudioProducer::new(
-            decoder, store, ring_tx, ring_cap,
-            seek_pending.clone(), seek_frame.clone(), producer_done.clone(), shutdown,
-        );
-        let source = BufferedSource::new(
-            ring_rx, sample_rate, channels, duration,
-            seek_pending.clone(), seek_frame.clone(), producer_done,
-            playhead, exhausted,
-        );
+        let producer = AudioProducer::new(decoder, store, ring_tx, state.clone());
+        let source   = BufferedSource::new(ring_rx, sample_rate, channels, duration, state.clone());
 
         std::thread::spawn(|| producer.run());
         output.set_source(Box::new(source)).unwrap();
@@ -221,27 +198,17 @@ mod buffer_tests {
 
     fn make_source(
         rx: rtrb::Consumer<f32>,
-        seek_pending: Arc<AtomicBool>,
-        seek_frame: Arc<AtomicU64>,
-        producer_done: Arc<AtomicBool>,
-    ) -> (BufferedSource, Arc<AtomicU64>, Arc<AtomicBool>) {
-        let playhead  = Arc::new(AtomicU64::new(0));
-        let exhausted = Arc::new(AtomicBool::new(false));
-        let src = BufferedSource::new(
-            rx, 48000, 2, 1.0,
-            seek_pending, seek_frame, producer_done,
-            playhead.clone(), exhausted.clone(),
-        );
-        (src, playhead, exhausted)
+        state: Arc<SharedPipelineState>,
+    ) -> (BufferedSource, Arc<SharedPipelineState>) {
+        let src = BufferedSource::new(rx, 48000, 2, 1.0, state.clone());
+        (src, state)
     }
 
     #[test]
     fn buffered_source_reads_samples_from_ring() {
         let (_tx, rx) = prefilled_ring(256);
-        let seek_pending  = Arc::new(AtomicBool::new(false));
-        let seek_frame    = Arc::new(AtomicU64::new(0));
-        let producer_done = Arc::new(AtomicBool::new(false));
-        let (mut src, _, _) = make_source(rx, seek_pending, seek_frame, producer_done);
+        let state = SharedPipelineState::new();
+        let (mut src, _) = make_source(rx, state);
 
         let mut buf = vec![0.0f32; 128];
         let n = src.fill_buffer(&mut buf);
@@ -252,10 +219,9 @@ mod buffer_tests {
     #[test]
     fn buffered_source_outputs_silence_when_seek_pending() {
         let (_tx, rx) = prefilled_ring(256);
-        let seek_pending  = Arc::new(AtomicBool::new(true));
-        let seek_frame    = Arc::new(AtomicU64::new(0));
-        let producer_done = Arc::new(AtomicBool::new(false));
-        let (mut src, _, _) = make_source(rx, seek_pending, seek_frame, producer_done);
+        let state = SharedPipelineState::new();
+        state.seek_pending.store(true, Ordering::Release);
+        let (mut src, _) = make_source(rx, state);
 
         let mut buf = vec![1.0f32; 128];
         src.fill_buffer(&mut buf);
@@ -265,10 +231,9 @@ mod buffer_tests {
     #[test]
     fn buffered_source_exhausted_when_ring_empty_and_producer_done() {
         let (_tx, rx) = rtrb::RingBuffer::<f32>::new(64); // empty ring
-        let seek_pending  = Arc::new(AtomicBool::new(false));
-        let seek_frame    = Arc::new(AtomicU64::new(0));
-        let producer_done = Arc::new(AtomicBool::new(true));
-        let (mut src, _, _) = make_source(rx, seek_pending, seek_frame, producer_done);
+        let state = SharedPipelineState::new();
+        state.producer_done.store(true, Ordering::Release);
+        let (mut src, _) = make_source(rx, state);
 
         let mut buf = vec![0.0f32; 64];
         src.fill_buffer(&mut buf);
@@ -277,35 +242,27 @@ mod buffer_tests {
 
     #[test]
     fn source_handle_position_from_playhead() {
-        let seek_pending = Arc::new(AtomicBool::new(false));
-        let seek_frame   = Arc::new(AtomicU64::new(0));
-        let playhead     = Arc::new(AtomicU64::new(96000)); // 1s at 48000 Hz stereo
-        let exhausted    = Arc::new(AtomicBool::new(false));
-        let shutdown     = Arc::new(AtomicBool::new(false));
-        let handle = SourceHandle::new(seek_pending, seek_frame, playhead, exhausted, shutdown, 48000, 2, 5.0);
+        let state = SharedPipelineState::new();
+        state.playhead.store(96000, Ordering::Release); // 1s at 48000 Hz stereo
+        let handle = SourceHandle::new(state, 48000, 2, 5.0);
         // 96000 samples / 2 channels / 48000 Hz = 1.0 second
         assert!((handle.position_secs() - 1.0).abs() < 0.001);
     }
 
     #[test]
     fn source_handle_seekhead_none_when_not_pending() {
-        let seek_pending = Arc::new(AtomicBool::new(false));
-        let seek_frame   = Arc::new(AtomicU64::new(96000));
-        let playhead     = Arc::new(AtomicU64::new(0));
-        let exhausted    = Arc::new(AtomicBool::new(false));
-        let shutdown     = Arc::new(AtomicBool::new(false));
-        let handle = SourceHandle::new(seek_pending, seek_frame, playhead, exhausted, shutdown, 48000, 2, 5.0);
+        let state = SharedPipelineState::new();
+        state.seek_frame.store(96000, Ordering::Release);
+        let handle = SourceHandle::new(state, 48000, 2, 5.0);
         assert!(handle.seekhead_secs().is_none());
     }
 
     #[test]
     fn source_handle_seekhead_some_when_pending() {
-        let seek_pending = Arc::new(AtomicBool::new(true));
-        let seek_frame   = Arc::new(AtomicU64::new(48000)); // 1s at 48000 Hz
-        let playhead     = Arc::new(AtomicU64::new(0));
-        let exhausted    = Arc::new(AtomicBool::new(false));
-        let shutdown     = Arc::new(AtomicBool::new(false));
-        let handle = SourceHandle::new(seek_pending, seek_frame, playhead, exhausted, shutdown, 48000, 2, 5.0);
+        let state = SharedPipelineState::new();
+        state.seek_pending.store(true, Ordering::Release);
+        state.seek_frame.store(48000, Ordering::Release); // 1s at 48000 Hz
+        let handle = SourceHandle::new(state, 48000, 2, 5.0);
         let sh = handle.seekhead_secs();
         assert!(sh.is_some());
         assert!((sh.unwrap() - 1.0).abs() < 0.001);
@@ -313,50 +270,36 @@ mod buffer_tests {
 
     #[test]
     fn source_handle_is_exhausted_reflects_atomic() {
-        let seek_pending = Arc::new(AtomicBool::new(false));
-        let seek_frame   = Arc::new(AtomicU64::new(0));
-        let playhead     = Arc::new(AtomicU64::new(0));
-        let exhausted    = Arc::new(AtomicBool::new(false));
-        let shutdown     = Arc::new(AtomicBool::new(false));
-        let handle = SourceHandle::new(
-            seek_pending, seek_frame, playhead,
-            exhausted.clone(), shutdown, 48000, 2, 5.0,
-        );
+        let state = SharedPipelineState::new();
+        let handle = SourceHandle::new(state.clone(), 48000, 2, 5.0);
         assert!(!handle.is_exhausted());
-        exhausted.store(true, Ordering::Release);
+        state.exhausted.store(true, Ordering::Release);
         assert!(handle.is_exhausted());
     }
 
     #[test]
     fn buffered_source_updates_playhead_atomic() {
         let (_tx, rx) = prefilled_ring(256);
-        let seek_pending  = Arc::new(AtomicBool::new(false));
-        let seek_frame    = Arc::new(AtomicU64::new(0));
-        let producer_done = Arc::new(AtomicBool::new(false));
-        let (mut src, playhead, _) = make_source(rx, seek_pending, seek_frame, producer_done);
+        let state = SharedPipelineState::new();
+        let (mut src, state) = make_source(rx, state);
 
         let mut buf = vec![0.0f32; 128];
         src.fill_buffer(&mut buf);
-        assert_eq!(playhead.load(Ordering::Acquire), 128);
+        assert_eq!(state.playhead.load(Ordering::Acquire), 128);
     }
 
     #[test]
     fn buffered_source_seek_resets_playhead() {
         let (_tx, rx) = prefilled_ring(256);
-        let seek_pending  = Arc::new(AtomicBool::new(true));
-        let seek_frame    = Arc::new(AtomicU64::new(48000)); // seek to frame 48000
-        let producer_done = Arc::new(AtomicBool::new(false));
-        let playhead_init = Arc::new(AtomicU64::new(9999));
-        let exhausted     = Arc::new(AtomicBool::new(false));
-        let mut src = BufferedSource::new(
-            rx, 48000, 2, 5.0,
-            seek_pending, seek_frame, producer_done,
-            playhead_init.clone(), exhausted,
-        );
+        let state = SharedPipelineState::new();
+        state.seek_pending.store(true, Ordering::Release);
+        state.seek_frame.store(48000, Ordering::Release); // seek to frame 48000
+        state.playhead.store(9999, Ordering::Release);
+        let mut src = BufferedSource::new(rx, 48000, 2, 5.0, state.clone());
 
         let mut buf = vec![0.0f32; 128];
         src.fill_buffer(&mut buf);
         // playhead = seek_frame * channels = 48000 * 2 = 96000
-        assert_eq!(playhead_init.load(Ordering::Acquire), 96000);
+        assert_eq!(state.playhead.load(Ordering::Acquire), 96000);
     }
 }

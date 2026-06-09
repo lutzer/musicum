@@ -3,6 +3,9 @@ use std::path::Path;
 use crate::audio::engine::AudioEngine;
 use crate::PlaybackQueue;
 
+// High-level playback controller. Owns the queue and engine.
+// Delegates transport (play/pause/seek) and position queries to the engine.
+// Callers should poll file_ended() to advance the queue.
 pub struct AudioPlayer {
     queue:   PlaybackQueue,
     engine:  Box<dyn AudioEngine>,
