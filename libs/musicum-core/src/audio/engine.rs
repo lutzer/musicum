@@ -1,13 +1,25 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
+use musicum_processor_sdk::processor::StreamProcessor;
+
 use crate::audio::buffer::BufferedSource;
+use crate::audio::node::StreamProcessorNode;
 use crate::audio::output::{AudioOutput, AudioOutputError, CpalOutput};
 use crate::audio::producer::{AudioProducer, AudioStore};
 use crate::audio::source::{AudioSource, SharedPipelineState, SourceHandle, SymphoniaSource};
 
 pub trait AudioEngine: Send {
-    fn load(&mut self, path: &Path) -> anyhow::Result<()>;
+    fn load_with_processors(
+        &mut self,
+        path: &Path,
+        processors: Vec<Box<dyn StreamProcessor>>,
+    ) -> anyhow::Result<()>;
+
+    fn load(&mut self, path: &Path) -> anyhow::Result<()> {
+        self.load_with_processors(path, vec![])
+    }
+
     fn play(&mut self)  -> anyhow::Result<()>;
     fn pause(&mut self) -> anyhow::Result<()>;
     fn seek(&mut self, secs: f64);
@@ -35,7 +47,11 @@ impl CpalEngine {
 }
 
 impl AudioEngine for CpalEngine {
-    fn load(&mut self, path: &Path) -> anyhow::Result<()> {
+    fn load_with_processors(
+        &mut self,
+        path: &Path,
+        processors: Vec<Box<dyn StreamProcessor>>,
+    ) -> anyhow::Result<()> {
         if let Some(h) = &self.source_handle {
             h.shutdown();
         }
@@ -52,14 +68,24 @@ impl AudioEngine for CpalEngine {
         let ring_cap  = 2  * src_rate as usize * src_ch as usize;
         let store_cap = 30 * src_rate as usize * src_ch as usize;
 
+        // set up ringbuffer and audiostore
         let (ring_tx, ring_rx) = rtrb::RingBuffer::new(ring_cap);
         let store = Arc::new(Mutex::new(AudioStore::new(store_cap, src_ch)));
 
+        // set up producer and bufferedsource as the root source
         let producer = AudioProducer::new(decoder, store, ring_tx, state.clone());
-        let source   = BufferedSource::new(ring_rx, src_rate, src_ch, duration, state.clone());
+        let buffered: Box<dyn AudioSource> =
+            Box::new(BufferedSource::new(ring_rx, src_rate, src_ch, duration, state.clone()));
+
+        // create plugin chain
+        let source = processors
+            .into_iter()
+            .fold(buffered, |upstream, processor| {
+                Box::new(StreamProcessorNode::new(upstream, processor)) as Box<dyn AudioSource>
+            });
 
         std::thread::spawn(|| producer.run());
-        self.output.set_source(Box::new(source))?;
+        self.output.set_source(source)?;
         self.source_handle = Some(SourceHandle::new(state, src_rate, src_ch, duration));
         Ok(())
     }

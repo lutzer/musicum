@@ -17,6 +17,7 @@ pub trait AudioSource: Send {
     fn channels(&self) -> u8;
     fn is_exhausted(&self) -> bool;
     fn duration_secs(&self) -> f64;
+    fn position_secs(&self) -> f64;
 }
 
 
@@ -118,8 +119,9 @@ pub struct SymphoniaSource {
     decode_buf:       Vec<Vec<f32>>,
 
     // output
-    pending:   VecDeque<f32>,
-    exhausted: bool,
+    pending:         VecDeque<f32>,
+    exhausted:       bool,
+    frames_consumed: u64,
 }
 
 impl SymphoniaSource {
@@ -179,8 +181,9 @@ impl SymphoniaSource {
             resampler,
             resample_staging: vec![Vec::new(); ch],
             decode_buf:       vec![vec![0.0f32; RUBATO_CHUNK]; ch],
-            pending:   VecDeque::new(),
-            exhausted: false,
+            pending:         VecDeque::new(),
+            exhausted:       false,
+            frames_consumed: 0,
         })
     }
 
@@ -270,6 +273,7 @@ impl AudioSource for SymphoniaSource {
     fn channels(&self)    -> u8    { self.channels }
     fn is_exhausted(&self) -> bool { self.exhausted }
     fn duration_secs(&self) -> f64 { self.duration }
+    fn position_secs(&self) -> f64 { self.frames_consumed as f64 / self.out_rate as f64 }
 
     fn fill_buffer(&mut self, buffer: &mut [f32]) -> usize {
         if self.exhausted { return 0; }
@@ -285,6 +289,7 @@ impl AudioSource for SymphoniaSource {
         for slot in buffer.iter_mut().take(n) {
             *slot = self.pending.pop_front().unwrap_or(0.0);
         }
+        self.frames_consumed += n as u64 / self.channels as u64;
         n
     }
 }
@@ -313,5 +318,6 @@ impl SymphoniaSource {
         self.pending.clear();
         for v in &mut self.resample_staging { v.clear(); }
         self.exhausted = false;
+        self.frames_consumed = (position * self.out_rate as f64) as u64;
     }
 }

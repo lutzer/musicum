@@ -32,6 +32,10 @@ impl AudioSource for BufferedSource {
     fn channels(&self)    -> u8    { self.channels }
     fn duration_secs(&self) -> f64 { self.duration }
     fn is_exhausted(&self) -> bool { self.state.exhausted.load(Ordering::Acquire) }
+    fn position_secs(&self) -> f64 {
+        let samples = self.state.playhead.load(Ordering::Acquire);
+        (samples / self.channels as u64) as f64 / self.sample_rate as f64
+    }
 
     fn fill_buffer(&mut self, buffer: &mut [f32]) -> usize {
         // Seek in flight: drain stale ring data, reset playhead to seek target,

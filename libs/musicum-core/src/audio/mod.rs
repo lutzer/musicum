@@ -16,6 +16,7 @@ pub mod player;
 pub mod source;
 pub mod engine;
 pub mod producer;
+pub mod node;
 
 #[cfg(test)]
 mod tests;
