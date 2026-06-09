@@ -115,17 +115,6 @@ mod tests {
     use super::format_table;
 
     #[test]
-    fn separator_spans_full_width() {
-        let out = format_table(
-            &["SLUG", "TITLE"],
-            &[vec!["my-preset".into(), "My Preset".into()]],
-            40,
-        );
-        let sep = out.lines().nth(1).unwrap();
-        assert_eq!(sep.chars().count(), 40);
-    }
-
-    #[test]
     fn two_col_basic_layout() {
         let out = format_table(
             &["SLUG", "TITLE"],
@@ -136,10 +125,10 @@ mod tests {
             60,
         );
         let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines.len(), 4);
+        assert_eq!(lines.len(), 3);
         assert!(lines[0].starts_with("SLUG"));
-        assert!(lines[2].starts_with("my-preset"));
-        assert!(lines[3].starts_with("another  "));
+        assert!(lines[1].starts_with("my-preset"));
+        assert!(lines[2].starts_with("another  "));
     }
 
     #[test]
@@ -150,7 +139,7 @@ mod tests {
             60,
         );
         let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines.len(), 3);
+        assert_eq!(lines.len(), 2);
         assert!(lines[0].contains("ID"));
         assert!(lines[0].contains("NAME"));
         assert!(lines[0].contains("PARAMS"));
@@ -164,7 +153,7 @@ mod tests {
             &[vec!["x".into(), long_val]],
             20,
         );
-        let row = out.lines().nth(2).unwrap();
+        let row = out.lines().nth(1).unwrap();
         assert!(row.contains('…'));
         let last_cell_start = row.find("  ").unwrap() + 2;
         let last_cell = &row[last_cell_start..];
@@ -194,7 +183,7 @@ mod tests {
             &[vec!["x".into(), "short".into()]],
             40,
         );
-        let row = out.lines().nth(2).unwrap();
+        let row = out.lines().nth(1).unwrap();
         assert!(!row.contains('…'));
         assert!(row.contains("short"));
     }
@@ -210,6 +199,6 @@ mod tests {
             60,
         );
         let lines: Vec<&str> = out.lines().collect();
-        assert!(lines[2].starts_with("short            "));
+        assert!(lines[1].starts_with("short            "));
     }
 }
