@@ -12,6 +12,7 @@ pub trait AudioEngine: Send {
     fn pause(&mut self) -> anyhow::Result<()>;
     fn seek(&mut self, secs: f64);
     fn position_secs(&self)  -> f64;
+    fn seekhead_secs(&self)  -> Option<f64>;
     fn duration_secs(&self)  -> f64;
     fn sample_rate(&self)    -> u32;
     fn channels(&self)       -> u8;
@@ -52,6 +53,8 @@ impl AudioEngine for CpalEngine {
         let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(false));
         let shutdown      = Arc::new(AtomicBool::new(false));
+        let playhead      = Arc::new(AtomicU64::new(0));
+        let exhausted     = Arc::new(AtomicBool::new(false));
 
         let producer = AudioProducer::new(
             decoder, store, ring_tx, ring_cap,
@@ -61,11 +64,17 @@ impl AudioEngine for CpalEngine {
         let source = BufferedSource::new(
             ring_rx, src_rate, src_ch, duration,
             seek_pending.clone(), seek_frame.clone(), producer_done,
+            playhead.clone(), exhausted.clone(),
         );
 
         std::thread::spawn(|| producer.run());
         self.output.set_source(Box::new(source))?;
-        self.source_handle = Some(SourceHandle::new(seek_pending, seek_frame, shutdown, src_rate));
+        self.source_handle = Some(SourceHandle::new(
+            seek_pending, seek_frame,
+            playhead, exhausted,
+            shutdown,
+            src_rate, src_ch, duration,
+        ));
         Ok(())
     }
 
@@ -82,13 +91,15 @@ impl AudioEngine for CpalEngine {
     }
 
     fn position_secs(&self) -> f64 {
-        let g = self.output.get_source().lock().unwrap();
-        g.as_ref().map(|s| s.position_secs()).unwrap_or(0.0)
+        self.source_handle.as_ref().map_or(0.0, |h| h.position_secs())
+    }
+
+    fn seekhead_secs(&self) -> Option<f64> {
+        self.source_handle.as_ref().and_then(|h| h.seekhead_secs())
     }
 
     fn duration_secs(&self) -> f64 {
-        let g = self.output.get_source().lock().unwrap();
-        g.as_ref().map(|s| s.duration_secs()).unwrap_or(0.0)
+        self.source_handle.as_ref().map_or(0.0, |h| h.duration_secs())
     }
 
     fn sample_rate(&self) -> u32  { self.output.sample_rate() }
@@ -96,7 +107,6 @@ impl AudioEngine for CpalEngine {
     fn is_playing(&self)  -> bool { self.output.is_playing() }
 
     fn is_exhausted(&self) -> bool {
-        let g = self.output.get_source().lock().unwrap();
-        g.as_ref().map(|s| s.is_exhausted()).unwrap_or(false)
+        self.source_handle.as_ref().map_or(false, |h| h.is_exhausted())
     }
 }

@@ -40,20 +40,28 @@ impl AudioStore {
 
 #[derive(Clone)]
 pub struct SourceHandle {
-    seek_pending: Arc<AtomicBool>,
-    seek_frame:   Arc<AtomicU64>,
-    shutdown:     Arc<AtomicBool>,
-    sample_rate:  u32,
+    seek_pending:  Arc<AtomicBool>,
+    seek_frame:    Arc<AtomicU64>,
+    playhead:      Arc<AtomicU64>,
+    exhausted:     Arc<AtomicBool>,
+    shutdown:      Arc<AtomicBool>,
+    sample_rate:   u32,
+    channels:      u8,
+    duration:      f64,
 }
 
 impl SourceHandle {
     pub fn new(
-        seek_pending: Arc<AtomicBool>,
-        seek_frame:   Arc<AtomicU64>,
-        shutdown:     Arc<AtomicBool>,
-        sample_rate:  u32,
+        seek_pending:  Arc<AtomicBool>,
+        seek_frame:    Arc<AtomicU64>,
+        playhead:      Arc<AtomicU64>,
+        exhausted:     Arc<AtomicBool>,
+        shutdown:      Arc<AtomicBool>,
+        sample_rate:   u32,
+        channels:      u8,
+        duration:      f64,
     ) -> Self {
-        Self { seek_pending, seek_frame, shutdown, sample_rate }
+        Self { seek_pending, seek_frame, playhead, exhausted, shutdown, sample_rate, channels, duration }
     }
 
     pub fn seek(&self, position_secs: f64) {
@@ -62,9 +70,25 @@ impl SourceHandle {
         self.seek_pending.store(true, Ordering::Release);
     }
 
-    pub fn shutdown(&self) {
-        self.shutdown.store(true, Ordering::Release);
+    pub fn position_secs(&self) -> f64 {
+        let samples = self.playhead.load(Ordering::Acquire);
+        (samples / self.channels as u64) as f64 / self.sample_rate as f64
     }
+
+    pub fn seekhead_secs(&self) -> Option<f64> {
+        if self.seek_pending.load(Ordering::Acquire) {
+            let frame = self.seek_frame.load(Ordering::Acquire);
+            Some(frame as f64 / self.sample_rate as f64)
+        } else {
+            None
+        }
+    }
+
+    pub fn duration_secs(&self) -> f64 { self.duration }
+
+    pub fn is_exhausted(&self) -> bool { self.exhausted.load(Ordering::Acquire) }
+
+    pub fn shutdown(&self) { self.shutdown.store(true, Ordering::Release); }
 }
 
 pub const CHUNK_FRAMES: usize = 4096;
@@ -145,15 +169,15 @@ impl AudioProducer {
 }
 
 pub struct BufferedSource {
-    ring_rx:          rtrb::Consumer<f32>,
-    sample_rate:      u32,
-    channels:         u8,
-    duration:         f64,
-    exhausted:        bool,
-    seek_pending:     Arc<AtomicBool>,
-    seek_frame:       Arc<AtomicU64>,
-    producer_done:    Arc<AtomicBool>,
-    samples_consumed: u64,
+    ring_rx:       rtrb::Consumer<f32>,
+    sample_rate:   u32,
+    channels:      u8,
+    duration:      f64,
+    seek_pending:  Arc<AtomicBool>,
+    seek_frame:    Arc<AtomicU64>,
+    producer_done: Arc<AtomicBool>,
+    playhead:      Arc<AtomicU64>,
+    exhausted:     Arc<AtomicBool>,
 }
 
 impl BufferedSource {
@@ -165,10 +189,13 @@ impl BufferedSource {
         seek_pending:  Arc<AtomicBool>,
         seek_frame:    Arc<AtomicU64>,
         producer_done: Arc<AtomicBool>,
+        playhead:      Arc<AtomicU64>,
+        exhausted:     Arc<AtomicBool>,
     ) -> Self {
         Self {
-            ring_rx, sample_rate, channels, duration, exhausted: false,
-            seek_pending, seek_frame, producer_done, samples_consumed: 0,
+            ring_rx, sample_rate, channels, duration,
+            seek_pending, seek_frame, producer_done,
+            playhead, exhausted,
         }
     }
 }
@@ -177,20 +204,14 @@ impl AudioSource for BufferedSource {
     fn sample_rate(&self) -> u32   { self.sample_rate }
     fn channels(&self)    -> u8    { self.channels }
     fn duration_secs(&self) -> f64 { self.duration }
-    fn is_exhausted(&self) -> bool { self.exhausted }
-    fn seek(&mut self, _position: f64) {}
-
-    fn position_secs(&self) -> f64 {
-        let frames = self.samples_consumed / self.channels as u64;
-        frames as f64 / self.sample_rate as f64
-    }
+    fn is_exhausted(&self) -> bool { self.exhausted.load(Ordering::Acquire) }
 
     fn fill_buffer(&mut self, buffer: &mut [f32]) -> usize {
         if self.seek_pending.load(Ordering::Acquire) {
             while self.ring_rx.pop().is_ok() {}
             let frame = self.seek_frame.load(Ordering::Acquire);
-            self.samples_consumed = frame * self.channels as u64;
-            self.exhausted = false;
+            self.playhead.store(frame * self.channels as u64, Ordering::Release);
+            self.exhausted.store(false, Ordering::Release);
             buffer.fill(0.0);
             return buffer.len();
         }
@@ -202,10 +223,10 @@ impl AudioSource for BufferedSource {
                 Err(_) => { *slot = 0.0; }
             }
         }
-        self.samples_consumed += filled as u64;
+        self.playhead.fetch_add(filled as u64, Ordering::Release);
 
         if filled < buffer.len() && self.producer_done.load(Ordering::Acquire) {
-            self.exhausted = true;
+            self.exhausted.store(true, Ordering::Release);
         }
         buffer.len()
     }

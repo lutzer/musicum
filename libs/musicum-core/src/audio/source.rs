@@ -16,8 +16,6 @@ pub trait AudioSource: Send {
     fn sample_rate(&self) -> u32;
     fn channels(&self) -> u8;
     fn is_exhausted(&self) -> bool;
-    fn position_secs(&self) -> f64;
-    fn seek(&mut self, position: f64);
     fn duration_secs(&self) -> f64;
 }
 
@@ -189,11 +187,10 @@ impl SymphoniaSource {
 }
 
 impl AudioSource for SymphoniaSource {
-    fn sample_rate(&self) -> u32  { self.out_rate }
-    fn channels(&self)    -> u8   { self.channels }
+    fn sample_rate(&self) -> u32   { self.out_rate }
+    fn channels(&self)    -> u8    { self.channels }
     fn is_exhausted(&self) -> bool { self.exhausted }
-    fn duration_secs(&self)    -> f64  { self.duration }
-    fn position_secs(&self) -> f64 { 0.0 }
+    fn duration_secs(&self) -> f64 { self.duration }
 
     fn fill_buffer(&mut self, buffer: &mut [f32]) -> usize {
         if self.exhausted { return 0; }
@@ -211,8 +208,10 @@ impl AudioSource for SymphoniaSource {
         }
         n
     }
+}
 
-    fn seek(&mut self, position: f64) {
+impl SymphoniaSource {
+    pub fn seek(&mut self, position: f64) {
         use symphonia::core::formats::{SeekMode, SeekTo};
         use symphonia::core::units::Time;
 

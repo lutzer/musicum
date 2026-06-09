@@ -30,15 +30,15 @@ impl AudioPlayer {
         self.engine.seek(time);
     }
 
-    pub fn tick(&mut self) {
-        if self.engine.is_exhausted() && self.looping {
-            self.engine.seek(0.0);
-            let _ = self.engine.play();
-        } else if self.engine.is_exhausted() {
-            self.engine.seek(0.0);
-            let _ = self.engine.pause();
-        }
-    }
+    // pub fn tick(&mut self) {
+    //     if self.engine.is_exhausted() && self.looping {
+    //         self.engine.seek(0.0);
+    //         let _ = self.engine.play();
+    //     } else if self.engine.is_exhausted() {
+    //         self.engine.seek(0.0);
+    //         let _ = self.engine.pause();
+    //     }
+    // }
 
     pub fn set_volume(&mut self, _volume: f32) {}
     pub fn set_looping(&mut self, looping: bool) { self.looping = looping; }
@@ -55,9 +55,10 @@ impl AudioPlayer {
         }
     }
 
-    pub fn queue(&self)         -> &PlaybackQueue { &self.queue }
-    pub fn position_secs(&self) -> f64  { self.engine.position_secs() }
-    pub fn duration_secs(&self) -> f64  { self.engine.duration_secs() }
+    pub fn queue(&self)          -> &PlaybackQueue { &self.queue }
+    pub fn position_secs(&self)  -> f64         { self.engine.position_secs() }
+    pub fn seekhead_secs(&self)  -> Option<f64> { self.engine.seekhead_secs() }
+    pub fn duration_secs(&self)  -> f64         { self.engine.duration_secs() }
     pub fn is_paused(&self)     -> bool { !self.engine.is_playing() }
     pub fn is_looping(&self)    -> bool { self.looping }
     pub fn file_ended(&self)    -> bool { self.engine.is_exhausted() }

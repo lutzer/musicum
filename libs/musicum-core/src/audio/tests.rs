@@ -132,8 +132,13 @@ mod buffer_tests {
     fn seek_handle_sets_frame_and_pending() {
         let seek_pending = Arc::new(AtomicBool::new(false));
         let seek_frame   = Arc::new(AtomicU64::new(0));
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let handle = SourceHandle::new(seek_pending.clone(), seek_frame.clone(), shutdown, 48000);
+        let playhead     = Arc::new(AtomicU64::new(0));
+        let exhausted    = Arc::new(AtomicBool::new(false));
+        let shutdown     = Arc::new(AtomicBool::new(false));
+        let handle = SourceHandle::new(
+            seek_pending.clone(), seek_frame.clone(),
+            playhead, exhausted, shutdown, 48000, 2, 1.0,
+        );
         handle.seek(2.0);
         assert!(seek_pending.load(Ordering::Acquire));
         assert_eq!(seek_frame.load(Ordering::Acquire), 96000);
@@ -186,6 +191,9 @@ mod buffer_tests {
         let producer_done = Arc::new(AtomicBool::new(false));
         let shutdown      = Arc::new(AtomicBool::new(false));
 
+        let playhead  = Arc::new(AtomicU64::new(0));
+        let exhausted = Arc::new(AtomicBool::new(false));
+
         let producer = AudioProducer::new(
             decoder, store, ring_tx, ring_cap,
             seek_pending.clone(), seek_frame.clone(), producer_done.clone(), shutdown,
@@ -193,6 +201,7 @@ mod buffer_tests {
         let source = BufferedSource::new(
             ring_rx, sample_rate, channels, duration,
             seek_pending.clone(), seek_frame.clone(), producer_done,
+            playhead, exhausted,
         );
 
         std::thread::spawn(|| producer.run());
@@ -210,13 +219,29 @@ mod buffer_tests {
         (tx, rx)
     }
 
+    fn make_source(
+        rx: rtrb::Consumer<f32>,
+        seek_pending: Arc<AtomicBool>,
+        seek_frame: Arc<AtomicU64>,
+        producer_done: Arc<AtomicBool>,
+    ) -> (BufferedSource, Arc<AtomicU64>, Arc<AtomicBool>) {
+        let playhead  = Arc::new(AtomicU64::new(0));
+        let exhausted = Arc::new(AtomicBool::new(false));
+        let src = BufferedSource::new(
+            rx, 48000, 2, 1.0,
+            seek_pending, seek_frame, producer_done,
+            playhead.clone(), exhausted.clone(),
+        );
+        (src, playhead, exhausted)
+    }
+
     #[test]
     fn buffered_source_reads_samples_from_ring() {
         let (_tx, rx) = prefilled_ring(256);
         let seek_pending  = Arc::new(AtomicBool::new(false));
         let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(false));
-        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, seek_frame, producer_done);
+        let (mut src, _, _) = make_source(rx, seek_pending, seek_frame, producer_done);
 
         let mut buf = vec![0.0f32; 128];
         let n = src.fill_buffer(&mut buf);
@@ -230,7 +255,7 @@ mod buffer_tests {
         let seek_pending  = Arc::new(AtomicBool::new(true));
         let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(false));
-        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, seek_frame, producer_done);
+        let (mut src, _, _) = make_source(rx, seek_pending, seek_frame, producer_done);
 
         let mut buf = vec![1.0f32; 128];
         src.fill_buffer(&mut buf);
@@ -243,10 +268,95 @@ mod buffer_tests {
         let seek_pending  = Arc::new(AtomicBool::new(false));
         let seek_frame    = Arc::new(AtomicU64::new(0));
         let producer_done = Arc::new(AtomicBool::new(true));
-        let mut src = BufferedSource::new(rx, 48000, 2, 1.0, seek_pending, seek_frame, producer_done);
+        let (mut src, _, _) = make_source(rx, seek_pending, seek_frame, producer_done);
 
         let mut buf = vec![0.0f32; 64];
         src.fill_buffer(&mut buf);
         assert!(src.is_exhausted());
+    }
+
+    #[test]
+    fn source_handle_position_from_playhead() {
+        let seek_pending = Arc::new(AtomicBool::new(false));
+        let seek_frame   = Arc::new(AtomicU64::new(0));
+        let playhead     = Arc::new(AtomicU64::new(96000)); // 1s at 48000 Hz stereo
+        let exhausted    = Arc::new(AtomicBool::new(false));
+        let shutdown     = Arc::new(AtomicBool::new(false));
+        let handle = SourceHandle::new(seek_pending, seek_frame, playhead, exhausted, shutdown, 48000, 2, 5.0);
+        // 96000 samples / 2 channels / 48000 Hz = 1.0 second
+        assert!((handle.position_secs() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn source_handle_seekhead_none_when_not_pending() {
+        let seek_pending = Arc::new(AtomicBool::new(false));
+        let seek_frame   = Arc::new(AtomicU64::new(96000));
+        let playhead     = Arc::new(AtomicU64::new(0));
+        let exhausted    = Arc::new(AtomicBool::new(false));
+        let shutdown     = Arc::new(AtomicBool::new(false));
+        let handle = SourceHandle::new(seek_pending, seek_frame, playhead, exhausted, shutdown, 48000, 2, 5.0);
+        assert!(handle.seekhead_secs().is_none());
+    }
+
+    #[test]
+    fn source_handle_seekhead_some_when_pending() {
+        let seek_pending = Arc::new(AtomicBool::new(true));
+        let seek_frame   = Arc::new(AtomicU64::new(48000)); // 1s at 48000 Hz
+        let playhead     = Arc::new(AtomicU64::new(0));
+        let exhausted    = Arc::new(AtomicBool::new(false));
+        let shutdown     = Arc::new(AtomicBool::new(false));
+        let handle = SourceHandle::new(seek_pending, seek_frame, playhead, exhausted, shutdown, 48000, 2, 5.0);
+        let sh = handle.seekhead_secs();
+        assert!(sh.is_some());
+        assert!((sh.unwrap() - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn source_handle_is_exhausted_reflects_atomic() {
+        let seek_pending = Arc::new(AtomicBool::new(false));
+        let seek_frame   = Arc::new(AtomicU64::new(0));
+        let playhead     = Arc::new(AtomicU64::new(0));
+        let exhausted    = Arc::new(AtomicBool::new(false));
+        let shutdown     = Arc::new(AtomicBool::new(false));
+        let handle = SourceHandle::new(
+            seek_pending, seek_frame, playhead,
+            exhausted.clone(), shutdown, 48000, 2, 5.0,
+        );
+        assert!(!handle.is_exhausted());
+        exhausted.store(true, Ordering::Release);
+        assert!(handle.is_exhausted());
+    }
+
+    #[test]
+    fn buffered_source_updates_playhead_atomic() {
+        let (_tx, rx) = prefilled_ring(256);
+        let seek_pending  = Arc::new(AtomicBool::new(false));
+        let seek_frame    = Arc::new(AtomicU64::new(0));
+        let producer_done = Arc::new(AtomicBool::new(false));
+        let (mut src, playhead, _) = make_source(rx, seek_pending, seek_frame, producer_done);
+
+        let mut buf = vec![0.0f32; 128];
+        src.fill_buffer(&mut buf);
+        assert_eq!(playhead.load(Ordering::Acquire), 128);
+    }
+
+    #[test]
+    fn buffered_source_seek_resets_playhead() {
+        let (_tx, rx) = prefilled_ring(256);
+        let seek_pending  = Arc::new(AtomicBool::new(true));
+        let seek_frame    = Arc::new(AtomicU64::new(48000)); // seek to frame 48000
+        let producer_done = Arc::new(AtomicBool::new(false));
+        let playhead_init = Arc::new(AtomicU64::new(9999));
+        let exhausted     = Arc::new(AtomicBool::new(false));
+        let mut src = BufferedSource::new(
+            rx, 48000, 2, 5.0,
+            seek_pending, seek_frame, producer_done,
+            playhead_init.clone(), exhausted,
+        );
+
+        let mut buf = vec![0.0f32; 128];
+        src.fill_buffer(&mut buf);
+        // playhead = seek_frame * channels = 48000 * 2 = 96000
+        assert_eq!(playhead_init.load(Ordering::Acquire), 96000);
     }
 }

@@ -173,7 +173,6 @@ fn run_player(
         }
 
         terminal.draw(|f| draw(f, &player, show_edits_row, false, queue_scroll))?;
-        player.tick();
 
         if event::poll(Duration::from_millis(50))? {
             if let Event::Key(key) = event::read()? {
@@ -192,6 +191,7 @@ fn run_player(
                         }
                     }
                     (KeyCode::Char('l'), _) => player.set_looping(!player.is_looping()),
+                    (KeyCode::Char('s'), _) => player.seek(0.0),
                     (KeyCode::Up, KeyModifiers::NONE) => {
                         player.previous();
                     }
@@ -200,16 +200,16 @@ fn run_player(
                     }
                     (KeyCode::Right, KeyModifiers::NONE) => {
                         // let pos = queue.engine().position_secs();
-                        player.seek(player.position_secs() + 3.0);
+                        player.seek((player.seekhead_secs().unwrap_or(player.position_secs()) + 3.0).min(player.duration_secs()));
                     }
                     (KeyCode::Left, KeyModifiers::NONE) => {
-                        player.seek((player.position_secs() - 3.0).max(0.0));
+                        player.seek((player.seekhead_secs().unwrap_or(player.position_secs()) - 3.0).max(0.0));
                     }
                     (KeyCode::Right, KeyModifiers::SHIFT) => {
-                        player.seek(player.position_secs() + 15.0);
+                        player.seek((player.seekhead_secs().unwrap_or(player.position_secs()) + 15.0).min(player.duration_secs()));
                     }
                     (KeyCode::Left, KeyModifiers::SHIFT) => {
-                        player.seek((player.position_secs() - 15.0).max(0.0));
+                        player.seek((player.seekhead_secs().unwrap_or(player.position_secs()) - 15.0).max(0.0));
                     }
                     _ => {}
                 }
@@ -231,6 +231,7 @@ fn draw(
 ) {
     let queue = player.queue();
     let pos = player.position_secs();
+    let seek_pos = player.seekhead_secs();
     let dur = player.duration_secs();
     let queue_rows = queue.length().min(MAX_QUEUE_VISIBLE);
 
@@ -271,11 +272,21 @@ fn draw(
     area_idx += 1;
 
     // progress bar
-    let ratio = if dur > 0.0 { (pos / dur).clamp(0.0, 1.0) } else { 0.0 };
+    let ratio     = if dur > 0.0 { (pos / dur).clamp(0.0, 1.0) } else { 0.0 };
     let bar_width = areas[area_idx].width as usize;
-    let filled = (ratio * bar_width as f64).floor() as usize;
-    let unfilled = bar_width.saturating_sub(filled);
-    let bar_str = format!("{}{}", "█".repeat(filled), "░".repeat(unfilled));
+    let filled    = (ratio * bar_width as f64).floor() as usize;
+    let bar_str = if let Some(sh) = seek_pos {
+        let seek_col = if dur > 0.0 {
+            ((sh / dur).clamp(0.0, 1.0) * bar_width as f64).floor() as usize
+        } else { 0 };
+        let mut chars: Vec<char> = std::iter::repeat('█').take(filled)
+            .chain(std::iter::repeat('░').take(bar_width.saturating_sub(filled)))
+            .collect();
+        if seek_col < chars.len() { chars[seek_col] = '┃'; }
+        chars.into_iter().collect()
+    } else {
+        format!("{}{}", "█".repeat(filled), "░".repeat(bar_width.saturating_sub(filled)))
+    };
     f.render_widget(
         Paragraph::new(bar_str).style(Style::default().fg(Color::White)),
         areas[area_idx],
@@ -299,7 +310,7 @@ fn draw(
     let hints = Line::from(vec![
         Span::styled("[p] pause  ", Style::default().fg(Color::DarkGray)),
         Span::styled("[l] loop  ", Style::default().fg(loop_color)),
-        Span::styled("[↑↓] skip  [←/→] 3s  [S←/S→] 15s  [q] quit", Style::default().fg(Color::DarkGray)),
+        Span::styled("[↑↓] skip  [s] |←  [←/→] 3s  [S←/S→] 15s  [q] quit", Style::default().fg(Color::DarkGray)),
     ]);
     f.render_widget(Paragraph::new(hints), areas[area_idx]);
     area_idx += 1;
