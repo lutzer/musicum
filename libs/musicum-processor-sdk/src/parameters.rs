@@ -12,7 +12,7 @@ pub enum ProcessorParamaterInfo {
     },
     Bool  { id: &'static str, name: &'static str, default: bool, editable: bool },
     Time  { id: &'static str, name: &'static str, default: f64, editable: bool },
-    Int   { id: &'static str, name: &'static str, default: i64, min: i64, max: i64, editable: bool },
+    Int   { id: &'static str, name: &'static str, default: i32, min: i32, max: i32, editable: bool },
 }
 
 impl ProcessorParamaterInfo {
@@ -35,7 +35,6 @@ pub struct FloatParam {
 }
 
 impl FloatParam {
-    /// Create a new holder initialised to `default`, clamped to `[min, max]`.
     pub fn new(default: f32, min: f32, max: f32) -> Self {
         FloatParam {
             value: default.clamp(min, max),
@@ -44,12 +43,10 @@ impl FloatParam {
         }
     }
 
-    /// Return the current value.
     pub fn get(&self) -> f32 {
         self.value
     }
 
-    /// Set a new value, clamping to `[min, max]`.
     pub fn set(&mut self, v: f32) {
         self.value = v.clamp(self.min, self.max);
     }
@@ -73,12 +70,10 @@ pub struct BoolParam {
 }
 
 impl BoolParam {
-    /// Create a new holder initialised to `default`.
     pub fn new(default: bool) -> Self {
         BoolParam { value: default }
     }
 
-    /// Return `1.0` if true, `0.0` if false.
     pub fn get(&self) -> f32 {
         if self.value {
             1.0
@@ -87,7 +82,6 @@ impl BoolParam {
         }
     }
 
-    /// Return the raw `bool` value.
     pub fn get_bool(&self) -> bool {
         self.value
     }
@@ -103,6 +97,76 @@ impl FromParamInfo for BoolParam {
         match info {
             ProcessorParamaterInfo::Bool { default, ..} => {
                 Some(BoolParam::new(*default))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Runtime struct for Time Param
+#[derive(Default)]
+pub struct TimeParam {
+    value: f64
+}
+
+impl TimeParam {
+    pub fn new(default: f64) -> Self {
+        TimeParam {
+            value: default
+        }
+    }
+
+    pub fn get(&self) -> f64 {
+        self.value
+    }
+
+    pub fn set(&mut self, v: f64) {
+        self.value = v;
+    }
+}
+
+impl FromParamInfo for TimeParam {
+    fn from_param_info(info: &ProcessorParamaterInfo) -> Option<Self> {
+        match info {
+            ProcessorParamaterInfo::Time { default, ..} => {
+                Some(TimeParam::new(*default))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Runtime struct for Int Param
+#[derive(Default)]
+pub struct IntParam {
+    value: i32,
+    min: i32,
+    max: i32,
+}
+
+impl IntParam {
+    pub fn new(default: i32, min: i32, max: i32) -> Self {
+        IntParam {
+            value: default.clamp(min, max),
+            min,
+            max,
+        }
+    }
+
+    pub fn get(&self) -> i32 {
+        self.value
+    }
+
+    pub fn set(&mut self, v: i32) {
+        self.value = v.clamp(self.min, self.max);
+    }
+}
+
+impl FromParamInfo for IntParam {
+    fn from_param_info(info: &ProcessorParamaterInfo) -> Option<Self> {
+        match info {
+            ProcessorParamaterInfo::Int { default, min, max, ..} => {
+                Some(IntParam::new(*default, *min, *max))
             }
             _ => None,
         }

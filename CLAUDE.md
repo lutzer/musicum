@@ -7,12 +7,10 @@ CLI-only (ratatui TUI); Tauri 2 desktop shell and SvelteKit frontend are planned
 
 ## Repo layout
 ```
-apps/cli/             # CLI/TUI entry point (ratatui)
-libs/musicum-core/    # All business logic: DB, services, audio engine
-libs/audio-plugin-sdk/
-libs/audio-plugins/           # gain, reverb, pan, normalize, oscilloscope, level-meter
-libs/structural-processor-sdk/
-libs/structural-processors/
+apps/cli/                   # CLI/TUI entry point (ratatui)
+libs/musicum-core/          # All business logic: DB, services, audio engine
+libs/musicum-processor-sdk/ # processor plugin SDK
+libs/musicum-processors/    # gain, reverb, trim
 ```
 
 ## Tech stack
@@ -36,14 +34,15 @@ libs/structural-processors/
   `.musicum.json` sidecars. Don't treat the DB as canonical. Propagate sidecar changes
   to the in-memory library state immediately; full sync only for new/removed files.
 - **ffmpeg is a system dependency.** Required only for MP3 export.
-- **Audio plugin crates need dual crate-type.** Each plugin/processor `Cargo.toml` must
+- **Processor crates need dual crate-type.** Each crate under `libs/musicum-processors/` must
   have `crate-type = ["cdylib", "rlib"]` — `cdylib` for WASM, `rlib` for native linkage.
 - **Audio Engine applies processors and plugins** to the source audio files. Edits are defined on clips; plugin parameters can be adjusted while playing. Design any engine changes with live-parameter-update in mind.
 - **Logic goes in musicum-core.** CLI is display-only; all business logic lives in the core lib.
 - **CLI output style.** Reuse output functions so all commands share consistent formatting.
 - **Shell completion slug registry.** When adding a subcommand with slug positional args, add an entry to `SLUG_COMPLETIONS` in `apps/cli/src/commands/completions.rs`. No other file needs editing for completion to work.
 - **Audio Player and audio exporter** using the same logic. They should both produce the same output of audio samples with the same source file. Share as much code as possible between these two.
+* **Processors are loaded dynamically** and it might happen that the processor is not available that is saved in the processor edits in the clips. Implementation need to deal with that.
 
 ## Supplemental docs
-- `docs/plans/specs/2026-05-22-tauri-greenfield-setup.md` — full architecture & DB schema
+- `docs/2026-05-22-tauri-greenfield-setup.md` — full architecture & DB schema
 - `docs/plans/` — per-feature design docs (CLI, player, processor, output)

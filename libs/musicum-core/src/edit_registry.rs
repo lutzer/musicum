@@ -48,9 +48,9 @@ pub enum ParamInfo {
     Int {
         id:       String,
         name:     String,
-        default:  i64,
-        min:      i64,
-        max:      i64,
+        default:  i32,
+        min:      i32,
+        max:      i32,
         editable: bool,
     },
 }

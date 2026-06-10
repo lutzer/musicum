@@ -1,4 +1,4 @@
-use musicum_processor_sdk::{parameters::ProcessorParamaterInfo, processor::{
+use musicum_processor_sdk::{parameters::{ProcessorParamaterInfo, TimeParam}, processor::{
     BaseProcessor, ProcessorDescriptor, ProcessorType, StructuralProcessor
 }};
 
@@ -15,13 +15,15 @@ static DESCRIPTOR: ProcessorDescriptor = ProcessorDescriptor {
 };
 
 pub struct TrimProcessor {
-    start: f64,
-    end:   f64,
+    start: TimeParam,
+    end:   TimeParam,
 }
 
 impl Default for TrimProcessor {
     fn default() -> Self {
-        Self { start: 0.0, end: 0.0 }
+        Self { 
+            start: TRIM_PARAMS[0].get_param().unwrap_or_default(), 
+            end: TRIM_PARAMS[1].get_param().unwrap_or_default() }
     }
 }
 
@@ -38,14 +40,14 @@ impl BaseProcessor for TrimProcessor {
     }
 
     fn get_parameter(&self, id: &str) -> f64 {
-        if id == "start" { self.start }
-        else if id == "end" { self.end }
+        if id == "start" { self.start.get() }
+        else if id == "end" { self.end.get() }
         else { 0.0 }
     }
 
     fn set_parameter(&mut self, id: &str, value: f64) {
-        if id == "start" { self.start = value; }
-        else if id == "end" { self.end = value; }
+        if id == "start" { self.start.set(value); }
+        else if id == "end" { self.end.set(value); }
     }
 
     fn requires_analysis(&self) -> bool {
@@ -60,7 +62,7 @@ impl StructuralProcessor for TrimProcessor {
         duration: f64,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
     ) -> f64 {
-        source_time.min(self.start).max(duration - self.end)
+        source_time.min(self.start.get()).max(duration - self.end.get())
     }
 
     fn map_processed_time(
@@ -69,7 +71,7 @@ impl StructuralProcessor for TrimProcessor {
         _duration: f64,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
     ) -> f64 {
-        self.start + processed_time
+        self.start.get() + processed_time
     }
 
     fn output_duration(
@@ -77,7 +79,7 @@ impl StructuralProcessor for TrimProcessor {
         duration: f64,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
     ) -> f64 {
-        duration - self.start - self.end
+        duration - self.start.get() - self.end.get()
     }
 }
 

@@ -8,15 +8,15 @@
 * [ ] create trim tool, that trims on a specific threshold, similar to the analysis tool in the audio plugins
 * [ ] create workflow to export slices, add bool to slice tool, to export all slices
 * [ ] add zero crossing cuts to edits
-* [ ] load plugins and structural edits dynamically not at compile time
+* [x] load plugins and structural edits dynamically not at compile time
 * [ ] integrate vst plugins, and maybe replace own plugin system ? 
 * [x] add option to repair filebase: if sidecar doesnt has a soundfile try to find it by its hash and rename the sidecar. if no soundfile with that hash exist ask if sidecar should be removed. also remove the db entry respectivly. have option -f to remove without confirmation
 * [x] create file slug from path + filename 
 * [x] add option to rebuild sidecars from database: "sync --rebuild-sidecars", it should remove all sidecars in the library folder and recreate them using the database entries
 * [x] refactor config singleton
 * [ ] create file analysis pipeline for plugins. for example for nomalization, but also for fft analysis
-* [ ] create processors file that wraps structural processors and audio plugins + offline processors into a unified interface
-    * [ ] unify parameter interface
+* [x] create processors file that wraps structural processors and audio plugins + offline processors into a unified interface
+    * [x] unify parameter interface
     * [ ] create analyzer pipeline
     * [ ] adapt interface so it can wrap vst plugins as well
 * [ ] create analysis metafiles that lives in .generated folder when a file is added/changed or simply when its not existing and requested by the frontend. name: <file_slug>.data.json
@@ -45,24 +45,28 @@
 * [x] musicum clip create <file_slug> should create a clip with the same slug
 * [x] rename cli points files -> file, collextions -> collection, clips -> clip, presets -> preset, processors -> processor
 * [x] renanme "processor list" to "list-processors"
+* [ ] deal with plugins in edits that dont exist
 
 
 ## gui
-* [ ] choose ui framework
+* [ ] choose ui framework svelte + 
+    * https://www.shadcn-svelte.com/docs/components
 * [ ] Filemanager like interface to manage source files, collections, clips and presets with a sidebar
 * [ ] Display all items as rows or cards
 * [ ] Allow selection of multiple files, collections and clips to do batch operations
 
 ## audio engine
-* wrap consumer and procducer and ringbuffer into an engine struct
-* needs to be designed with a producer and consumer thread with a rimgbuffer in between
-* uses cpal for the consumer and symfonia for the producer
-* since it needs to support remapping of the input buffer, it needs to load everything into a immutable buffer to allow remapping of the samples
-* audio should already start playing when the buffer is beeing loaded and not wait for the whole buffer to fill, so the producer needs to implement a function to fill the buffer at a certain position from the playhead on and fill the buffer gradually until its full. ideally the buffer should also work when ram is low
-* remapping mechanism needs to work through transform nodes, the transform nodes output a mapping
-* there is also a dsp pipeline. plugins are loaded at runtime and inserted in the signal processing chain aus AudioNodes. parameters of these plugins need to be able to be adjusted while its playing
-* the engine also needs to support an analyiss step before the playback starts. each plugin or transform processor can request an anlysis, which is run on the whole audio buffer. 
-* the analysis results are written back to an analysiscontext struct, that will be written to a temporary file to be loaded from on the next start, so it only has to be recomputed if needed
+* [x] wrap consumer and procducer and ringbuffer into an engine struct
+* [x] needs to be designed with a producer and consumer thread with a rimgbuffer in between
+* [x] uses cpal for the consumer and symfonia for the producer
+* [ ] since it needs to support remapping of the input buffer, it needs to load everything into a immutable buffer to allow remapping of the samples
+* [ ] audio should already start playing when the buffer is beeing loaded and not wait for the whole buffer to fill, so the producer needs to implement a function to fill the buffer at a certain position from the playhead on and fill the buffer gradually until its full. ideally the buffer should also work when ram is low
+* [ ] remapping mechanism needs to work through transform nodes, the transform nodes output a mapping
+* [x] there is also a dsp pipeline. plugins are loaded at runtime and inserted in the signal processing chain aus AudioNodes. 
+* [ ] parameters of these plugins need to be able to be adjusted while its playing
+* [ ] the engine also needs to support an analyiss step before the playback starts. each plugin or transform processor can request an anlysis, which is run on the whole audio buffer. 
+* [ ] the analysis results are written back to an analysiscontext struct, that will be written to a temporary file to be loaded from on the next start, so it only has to be recomputed if needed
+* [ ] create file export pipeline with new engine
 
 ### Ideas
 

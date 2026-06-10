@@ -6,28 +6,25 @@
 
 ---
 
-## What to Copy From the Old Repo
+## Processor and SDK Crates
 
-Copy these directories verbatim into the new repo:
+All crates in this repo are written from scratch. The processor SDK and processor implementations live in:
 
 ```
-libs/audio-plugin-sdk/        # Rust trait crate (AudioPlugin, AudioAnalyzer, implement_plugin!)
-libs/audio-plugins/           # gain, reverb, pan, normalize, oscilloscope, level-meter
-libs/structural-processor-sdk/ # Rust trait crate (structural processor chain)
-libs/structural-processors/   # trim, cut, slice, crop
+libs/musicum-processor-sdk/   # Unified processor trait crate (StreamProcessor, StructuralProcessor,
+                               # BaseProcessor, FFI layer, export macro)
+libs/musicum-processors/      # Processor implementations
+    gain/                     # StreamProcessor — volume gain
+    reverb/                   # StreamProcessor — Freeverb-style reverb
+    trim/                     # StructuralProcessor — time-trim start/end
 ```
 
-**Required change in each plugin/processor crate's `Cargo.toml`:** add a `lib` target so the crate can be linked natively (in addition to the existing WASM target):
+Each processor crate uses dual `crate-type` so it can be linked natively and compiled to a dynamic library:
 
 ```toml
 [lib]
-name = "plugin_gain"
-crate-type = ["cdylib", "rlib"]   # cdylib = WASM, rlib = native linkage
+crate-type = ["cdylib", "rlib"]   # cdylib = dynamic library, rlib = native linkage
 ```
-
-Do the same for `structural-processors`.
-
-Everything else — frontend, backend, database, config — is written from scratch.
 
 ---
 
@@ -41,7 +38,7 @@ musicum-tauri/
 ├── nx.json                     # Nx monorepo config (optional, for build orchestration)
 │
 ├── apps/
-│   ├── desktop/                # Tauri application
+│   ├── desktop/                # Tauri application (planned)
 │   │   ├── src-tauri/
 │   │   │   ├── Cargo.toml
 │   │   │   ├── tauri.conf.json
@@ -63,7 +60,7 @@ musicum-tauri/
 │   │   │           └── routes/
 │   │   └── package.json        # frontend dev server integration for Tauri
 │   │
-│   ├── frontend/               # SvelteKit 5 app (written fresh)
+│   ├── frontend/               # SvelteKit 5 app (planned)
 │   │   ├── package.json
 │   │   ├── svelte.config.js
 │   │   ├── vite.config.ts
@@ -86,19 +83,22 @@ musicum-tauri/
 │               └── presets.rs
 │
 └── libs/
-    ├── musicum-core/           # NEW: all business logic (written fresh)
+    ├── musicum-core/           # All business logic
     │   ├── Cargo.toml
     │   └── src/
     │       ├── lib.rs
     │       ├── db/
     │       ├── services/
     │       ├── audio/
+    │       ├── processor_loader.rs
+    │       ├── edit_registry.rs
     │       └── error.rs
     │
-    ├── audio-plugin-sdk/       # COPIED from old repo
-    ├── audio-plugins/          # COPIED from old repo
-    ├── structural-processor-sdk/ # COPIED from old repo
-    └── structural-processors/  # COPIED from old repo
+    ├── musicum-processor-sdk/  # Unified processor trait crate
+    └── musicum-processors/     # Processor implementations
+        ├── gain/
+        ├── reverb/
+        └── trim/
 ```
 
 ---
@@ -111,18 +111,13 @@ musicum-tauri/
 [workspace]
 resolver = "2"
 members = [
-    "apps/desktop/src-tauri",
     "apps/cli",
     "libs/musicum-core",
-    "libs/audio-plugin-sdk",
-    "libs/audio-plugins/gain",
-    "libs/audio-plugins/reverb",
-    "libs/audio-plugins/pan",
-    "libs/audio-plugins/normalize",
-    "libs/audio-plugins/oscilloscope",
-    "libs/audio-plugins/level-meter",
-    "libs/structural-processor-sdk",
-    "libs/structural-processors",   # single crate (unlike audio-plugins which are individual crates)
+    "libs/musicum-processor-sdk",
+    "libs/musicum-processors/gain",
+    "libs/musicum-processors/reverb",
+    "libs/musicum-processors/trim",
+    # "apps/desktop/src-tauri",   # planned
 ]
 
 [workspace.dependencies]
@@ -161,7 +156,7 @@ tracing.workspace    = true
 
 # audio
 symphonia   = { version = "0.5", features = ["all"] }
-cpal        = "0.15"
+cpal        = "0.17"
 rtrb        = "0.3"
 
 # utils
@@ -169,28 +164,25 @@ slug        = "0.1"
 chrono      = { version = "0.4", features = ["serde"] }
 walkdir     = "2"
 
-# plugins (linked natively)
-audio-plugin-sdk         = { path = "../audio-plugin-sdk" }
-plugin-gain              = { path = "../audio-plugins/gain" }
-plugin-reverb            = { path = "../audio-plugins/reverb" }
-plugin-pan               = { path = "../audio-plugins/pan" }
-plugin-normalize         = { path = "../audio-plugins/normalize" }
-plugin-level-meter       = { path = "../audio-plugins/level-meter" }
-plugin-oscilloscope      = { path = "../audio-plugins/oscilloscope" }
-structural-processor-sdk = { path = "../structural-processor-sdk" }
-structural-processors    = { path = "../structural-processors" }
+# processor SDK + built-in processors (linked natively)
+musicum-processor-sdk    = { path = "../musicum-processor-sdk" }
+musicum-processor-gain   = { path = "../musicum-processors/gain" }
+musicum-processor-reverb = { path = "../musicum-processors/reverb" }
+musicum-processor-trim   = { path = "../musicum-processors/trim" }
 ```
 
 ### Module layout
 
 ```
 musicum-core/src/
-├── lib.rs              # pub mod declarations, re-exports
-├── error.rs            # ServiceError enum (thiserror)
+├── lib.rs                  # pub mod declarations, re-exports
+├── error.rs                # ServiceError enum (thiserror)
+├── processor_loader.rs     # ProcessorRegistry — loads .dylib processors at runtime
+├── edit_registry.rs        # EditRegistry, EditRegistryEntry — UI-facing descriptor layer
 │
 ├── db/
-│   ├── mod.rs          # connect() → DatabaseConnection, run_create_all()
-│   ├── schema.rs       # SCHEMA_VERSION constant
+│   ├── mod.rs              # connect() → DatabaseConnection, run_create_all()
+│   ├── schema.rs           # SCHEMA_VERSION constant
 │   └── entities/
 │       ├── mod.rs
 │       ├── file.rs
@@ -199,7 +191,8 @@ musicum-core/src/
 │       ├── clip.rs
 │       ├── collection.rs
 │       ├── collection_clip.rs
-│       └── preset.rs
+│       ├── preset.rs
+│       └── edit.rs         # ProcessorEdit, ProcessorEditList, ProcessorEditType
 │
 ├── services/
 │   ├── mod.rs
@@ -209,16 +202,17 @@ musicum-core/src/
 │   ├── clip_service.rs
 │   ├── collection_service.rs
 │   ├── preset_service.rs
+│   ├── export_service.rs   # stub — pending reimplementation
 │   └── sync_service.rs
 │
 └── audio/
-    ├── mod.rs              # pub use PlaybackEngine
-    ├── engine.rs           # PlaybackEngine, PlaybackState, PlaybackCommand
-    ├── decoder.rs          # decode_file() → Vec<f32> + AudioInfo
-    ├── plugin_chain.rs     # PluginChain::process_buffer()
-    ├── structural_chain.rs # StructuralChain, virtual sample cursor
-    ├── cache.rs            # cache_clip() background task
-    └── waveform.rs         # generate_waveform() → WaveformData
+    ├── mod.rs              # pub use AudioEngine, AudioPlayer, etc.
+    ├── engine.rs           # AudioEngine trait + CpalEngine concrete impl
+    ├── player.rs           # AudioPlayer — holds ProcessorRegistry, manages queue + engine
+    ├── source.rs           # AudioSource trait (fill_buffer, position_secs, duration_secs, …)
+    ├── chain.rs            # ProcessorChain — folds ProcessorEdit list into StreamProcessorNode chain
+    ├── node.rs             # StreamProcessorNode — wraps upstream AudioSource + one StreamProcessor
+    └── decoder.rs          # SymphoniaSource, decode_file() → AudioInfo
 ```
 
 ---
@@ -240,6 +234,8 @@ SeaORM entities. No migration system — `create_table_from_entity()` on every s
 | channels | INTEGER | |
 | mime_type | TEXT | |
 | hash | TEXT | SHA-256 of file contents (detect changes) |
+| mtime | TEXT (ISO8601) | file modification time |
+| size_bytes | INTEGER | file size in bytes |
 | created_at | TEXT (ISO8601) | |
 | updated_at | TEXT (ISO8601) | |
 
@@ -276,7 +272,7 @@ SeaORM entities. No migration system — `create_table_from_entity()` on every s
 | slug | TEXT | unique |
 | file_id | TEXT (UUID) | FK → file |
 | title | TEXT | |
-| processors | TEXT (JSON) | ordered list of processor states |
+| processors | TEXT (JSON) | ordered list of `ProcessorEdit` entries (see format below) |
 | cached | TEXT | "no_cache" \| "caching" \| "ready" \| "error" |
 | cached_path | TEXT | nullable, path to cached MP3 |
 | duration | REAL | nullable, duration of cached output |
@@ -315,7 +311,7 @@ Unique constraint on `(collection_id, clip_id)`.
 | slug | TEXT | unique |
 | title | TEXT | |
 | description | TEXT | |
-| processors | TEXT (JSON) | same format as clip.processors |
+| processors | TEXT (JSON) | ordered list of `ProcessorEdit` entries (same format as clip.processors) |
 | created_at | TEXT (ISO8601) | |
 | updated_at | TEXT (ISO8601) | |
 
@@ -360,9 +356,10 @@ Lives next to the source audio file.
       "notes": "",
       "processors": [
         {
-          "type": "plugin",
-          "id": "reverb",
+          "uuid": "550e8400-e29b-41d4-a716-446655440001",
+          "processor_id": "reverb",
           "enabled": true,
+          "kind": "StreamProcessor",
           "params": { "room_size": 0.6, "wet": 0.3 }
         }
       ]
@@ -394,18 +391,27 @@ Lives next to the source audio file.
   "title": "Reverb Master",
   "description": "",
   "processors": [
-    { "type": "plugin", "id": "reverb",    "enabled": true, "params": { "room_size": 0.8 } },
-    { "type": "plugin", "id": "normalize", "enabled": true, "params": { "target_lufs": -14 } }
+    { "uuid": "...", "processor_id": "reverb",    "enabled": true, "kind": "StreamProcessor", "params": { "room_size": 0.8 } },
+    { "uuid": "...", "processor_id": "normalize", "enabled": true, "kind": "StreamProcessor", "params": { "target_lufs": -14 } }
   ]
 }
 ```
 
 ### Processor entry format (shared by `clip.processors` and `preset.processors`)
 
+Each entry is a `ProcessorEdit` struct serialized to JSON:
+
 ```json
-{ "type": "plugin",     "id": "gain",  "enabled": true, "params": { "level": -3.0 } }
-{ "type": "structural", "id": "trim",  "enabled": true, "params": { "start_ms": 200, "end_ms": 0 } }
+{ "uuid": "550e8400-...", "processor_id": "gain",  "enabled": true, "kind": "StreamProcessor",    "params": { "gain": 0.8 } }
+{ "uuid": "550e8400-...", "processor_id": "trim",  "enabled": true, "kind": "StructuralProcessor", "params": { "start": 0.2, "end": 0.0 } }
 ```
+
+Fields:
+- `uuid` — unique ID for this entry (allows stable parameter references across edits)
+- `processor_id` — registered processor name (matched against `ProcessorRegistry`)
+- `enabled` — whether the processor is active
+- `kind` — `"StreamProcessor"` | `"StructuralProcessor"` | `"Analyzer"`
+- `params` — `HashMap<String, f64>` keyed by parameter id
 
 ---
 
@@ -790,57 +796,81 @@ async fn main() -> anyhow::Result<()> {
 
 ## Audio Engine Design
 
-### `engine.rs` — `PlaybackEngine`
+### Trait hierarchy
 
 ```rust
-pub struct PlaybackEngine {
-    stream: Option<cpal::Stream>,
-    command_tx: rtrb::Producer<PlaybackCommand>,
-    /// Shared with the audio callback; callback writes, main thread reads.
-    position_secs: Arc<AtomicU64>,  // bits reinterpreted as f64 via f64::from_bits
+// source.rs
+pub trait AudioSource: Send {
+    fn fill_buffer(&mut self, buffer: &mut [f32]) -> usize;
+    fn sample_rate(&self) -> u32;
+    fn channels(&self) -> u16;
+    fn is_exhausted(&self) -> bool;
+    fn duration_secs(&self) -> f64;
+    fn position_secs(&self) -> f64;
 }
 
-pub enum PlaybackCommand {
-    Play { clip_id: Uuid },
-    Pause,
-    Stop,
-    Seek { seconds: f64 },
-    SetParam { processor_index: usize, param_id: String, value: f64 },
+// engine.rs
+pub trait AudioEngine: Send {
+    fn load_with_processors(&mut self, path: &Path, chain: ProcessorChain) -> anyhow::Result<()>;
+    fn load(&mut self, path: &Path);
+    fn play(&mut self);
+    fn pause(&mut self);
+    fn seek(&mut self, secs: f64);
+    fn position_secs(&self) -> f64;
+    fn seekhead_secs(&self) -> f64;
+    fn duration_secs(&self) -> f64;
+    fn sample_rate(&self) -> u32;
+    fn channels(&self) -> u16;
+    fn is_playing(&self) -> bool;
+    fn is_exhausted(&self) -> bool;
+    fn processor_chain(&self) -> &ProcessorChain;
 }
-
-pub enum PlaybackState { Playing, Paused, Stopped }
 ```
 
-Audio callback (cpal thread — must be lock-free, no allocation):
-1. Drain any pending `PlaybackCommand` from `command_rx` (the `rtrb::Consumer` end, moved into the closure at stream creation)
-2. Read next buffer from `StructuralChain` (handles trim/cut/slice as virtual cursor)
-3. Pass buffer through `PluginChain::process_buffer()` (calls each `AudioPlugin::process()`)
-4. Write to cpal output buffer
-5. Store updated position via `position_secs.store(f64::to_bits(pos), Ordering::Relaxed)`
+`CpalEngine` is the concrete `AudioEngine` implementation (backed by cpal + rtrb ring buffer).
 
-The main thread polls `position_secs` on a timer (e.g., every 50 ms via `tokio::time::interval`) and emits `playback:position` events to the frontend. Using `AtomicU64` avoids any lock or channel on the hot path.
+### `chain.rs` — `ProcessorChain`
 
-### `cache.rs` — caching pipeline
+Built from a `&[ProcessorEdit]` + `&ProcessorRegistry`. Folds enabled `StreamProcessor` entries into a chain of `StreamProcessorNode` wrappers via a fold pattern:
 
 ```rust
-pub async fn cache_clip(
-    db: &DatabaseConnection,
-    clip: &ClipModel,
-    generated_dir: &Path,
-    app: tauri::AppHandle,
-) -> Result<(), ServiceError>
+let source = entries.iter().fold(root_source, |upstream, edit| {
+    Box::new(StreamProcessorNode::new(upstream, processor))
+});
 ```
 
-Steps:
-1. Set `clip.cached = "caching"` in DB
-2. Decode source file with symphonia → `Vec<f32>` + `AudioInfo`
-3. Apply `StructuralChain` → modified sample buffer
-4. Apply `PluginChain` offline (same trait methods, non-realtime) → processed buffer
-5. Encode to MP3 via `ffmpeg` subprocess
-6. Generate waveform JSON (downsample to ~1000 points per channel)
-7. Write both files to `generated_dir`
-8. Set `clip.cached = "ready"`, update `cached_path`, `duration` in DB
-9. Emit `clip:cache_done` event
+Disabled entries, `StructuralProcessor` / `Analyzer` kinds, and entries whose `processor_id` is not found in the registry are skipped silently at build time (graceful degradation when a processor is missing).
+
+### `node.rs` — `StreamProcessorNode`
+
+```rust
+pub struct StreamProcessorNode {
+    upstream: Box<dyn AudioSource>,
+    processor: Arc<Mutex<Box<dyn StreamProcessor>>>,
+    context: ProcessorContext,
+}
+```
+
+`fill_buffer()` calls `upstream.fill_buffer()`, then applies the processor in-place on the same buffer. Delegates `position_secs()` to the upstream source.
+
+### `player.rs` — `AudioPlayer`
+
+Holds a `ProcessorRegistry` (loaded from the processors directory) and manages the playback queue. `load_current()` builds a `ProcessorChain` from the current clip's `ProcessorEdit` list via `ProcessorChain::from_edits()`, then calls `engine.load_with_processors()`.
+
+### `processor_loader.rs` — `ProcessorRegistry`
+
+Scans a directory for `.dylib` / `.so` / `.dll` files, loads each with `libloading`, resolves the `export_processor` symbol, and registers the resulting processor under its declared `processor_id`. `create(id)` instantiates a fresh processor instance by ID.
+
+### Caching pipeline (planned)
+
+The export/caching pipeline will reuse the same `ProcessorChain` logic as playback:
+1. Decode source file with symphonia → `SymphoniaSource`
+2. Build `ProcessorChain` from clip's `ProcessorEdit` list
+3. Drain the chain offline (non-realtime) → `Vec<f32>`
+4. Encode to MP3 via `ffmpeg` subprocess
+5. Generate waveform JSON (downsample to ~1000 points per channel)
+6. Write both files to `generated_dir`
+7. Update `clip.cached`, `cached_path`, `duration` in DB
 
 ---
 
@@ -897,12 +927,12 @@ cargo tauri build   # produces platform-specific installer in target/release/bun
 
 | Crate | Version | Purpose |
 |-------|---------|---------|
-| `tauri` | 2 | Desktop shell, IPC, events |
+| `tauri` | 2 | Desktop shell, IPC, events (planned) |
 | `sea-orm` | 1 | ORM + SQLite |
 | `symphonia` | 0.5 | Audio decoding (WAV, MP3, FLAC, OGG, AIFF) |
-| `cpal` | 0.15 | Cross-platform audio output |
-| `rtrb` | 0.3 | Lock-free ring buffer (audio thread params) |
-| `axum` | 0.7 | Optional HTTP adapter |
+| `cpal` | 0.17 | Cross-platform audio output |
+| `rtrb` | 0.3 | Lock-free ring buffer (audio thread ↔ main thread) |
+| `musicum-processor-sdk` | local | Unified processor trait + FFI layer |
 | `tokio` | 1 | Async runtime |
 | `serde` / `serde_json` | 1 | JSON (sidecars, processors, IPC) |
 | `uuid` | 1 | ID generation |
@@ -920,15 +950,16 @@ cargo tauri build   # produces platform-specific installer in target/release/bun
 
 Suggested order to get to a working app incrementally:
 
-1. **Cargo workspace** — set up workspace, copy plugin/processor libs, fix `crate-type`
-2. **`musicum-core` skeleton** — `lib.rs`, `error.rs`, empty module stubs
-3. **DB layer** — SeaORM entities, `connect()`, `create_all()`, schema version
-4. **Services** — `file_service`, `clip_service`, `sync_service` (file walk + sidecar read/write)
-5. **Tauri shell** — `main.rs`, `state.rs`, wire up `sync_library` command, settings commands
-6. **SvelteKit skeleton** — fresh app, `client.ts`, file browser page talking to `get_files`
-7. **Audio engine** — `decoder.rs`, `plugin_chain.rs`, `structural_chain.rs`, `engine.rs` (cpal)
-8. **Clip editor UI** — `ProcessorRack`, `ProcessorItem`, `PlaybackBar`, playback store
-9. **Caching pipeline** — `cache.rs`, waveform generation, `Waveform.svelte`
-10. **Collections + Presets** — service + commands + UI
-11. **CLI** — `apps/cli`, clap commands wrapping the same services, `--json` flag
-12. **HTTP adapter** — Axum routes (thin wrappers over same services)
+1. ✅ **Cargo workspace** — workspace, processor SDK crate, processor crates with dual `crate-type`
+2. ✅ **`musicum-core` skeleton** — `lib.rs`, `error.rs`, empty module stubs
+3. ✅ **DB layer** — SeaORM entities, `connect()`, `create_all()`, schema version
+4. ✅ **Services** — `file_service`, `clip_service`, `sync_service` (file walk + sidecar read/write)
+5. ✅ **Audio engine** — `decoder.rs`, `source.rs`, `chain.rs`, `node.rs`, `engine.rs` (cpal), `player.rs`
+6. ✅ **Processor loader** — `processor_loader.rs` (dynamic `.dylib` loading), `edit_registry.rs`
+7. **CLI** — `apps/cli`, clap commands wrapping the same services, `--json` flag
+8. **Tauri shell** — `main.rs`, `state.rs`, wire up `sync_library` command, settings commands
+9. **SvelteKit skeleton** — fresh app, `client.ts`, file browser page talking to `get_files`
+10. **Clip editor UI** — `ProcessorRack`, `ProcessorItem`, `PlaybackBar`, playback store
+11. **Caching pipeline** — offline drain of `ProcessorChain`, ffmpeg encode, waveform generation
+12. **Collections + Presets** — service + commands + UI
+13. **HTTP adapter** — Axum routes (thin wrappers over same services)

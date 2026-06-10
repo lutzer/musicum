@@ -65,9 +65,9 @@ pub enum ProcessorParamFFI {
     Int {
         id:       RStr<'static>,
         name:     RStr<'static>,
-        default:  i64,
-        min:      i64,
-        max:      i64,
+        default:  i32,
+        min:      i32,
+        max:      i32,
         editable: bool,
     },
 }
