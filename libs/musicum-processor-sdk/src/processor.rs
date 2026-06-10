@@ -43,28 +43,17 @@ pub trait StreamProcessor: BaseProcessor {
         context: &ProcessorContext);
 }
 
+/// One contiguous span of this processor's *input* timeline that survives
+/// into its output, in chain order. Times are seconds in the input domain.
+#[repr(C)]
+#[derive(StableAbi, Clone, Copy, Debug, PartialEq)]
+pub struct Segment {
+    pub src_start: f64,
+    pub src_end:   f64,
+    pub rate:      f64, // 1.0 = unchanged; speed plugins return != 1.0
+}
+
 pub trait StructuralProcessor: BaseProcessor {
-
-    /// Map a time in the *source* domain forward to the *processed* domain.
-    /// `duration` is the audio length (seconds) *before* this edit.
-    fn map_source_time(&self, 
-        source_time: f64,
-        duration: f64,
-        context: &ProcessorContext) -> f64;
-    
-    /// Map a time in the *processed* domain back to the *source* domain.
-    /// `duration` is the audio length (seconds) *before* this edit.
-    fn map_processed_time(
-        &self,
-        processed_time: f64,
-        duration: f64,
-        context: &ProcessorContext
-    ) -> f64;
-
-    /// Duration of the output audio (seconds) given input `duration`.
-    fn output_duration(
-        &self,
-        duration: f64,
-        context: &ProcessorContext
-    ) -> f64;
+    /// The edit, as ordered output segments over an input of `duration` seconds.
+    fn segments(&self, duration: f64, context: &ProcessorContext) -> Vec<Segment>;
 }

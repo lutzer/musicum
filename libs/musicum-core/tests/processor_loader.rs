@@ -13,22 +13,17 @@ fn dylib_ext() -> &'static str {
     else { "dll" }
 }
 
-fn gain_dylib_dir() -> PathBuf {
+fn processors_dylib_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../musicum-processors/gain/target/debug")
+        .join("../musicum-processors/target/debug")
 }
 
 fn gain_dylib_path() -> PathBuf {
-    gain_dylib_dir().join(format!("libgain.{}", dylib_ext()))
-}
-
-fn trim_dylib_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../musicum-processors/trim/target/debug")
+    processors_dylib_dir().join(format!("libgain.{}", dylib_ext()))
 }
 
 fn trim_dylib_path() -> PathBuf {
-    trim_dylib_dir().join(format!("libtrim.{}", dylib_ext()))
+    processors_dylib_dir().join(format!("libtrim.{}", dylib_ext()))
 }
 
 fn ctx() -> ProcessorContext {
@@ -46,7 +41,7 @@ fn loads_gain_processor() {
     }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&gain_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let ids: Vec<_> = registry.descriptors().map(|d| d.id.as_str()).collect();
     assert!(
@@ -61,7 +56,7 @@ fn descriptor_has_correct_param_name() {
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&gain_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let desc = registry.descriptors().find(|d| d.id.as_str() == "gain_plugin").unwrap();
     assert_eq!(desc.name.as_str(), "Gain");
@@ -74,7 +69,7 @@ fn creates_multiple_independent_instances() {
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&gain_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let mut a = registry.create("gain_plugin").unwrap();
     let mut b = registry.create("gain_plugin").unwrap();
@@ -103,7 +98,7 @@ fn gain_at_2x_doubles_amplitude() {
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&gain_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let mut loaded = registry.create("gain_plugin").unwrap();
     let ProcessorEntry::Stream(ref mut p) = loaded.entry else {
@@ -123,7 +118,7 @@ fn gain_at_zero_silences_audio() {
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&gain_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let mut loaded = registry.create("gain_plugin").unwrap();
     let ProcessorEntry::Stream(ref mut p) = loaded.entry else {
@@ -143,7 +138,7 @@ fn gain_default_is_unity() {
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&gain_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let mut loaded = registry.create("gain_plugin").unwrap();
     let ProcessorEntry::Stream(ref mut p) = loaded.entry else {
@@ -167,7 +162,7 @@ fn loads_trim_processor() {
     }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&trim_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let ids: Vec<_> = registry.descriptors().map(|d| d.id.as_str()).collect();
     assert!(
@@ -182,7 +177,7 @@ fn trim_descriptor_has_start_and_end_params() {
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&trim_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let desc = registry.descriptors().find(|d| d.id.as_str() == "trim_processor").unwrap();
     assert_eq!(desc.name.as_str(), "Trim");
@@ -202,7 +197,7 @@ fn trim_set_get_parameter_roundtrip() {
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&trim_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let mut loaded = registry.create("trim_processor").unwrap();
     let ProcessorEntry::Structural(ref mut p) = loaded.entry else {
@@ -217,12 +212,12 @@ fn trim_set_get_parameter_roundtrip() {
 // ── trim: structural math ─────────────────────────────────────────────────────
 
 #[test]
-fn trim_output_duration_subtracts_start_and_end() {
+fn trim_segments_returns_single_segment() {
     let path = trim_dylib_path();
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&trim_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let mut loaded = registry.create("trim_processor").unwrap();
     let ProcessorEntry::Structural(ref mut p) = loaded.entry else {
@@ -230,25 +225,41 @@ fn trim_output_duration_subtracts_start_and_end() {
     };
     p.set_parameter("start".into(), 1.0);
     p.set_parameter("end".into(), 2.0);
-    let dur = p.output_duration(10.0, ctx());
-    assert!((dur - 7.0).abs() < 1e-9, "expected 7.0, got {dur}");
+    let segs = p.segments(10.0, ctx());
+    assert_eq!(segs.len(), 1);
+    assert!((segs[0].src_start - 1.0).abs() < 1e-9);
+    assert!((segs[0].src_end - 8.0).abs() < 1e-9);
+    assert!((segs[0].rate - 1.0).abs() < 1e-9);
 }
 
 #[test]
-fn trim_map_processed_time_adds_start() {
+fn trim_segments_empty_when_fully_trimmed() {
     let path = trim_dylib_path();
     if !path.exists() { return; }
 
     let mut registry = ProcessorRegistry::new();
-    registry.load_dir(&trim_dylib_dir()).unwrap();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
 
     let mut loaded = registry.create("trim_processor").unwrap();
     let ProcessorEntry::Structural(ref mut p) = loaded.entry else {
         panic!("expected Structural processor");
     };
-    p.set_parameter("start".into(), 1.0);
-    let t = p.map_processed_time(3.0, 10.0, ctx());
-    assert!((t - 4.0).abs() < 1e-9, "expected 4.0 (start + processed_time), got {t}");
+    p.set_parameter("start".into(), 6.0);
+    p.set_parameter("end".into(), 6.0);
+    assert!(p.segments(10.0, ctx()).is_empty());
+}
+
+#[test]
+fn into_structural_processor_returns_native_trait_object() {
+    let path = trim_dylib_path();
+    if !path.exists() { return; }
+
+    let mut registry = ProcessorRegistry::new();
+    registry.load_dir(&processors_dylib_dir()).unwrap();
+
+    let loaded = registry.create("trim_processor").unwrap();
+    let p = loaded.into_structural_processor().expect("trim is structural");
+    assert!((p.get_parameter("start") - 0.0).abs() < 1e-9);
 }
 
 // ── error cases ───────────────────────────────────────────────────────────────

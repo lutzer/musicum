@@ -2,38 +2,66 @@ use std::sync::{Arc, Mutex};
 
 use uuid::Uuid;
 
-use musicum_processor_sdk::processor::StreamProcessor;
+use musicum_processor_sdk::processor::{ProcessorContext, StreamProcessor, StructuralProcessor};
 
 use crate::audio::node::StreamProcessorNode;
 use crate::audio::source::AudioSource;
+use crate::audio::timeline::Timeline;
 use crate::edit::{ProcessorEdit, ProcessorEditType};
 use crate::processor_loader::ProcessorRegistry;
 
 pub type ProcessorHandle = Arc<Mutex<Box<dyn StreamProcessor>>>;
+pub type StructuralHandle = Arc<Mutex<Box<dyn StructuralProcessor>>>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamKind { Stream, Structural }
 
 pub struct ProcessorChain {
     entries: Vec<(Uuid, ProcessorHandle)>,
+    structural_entries: Vec<(Uuid, StructuralHandle)>,
 }
 
 impl ProcessorChain {
     pub fn empty() -> Self {
-        Self { entries: vec![] }
+        Self { entries: vec![], structural_entries: vec![] }
     }
 
     pub fn from_edits(edits: &[ProcessorEdit], registry: &ProcessorRegistry) -> Self {
         let mut entries = Vec::new();
+        let mut structural_entries = Vec::new();
         for edit in edits {
             if !edit.enabled { continue; }
-            if edit.kind != ProcessorEditType::StreamProcessor { continue; }
-            let Some(loaded) = registry.create(&edit.processor_id) else { continue };
-            let Some(mut proc) = loaded.into_stream_processor() else { continue };
-            for (id, &value) in &edit.params {
-                proc.set_parameter(id, value);
+            match edit.kind {
+                ProcessorEditType::StreamProcessor => {
+                    let Some(loaded) = registry.create(&edit.processor_id) else { continue };
+                    let Some(mut proc) = loaded.into_stream_processor() else { continue };
+                    for (id, &value) in &edit.params { proc.set_parameter(id, value); }
+                    entries.push((edit.uuid, Arc::new(Mutex::new(proc)) as ProcessorHandle));
+                }
+                ProcessorEditType::StructuralProcessor => {
+                    let Some(loaded) = registry.create(&edit.processor_id) else { continue };
+                    let Some(mut proc) = loaded.into_structural_processor() else { continue };
+                    for (id, &value) in &edit.params { proc.set_parameter(id, value); }
+                    structural_entries.push((edit.uuid, Arc::new(Mutex::new(proc)) as StructuralHandle));
+                }
+                ProcessorEditType::Analyzer => {}
             }
-            let handle: ProcessorHandle = Arc::new(Mutex::new(proc));
-            entries.push((edit.uuid, handle));
         }
-        Self { entries }
+        Self { entries, structural_entries }
+    }
+
+    pub fn build_timeline(
+        &self,
+        source_frames: u64,
+        sample_rate: u32,
+        ctx: &ProcessorContext,
+    ) -> Timeline {
+        let mut timeline = Timeline::identity(source_frames, sample_rate);
+        for (_, handle) in &self.structural_entries {
+            let segs = handle.lock().unwrap().segments(timeline.output_duration(), ctx);
+            timeline.apply_edit(&segs);
+        }
+        timeline
     }
 
     pub fn build_source(&self, root: Box<dyn AudioSource>) -> Box<dyn AudioSource> {
@@ -49,6 +77,35 @@ impl ProcessorChain {
 
     pub fn handles(&self) -> impl Iterator<Item = (&Uuid, &ProcessorHandle)> {
         self.entries.iter().map(|(id, h)| (id, h))
+    }
+
+    pub fn get_structural_handle(&self, uuid: &Uuid) -> Option<&StructuralHandle> {
+        self.structural_entries.iter().find(|(id, _)| id == uuid).map(|(_, h)| h)
+    }
+
+    pub fn structural_handles(&self) -> impl Iterator<Item = (&Uuid, &StructuralHandle)> {
+        self.structural_entries.iter().map(|(id, h)| (id, h))
+    }
+
+    pub fn has_structural(&self) -> bool { !self.structural_entries.is_empty() }
+
+    /// Routes a parameter change to whichever handle owns `uuid` and reports
+    /// which kind was touched (None if the uuid is unknown).
+    pub fn set_parameter(&self, uuid: &Uuid, param_id: &str, value: f64) -> Option<ParamKind> {
+        if let Some(h) = self.get_handle(uuid) {
+            h.lock().unwrap().set_parameter(param_id, value);
+            return Some(ParamKind::Stream);
+        }
+        if let Some(h) = self.get_structural_handle(uuid) {
+            h.lock().unwrap().set_parameter(param_id, value);
+            return Some(ParamKind::Structural);
+        }
+        None
+    }
+
+    #[cfg(test)]
+    pub(crate) fn push_structural(&mut self, uuid: Uuid, handle: StructuralHandle) {
+        self.structural_entries.push((uuid, handle));
     }
 
     pub fn len(&self) -> usize { self.entries.len() }
@@ -86,11 +143,57 @@ mod tests {
     }
 
     #[test]
-    fn structural_processor_is_skipped() {
+    fn structural_edit_with_unknown_id_is_skipped() {
         let registry = ProcessorRegistry::new();
         let edits = vec![edit(ProcessorEditType::StructuralProcessor, true, "trim")];
         let chain = ProcessorChain::from_edits(&edits, &registry);
-        assert!(chain.is_empty());
+        assert!(!chain.has_structural());
+    }
+
+    #[test]
+    fn disabled_structural_edit_is_skipped() {
+        let registry = ProcessorRegistry::new();
+        let edits = vec![edit(ProcessorEditType::StructuralProcessor, false, "trim")];
+        let chain = ProcessorChain::from_edits(&edits, &registry);
+        assert!(!chain.has_structural());
+    }
+
+    #[test]
+    fn build_timeline_without_structural_edits_is_identity() {
+        let chain = ProcessorChain::empty();
+        let ctx = ProcessorContext { playing: false, sample_rate: 100, number_channels: 2 };
+        let tl = chain.build_timeline(1000, 100, &ctx);
+        assert_eq!(tl.output_frames(), 1000);
+    }
+
+    #[test]
+    fn build_timeline_applies_structural_handles_in_order() {
+        use crate::audio::tests::test_processors::TestTrim;
+        let mut chain = ProcessorChain::empty();
+        chain.push_structural(
+            Uuid::new_v4(),
+            Arc::new(Mutex::new(Box::new(TestTrim { start: 1.0, end: 1.0 }) as _)),
+        );
+        chain.push_structural(
+            Uuid::new_v4(),
+            Arc::new(Mutex::new(Box::new(TestTrim { start: 1.0, end: 0.0 }) as _)),
+        );
+        let ctx = ProcessorContext { playing: false, sample_rate: 100, number_channels: 2 };
+        let tl = chain.build_timeline(1000, 100, &ctx); // 10s → [1,9] → [2,9]
+        assert_eq!(tl.output_frames(), 700);
+        assert!((tl.source_time(0.0) - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn set_parameter_routes_to_structural_and_reports_kind() {
+        use crate::audio::tests::test_processors::TestTrim;
+        let mut chain = ProcessorChain::empty();
+        let uuid = Uuid::new_v4();
+        chain.push_structural(uuid, Arc::new(Mutex::new(Box::new(TestTrim::default()) as _)));
+        assert_eq!(chain.set_parameter(&uuid, "start", 2.5), Some(ParamKind::Structural));
+        let h = chain.get_structural_handle(&uuid).unwrap();
+        assert!((h.lock().unwrap().get_parameter("start") - 2.5).abs() < 1e-9);
+        assert_eq!(chain.set_parameter(&Uuid::new_v4(), "x", 0.0), None);
     }
 
     #[test]

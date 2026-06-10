@@ -6,7 +6,7 @@ use abi_stable::{
     StableAbi,
 };
 
-use crate::{parameters::ProcessorParamaterInfo, processor::{ProcessorContext, ProcessorDescriptor, ProcessorType}};
+use crate::{parameters::ProcessorParamaterInfo, processor::{ProcessorContext, ProcessorDescriptor, ProcessorType, Segment}};
 
 // ── Descriptor FFI types ──────────────────────────────────────────────────────
 
@@ -118,9 +118,7 @@ pub trait AbiStructuralProcessor: Send + Sync {
     fn get_parameter(&self, id: RStr<'_>) -> f64;
     fn set_parameter(&mut self, id: RStr<'_>, value: f64);
     fn requires_analysis(&self) -> bool;
-    fn map_source_time(&self, source_time: f64, duration: f64, ctx: ProcessorContext) -> f64;
-    fn map_processed_time(&self, processed_time: f64, duration: f64, ctx: ProcessorContext) -> f64;
-    fn output_duration(&self, duration: f64, ctx: ProcessorContext) -> f64;
+    fn segments(&self, duration: f64, ctx: ProcessorContext) -> RVec<Segment>;
 }
 
 #[sabi_trait]

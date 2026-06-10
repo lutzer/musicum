@@ -20,6 +20,12 @@ pub trait AudioSource: Send {
     fn position_secs(&self) -> f64;
 }
 
+// A source whose read position can be moved. Implemented by SymphoniaSource
+// (source-domain seconds) and StructuralSource (processed-domain seconds).
+pub trait SeekableSource: AudioSource {
+    fn seek(&mut self, position_secs: f64);
+}
+
 
 // All cross-thread coordination state for one loaded source.
 // Shared between AudioProducer (background thread), BufferedSource (audio
@@ -294,8 +300,8 @@ impl AudioSource for SymphoniaSource {
     }
 }
 
-impl SymphoniaSource {
-    pub fn seek(&mut self, position: f64) {
+impl SeekableSource for SymphoniaSource {
+    fn seek(&mut self, position: f64) {
         use symphonia::core::formats::{SeekMode, SeekTo};
         use symphonia::core::units::Time;
 

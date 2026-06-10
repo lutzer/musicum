@@ -21,6 +21,50 @@ fn test_wav_path() -> std::path::PathBuf {
 }
 
 #[cfg(test)]
+pub(crate) mod test_processors {
+    use musicum_processor_sdk::analyzer::AnalysisContext;
+    use musicum_processor_sdk::parameters::ProcessorParamaterInfo;
+    use musicum_processor_sdk::processor::{
+        BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorType,
+        Segment, StructuralProcessor,
+    };
+
+    static TEST_TRIM_PARAMS: [ProcessorParamaterInfo; 2] = [
+        ProcessorParamaterInfo::Time { id: "start", name: "Start", default: 0.0, editable: true },
+        ProcessorParamaterInfo::Time { id: "end",   name: "End",   default: 0.0, editable: true },
+    ];
+    static TEST_TRIM_DESC: ProcessorDescriptor = ProcessorDescriptor {
+        id: "test_trim",
+        name: "TestTrim",
+        processor_type: ProcessorType::StructuralProcessor,
+        parameters: &TEST_TRIM_PARAMS,
+    };
+
+    #[derive(Default)]
+    pub struct TestTrim { pub start: f64, pub end: f64 }
+
+    impl BaseProcessor for TestTrim {
+        fn prepare(&mut self, _: &ProcessorContext, _: &mut AnalysisContext) {}
+        fn descriptor(&self) -> &'static ProcessorDescriptor { &TEST_TRIM_DESC }
+        fn get_parameter(&self, id: &str) -> f64 {
+            match id { "start" => self.start, "end" => self.end, _ => 0.0 }
+        }
+        fn set_parameter(&mut self, id: &str, value: f64) {
+            match id { "start" => self.start = value, "end" => self.end = value, _ => {} }
+        }
+        fn requires_analysis(&self) -> bool { false }
+    }
+
+    impl StructuralProcessor for TestTrim {
+        fn segments(&self, duration: f64, _: &ProcessorContext) -> Vec<Segment> {
+            let end = duration - self.end.max(0.0);
+            if end <= self.start { return vec![]; }
+            vec![Segment { src_start: self.start.max(0.0), src_end: end, rate: 1.0 }]
+        }
+    }
+}
+
+#[cfg(test)]
 mod source_tests {
     use crate::audio::source::{AudioSource, SymphoniaSource};
 
@@ -80,18 +124,68 @@ mod source_tests {
 }
 
 #[cfg(test)]
+mod engine_tests {
+    use std::sync::{Arc, Mutex};
+    use uuid::Uuid;
+    use crate::audio::chain::ProcessorChain;
+    use crate::audio::engine::{AudioEngine, CpalEngine};
+    use super::test_processors::TestTrim;
+
+    #[test]
+    #[ignore] // needs an audio output device
+    fn structural_param_change_applies_on_resume_and_keeps_source_position() {
+        let path = super::test_wav_path(); // 1s, 440 Hz
+        let mut chain = ProcessorChain::empty();
+        let uuid = Uuid::new_v4();
+        chain.push_structural(uuid, Arc::new(Mutex::new(
+            Box::new(TestTrim::default()) as Box<dyn musicum_processor_sdk::processor::StructuralProcessor>,
+        )));
+
+        let mut engine = CpalEngine::new().unwrap();
+        engine.load_with_processors(&path, chain).unwrap();
+        assert!((engine.duration_secs() - 1.0).abs() < 0.05);
+
+        engine.play().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        engine.pause().unwrap();
+
+        let source_before = engine.source_position_secs();
+        engine.set_parameter(&uuid, "start", 0.2);
+        assert!((engine.duration_secs() - 1.0).abs() < 0.05, "no rebuild while paused");
+
+        engine.play().unwrap(); // triggers rebuild
+        assert!((engine.duration_secs() - 0.8).abs() < 0.05, "timeline rebuilt on resume");
+        // playhead kept its source position (or snapped forward to 0.2 if it
+        // was inside the removed region)
+        let source_after = engine.source_position_secs();
+        assert!(source_after >= source_before.max(0.2) - 0.05,
+            "source position regressed: {source_before} -> {source_after}");
+        engine.pause().unwrap();
+    }
+}
+
+#[cfg(test)]
 mod buffer_tests {
     use std::sync::Arc;
     use std::sync::atomic::Ordering;
     use crate::audio::producer::{AudioStore, AudioProducer, DecodedChunk,};
     use crate::audio::buffer::{BufferedSource};
     use crate::audio::source::{AudioSource, SymphoniaSource, SharedPipelineState, SourceHandle};
+    use crate::audio::structural::StructuralSource;
+    use crate::audio::timeline::Timeline;
 
     fn make_chunk(start_frame: usize, frame_count: usize, channels: u8) -> DecodedChunk {
         DecodedChunk {
             start_frame,
             samples: Arc::from(vec![1.0f32; frame_count * channels as usize]),
         }
+    }
+
+    // Wraps a decoder in a StructuralSource with an identity timeline.
+    fn identity_structural(decoder: SymphoniaSource) -> StructuralSource {
+        let frames = (decoder.duration_secs() * decoder.sample_rate() as f64).round() as u64;
+        let tl = Timeline::identity(frames, decoder.sample_rate());
+        StructuralSource::new(Box::new(decoder), Arc::new(std::sync::RwLock::new(tl)))
     }
 
     #[test]
@@ -152,7 +246,7 @@ mod buffer_tests {
         let store = Arc::new(Mutex::new(AudioStore::new(store_cap, channels as u8)));
         let state = SharedPipelineState::new();
 
-        let producer = AudioProducer::new(decoder, store, ring_tx, state.clone());
+        let producer = AudioProducer::new(identity_structural(decoder), store, ring_tx, state.clone());
         std::thread::spawn(|| producer.run());
 
         std::thread::sleep(std::time::Duration::from_millis(200));
@@ -178,7 +272,7 @@ mod buffer_tests {
         let store = Arc::new(Mutex::new(AudioStore::new(store_cap, channels)));
         let state = SharedPipelineState::new();
 
-        let producer = AudioProducer::new(decoder, store, ring_tx, state.clone());
+        let producer = AudioProducer::new(identity_structural(decoder), store, ring_tx, state.clone());
         let source   = BufferedSource::new(ring_rx, sample_rate, channels, duration, state.clone());
 
         std::thread::spawn(|| producer.run());

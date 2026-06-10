@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{ProcessorParamaterInfo, TimeParam}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, StructuralProcessor
+    BaseProcessor, ProcessorDescriptor, ProcessorType, Segment, StructuralProcessor
 }};
 
 static TRIM_PARAMS: [ProcessorParamaterInfo; 2] = [
@@ -56,30 +56,17 @@ impl BaseProcessor for TrimProcessor {
 }
 
 impl StructuralProcessor for TrimProcessor {
-    fn map_source_time(
-        &self,
-        source_time: f64,
-        duration: f64,
-        _context: &musicum_processor_sdk::processor::ProcessorContext,
-    ) -> f64 {
-        source_time.min(self.start.get()).max(duration - self.end.get())
-    }
-
-    fn map_processed_time(
-        &self,
-        processed_time: f64,
-        _duration: f64,
-        _context: &musicum_processor_sdk::processor::ProcessorContext,
-    ) -> f64 {
-        self.start.get() + processed_time
-    }
-
-    fn output_duration(
+    fn segments(
         &self,
         duration: f64,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
-    ) -> f64 {
-        duration - self.start.get() - self.end.get()
+    ) -> Vec<Segment> {
+        let start = self.start.get().max(0.0);
+        let end = (duration - self.end.get().max(0.0)).min(duration);
+        if end <= start {
+            return vec![];
+        }
+        vec![Segment { src_start: start, src_end: end, rate: 1.0 }]
     }
 }
 

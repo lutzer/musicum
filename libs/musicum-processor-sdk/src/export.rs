@@ -85,14 +85,10 @@ macro_rules! export_processor {
                 fn requires_analysis(&self) -> bool {
                     self.0.requires_analysis()
                 }
-                fn map_source_time(&self, source_time: f64, duration: f64, ctx: $crate::processor::ProcessorContext) -> f64 {
-                    self.0.map_source_time(source_time, duration, &ctx)
-                }
-                fn map_processed_time(&self, processed_time: f64, duration: f64, ctx: $crate::processor::ProcessorContext) -> f64 {
-                    self.0.map_processed_time(processed_time, duration, &ctx)
-                }
-                fn output_duration(&self, duration: f64, ctx: $crate::processor::ProcessorContext) -> f64 {
-                    self.0.output_duration(duration, &ctx)
+                fn segments(&self, duration: f64, ctx: $crate::processor::ProcessorContext)
+                    -> $crate::abi_stable::std_types::RVec<$crate::processor::Segment>
+                {
+                    self.0.segments(duration, &ctx).into()
                 }
             }
 

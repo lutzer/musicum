@@ -8,8 +8,8 @@ use libloading::{Library, Symbol};
 use musicum_processor_sdk::{
     abi_stable::std_types::{RBox, RSliceMut},
     analyzer::AnalysisContext,
-    ffi::{AbiStreamProcessor_TO, ProcessorDescriptorFFI, ProcessorEntry},
-    processor::{BaseProcessor, ProcessorContext, ProcessorDescriptor, StreamProcessor},
+    ffi::{AbiStreamProcessor_TO, AbiStructuralProcessor_TO, ProcessorDescriptorFFI, ProcessorEntry},
+    processor::{BaseProcessor, ProcessorContext, ProcessorDescriptor, Segment, StreamProcessor, StructuralProcessor},
 };
 
 pub enum ProcessorLoadError {
@@ -57,6 +57,14 @@ impl LoadedProcessor {
             _ => None,
         }
     }
+
+    pub fn into_structural_processor(self) -> Option<Box<dyn StructuralProcessor>> {
+        match self.entry {
+            ProcessorEntry::Structural(inner) =>
+                Some(Box::new(FfiStructuralProcessor { inner, _lib: self._lib })),
+            _ => None,
+        }
+    }
 }
 
 pub struct FfiStreamProcessor {
@@ -77,6 +85,27 @@ impl BaseProcessor for FfiStreamProcessor {
 impl StreamProcessor for FfiStreamProcessor {
     fn process(&mut self, buffer: &mut [f32], time: f64, ctx: &ProcessorContext) {
         self.inner.process(RSliceMut::from_mut_slice(buffer), time, *ctx);
+    }
+}
+
+pub struct FfiStructuralProcessor {
+    inner: AbiStructuralProcessor_TO<'static, RBox<()>>,
+    _lib:  Arc<Library>,
+}
+
+impl BaseProcessor for FfiStructuralProcessor {
+    fn prepare(&mut self, ctx: &ProcessorContext, _: &mut AnalysisContext) {
+        self.inner.prepare(*ctx);
+    }
+    fn descriptor(&self) -> &'static ProcessorDescriptor { unimplemented!() }
+    fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }
+    fn set_parameter(&mut self, id: &str, value: f64) { self.inner.set_parameter(id.into(), value); }
+    fn requires_analysis(&self) -> bool { self.inner.requires_analysis() }
+}
+
+impl StructuralProcessor for FfiStructuralProcessor {
+    fn segments(&self, duration: f64, ctx: &ProcessorContext) -> Vec<Segment> {
+        self.inner.segments(duration, *ctx).into_vec()
     }
 }
 

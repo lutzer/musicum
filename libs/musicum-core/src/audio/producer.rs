@@ -1,16 +1,18 @@
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
-use crate::audio::{source::{AudioSource, SharedPipelineState, SymphoniaSource}};
+use crate::audio::source::{AudioSource, SeekableSource, SharedPipelineState};
+use crate::audio::structural::StructuralSource;
 
 
 pub const CHUNK_FRAMES: usize = 4096;
 
-// Background thread: pulls decoded chunks from SymphoniaSource and feeds
-// the rtrb ring buffer. Also writes each chunk to AudioStore for seek caching.
+// Background thread: pulls decoded chunks from StructuralSource and feeds
+// the rtrb ring buffer. Also writes each chunk to AudioStore for seek caching;
+// chunks are keyed in *processed* frames.
 // Runs until shutdown is signalled or the source is exhausted (then idles,
 // waiting for a seek or shutdown).
 pub struct AudioProducer {
-    decoder:  SymphoniaSource,
+    decoder:  StructuralSource,
     store:    Arc<Mutex<AudioStore>>,
     ring_tx:  rtrb::Producer<f32>,
     state:    Arc<SharedPipelineState>,
@@ -18,7 +20,7 @@ pub struct AudioProducer {
 
 impl AudioProducer {
     pub fn new(
-        decoder:  SymphoniaSource,
+        decoder:  StructuralSource,
         store:    Arc<Mutex<AudioStore>>,
         ring_tx:  rtrb::Producer<f32>,
         state:    Arc<SharedPipelineState>,
@@ -115,6 +117,11 @@ impl AudioStore {
             let evicted = self.chunks.remove(0);
             self.cached_frames -= evicted.samples.len() / self.channels as usize;
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.chunks.clear();
+        self.cached_frames = 0;
     }
 
     pub fn get_chunk(&self, frame: usize) -> Option<&DecodedChunk> {
