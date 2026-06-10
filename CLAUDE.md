@@ -46,3 +46,8 @@ libs/musicum-processors/    # gain, reverb, trim
 ## Supplemental docs
 - `docs/2026-05-22-tauri-greenfield-setup.md` — full architecture & DB schema
 - `docs/plans/` — per-feature design docs (CLI, player, processor, output)
+
+## Code Style
+- Do not inline multiple variabke names on the same column. just put a simple space before and after operators or assignments.
+- Put structs into their respective files and group them together under a sensible file name. Dont put them in crates where they dont belong
+- cover important code by unit tests.

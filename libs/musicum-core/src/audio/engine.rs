@@ -1,14 +1,14 @@
 use std::path::Path;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 use uuid::Uuid;
 
 use musicum_processor_sdk::processor::ProcessorContext;
 
 use crate::audio::buffer::BufferedSource;
-use crate::audio::chain::{ParamKind, ProcessorChain};
+use crate::audio::chain::{ProcessorChain};
 use crate::audio::output::{AudioOutput, AudioOutputError, CpalOutput};
-use crate::audio::producer::{AudioProducer, AudioStore};
+use crate::audio::producer::{AudioProducer};
 use crate::audio::source::{AudioSource, SharedPipelineState, SourceHandle, SymphoniaSource};
 use crate::audio::structural::StructuralSource;
 use crate::audio::timeline::Timeline;
@@ -53,8 +53,6 @@ pub struct CpalEngine {
     source_handle:    Option<SourceHandle>,
     processor_chain:  ProcessorChain,
     timeline:         Option<Arc<RwLock<Timeline>>>,
-    store:            Option<Arc<Mutex<AudioStore>>>,
-    structural_dirty: bool,
     source_frames:    u64,
     src_rate:         u32,
     src_ch:           u8,
@@ -67,8 +65,6 @@ impl CpalEngine {
             source_handle:    None,
             processor_chain:  ProcessorChain::empty(),
             timeline:         None,
-            store:            None,
-            structural_dirty: false,
             source_frames:    0,
             src_rate:         44100,
             src_ch:           2,
@@ -81,7 +77,7 @@ impl CpalEngine {
     // normal seek path to drain audio produced under the old map.
     fn rebuild_timeline(&mut self) {
         let (Some(timeline), Some(handle)) = (&self.timeline, &self.source_handle) else {
-            self.structural_dirty = false;
+            self.processor_chain.set_structure_dirty(false);
             return;
         };
         let ctx = ProcessorContext {
@@ -96,11 +92,8 @@ impl CpalEngine {
             new_tl.processed_time_or_next(source_pos)
         };
         *timeline.write().unwrap() = new_tl;
-        if let Some(store) = &self.store {
-            store.lock().unwrap().clear();
-        }
         handle.seek(new_pos);
-        self.structural_dirty = false;
+        self.processor_chain.set_structure_dirty(false);
     }
 }
 
@@ -131,15 +124,13 @@ impl AudioEngine for CpalEngine {
         let structural = StructuralSource::new(Box::new(decoder), Arc::clone(&timeline));
 
         let state     = SharedPipelineState::new();
-        let ring_cap  = 2  * src_rate as usize * src_ch as usize;
-        let store_cap = 30 * src_rate as usize * src_ch as usize;
+        let ring_cap = 2  * src_rate as usize * src_ch as usize;
 
         // set up ringbuffer and audiostore
         let (ring_tx, ring_rx) = rtrb::RingBuffer::new(ring_cap);
-        let store = Arc::new(Mutex::new(AudioStore::new(store_cap, src_ch)));
 
         // set up producer and bufferedsource as the root source
-        let producer = AudioProducer::new(structural, Arc::clone(&store), ring_tx, state.clone());
+        let producer = AudioProducer::new(structural, ring_tx, state.clone());
         let buffered: Box<dyn AudioSource> =
             Box::new(BufferedSource::new(ring_rx, src_rate, src_ch, out_duration, state.clone()));
 
@@ -147,20 +138,20 @@ impl AudioEngine for CpalEngine {
         let source = chain.build_source(buffered);
 
         std::thread::spawn(|| producer.run());
+
         self.output.set_source(source)?;
-        self.source_handle    = Some(SourceHandle::new(state, src_rate, src_ch, out_duration));
-        self.processor_chain  = chain;
-        self.timeline         = Some(timeline);
-        self.store            = Some(store);
-        self.source_frames    = source_frames;
-        self.src_rate         = src_rate;
-        self.src_ch           = src_ch;
-        self.structural_dirty = false;
+        self.source_handle = Some(SourceHandle::new(state, src_rate, src_ch, out_duration));
+        self.processor_chain = chain;
+        self.timeline = Some(timeline);
+        self.source_frames = source_frames;
+        self.src_rate = src_rate;
+        self.src_ch = src_ch;
+
         Ok(())
     }
 
     fn play(&mut self) -> anyhow::Result<()> {
-        if self.structural_dirty { self.rebuild_timeline(); }
+        if self.processor_chain.is_structure_dirty() { self.rebuild_timeline(); }
         self.output.play().map_err(|e| anyhow::anyhow!("{e}"))
     }
 
@@ -200,11 +191,7 @@ impl AudioEngine for CpalEngine {
     }
 
     fn set_parameter(&mut self, edit_uuid: &Uuid, param_id: &str, value: f64) {
-        if self.processor_chain.set_parameter(edit_uuid, param_id, value)
-            == Some(ParamKind::Structural)
-        {
-            self.structural_dirty = true;
-        }
+        self.processor_chain.set_parameter(edit_uuid, param_id, value)
     }
 
     fn map_processed_to_source(&self, processed_secs: f64) -> f64 {

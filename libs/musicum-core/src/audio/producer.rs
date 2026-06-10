@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, atomic::Ordering};
+use std::sync::{Arc, atomic::Ordering};
 
 use crate::audio::source::{AudioSource, SeekableSource, SharedPipelineState};
 use crate::audio::structural::StructuralSource;
@@ -13,7 +13,6 @@ pub const CHUNK_FRAMES: usize = 4096;
 // waiting for a seek or shutdown).
 pub struct AudioProducer {
     decoder:  StructuralSource,
-    store:    Arc<Mutex<AudioStore>>,
     ring_tx:  rtrb::Producer<f32>,
     state:    Arc<SharedPipelineState>,
 }
@@ -21,17 +20,15 @@ pub struct AudioProducer {
 impl AudioProducer {
     pub fn new(
         decoder:  StructuralSource,
-        store:    Arc<Mutex<AudioStore>>,
         ring_tx:  rtrb::Producer<f32>,
         state:    Arc<SharedPipelineState>,
     ) -> Self {
-        Self { decoder, store, ring_tx, state }
+        Self { decoder, ring_tx, state }
     }
 
     pub fn run(mut self) {
         let channels    = self.decoder.channels() as usize;
         let sample_rate = self.decoder.sample_rate();
-        let mut start_frame: usize = 0;
 
         loop {
             // Handle a pending seek: re-position the decoder, then wait for
@@ -39,7 +36,6 @@ impl AudioProducer {
             if self.state.seek_pending.load(Ordering::Acquire) {
                 let seek_f = self.state.seek_frame.load(Ordering::Acquire);
                 self.decoder.seek(seek_f as f64 / sample_rate as f64);
-                start_frame = seek_f as usize;
                 // Wait until BufferedSource has drained the old data.
                 loop {
                     if self.ring_tx.slots() == self.ring_tx.buffer().capacity() { break; }
@@ -65,11 +61,6 @@ impl AudioProducer {
             }
 
             let samples: Arc<[f32]> = Arc::from(&chunk_buf[..written]);
-            let chunk = DecodedChunk { start_frame, samples: samples.clone() };
-            if let Ok(mut store) = self.store.lock() {
-                store.insert(chunk);
-            }
-            start_frame += written / channels;
 
             // Push the decoded chunk into the ring. Check free slots once per
             // iteration to avoid per-sample error handling.
@@ -92,43 +83,43 @@ impl AudioProducer {
 
 
 
-pub struct DecodedChunk {
-    pub start_frame: usize,
-    pub samples: Arc<[f32]>,
-}
+// pub struct DecodedChunk {
+//     pub start_frame: usize,
+//     pub samples: Arc<[f32]>,
+// }
 
-pub struct AudioStore {
-    chunks:          Vec<DecodedChunk>,
-    cached_frames:   usize,
-    capacity_frames: usize,
-    channels:        u8,
-}
+// pub struct AudioStore {
+//     chunks:          Vec<DecodedChunk>,
+//     cached_frames:   usize,
+//     capacity_frames: usize,
+//     channels:        u8,
+// }
 
-impl AudioStore {
-    pub fn new(capacity_frames: usize, channels: u8) -> Self {
-        Self { chunks: Vec::new(), cached_frames: 0, capacity_frames, channels }
-    }
+// impl AudioStore {
+//     pub fn new(capacity_frames: usize, channels: u8) -> Self {
+//         Self { chunks: Vec::new(), cached_frames: 0, capacity_frames, channels }
+//     }
 
-    pub fn insert(&mut self, chunk: DecodedChunk) {
-        let frames = chunk.samples.len() / self.channels as usize;
-        self.cached_frames += frames;
-        self.chunks.push(chunk);
-        while self.cached_frames > self.capacity_frames && !self.chunks.is_empty() {
-            let evicted = self.chunks.remove(0);
-            self.cached_frames -= evicted.samples.len() / self.channels as usize;
-        }
-    }
+//     pub fn insert(&mut self, chunk: DecodedChunk) {
+//         let frames = chunk.samples.len() / self.channels as usize;
+//         self.cached_frames += frames;
+//         self.chunks.push(chunk);
+//         while self.cached_frames > self.capacity_frames && !self.chunks.is_empty() {
+//             let evicted = self.chunks.remove(0);
+//             self.cached_frames -= evicted.samples.len() / self.channels as usize;
+//         }
+//     }
 
-    pub fn clear(&mut self) {
-        self.chunks.clear();
-        self.cached_frames = 0;
-    }
+//     pub fn clear(&mut self) {
+//         self.chunks.clear();
+//         self.cached_frames = 0;
+//     }
 
-    pub fn get_chunk(&self, frame: usize) -> Option<&DecodedChunk> {
-        let ch = self.channels as usize;
-        self.chunks.iter().find(|c| {
-            let frame_count = c.samples.len() / ch;
-            frame >= c.start_frame && frame < c.start_frame + frame_count
-        })
-    }
-}
+//     pub fn get_chunk(&self, frame: usize) -> Option<&DecodedChunk> {
+//         let ch = self.channels as usize;
+//         self.chunks.iter().find(|c| {
+//             let frame_count = c.samples.len() / ch;
+//             frame >= c.start_frame && frame < c.start_frame + frame_count
+//         })
+//     }
+// }

@@ -13,17 +13,18 @@ use crate::processor_loader::ProcessorRegistry;
 pub type ProcessorHandle = Arc<Mutex<Box<dyn StreamProcessor>>>;
 pub type StructuralHandle = Arc<Mutex<Box<dyn StructuralProcessor>>>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ParamKind { Stream, Structural }
+
+// TODO: change entries and structural entries to hashmap, rename entries to stream_entries
 
 pub struct ProcessorChain {
     entries: Vec<(Uuid, ProcessorHandle)>,
     structural_entries: Vec<(Uuid, StructuralHandle)>,
+    structure_dirty: bool
 }
 
 impl ProcessorChain {
     pub fn empty() -> Self {
-        Self { entries: vec![], structural_entries: vec![] }
+        Self { entries: vec![], structural_entries: vec![], structure_dirty: false }
     }
 
     pub fn from_edits(edits: &[ProcessorEdit], registry: &ProcessorRegistry) -> Self {
@@ -47,7 +48,7 @@ impl ProcessorChain {
                 ProcessorEditType::Analyzer => {}
             }
         }
-        Self { entries, structural_entries }
+        Self { entries, structural_entries, structure_dirty : true }
     }
 
     pub fn build_timeline(
@@ -91,16 +92,14 @@ impl ProcessorChain {
 
     /// Routes a parameter change to whichever handle owns `uuid` and reports
     /// which kind was touched (None if the uuid is unknown).
-    pub fn set_parameter(&self, uuid: &Uuid, param_id: &str, value: f64) -> Option<ParamKind> {
+    pub fn set_parameter(&mut self, uuid: &Uuid, param_id: &str, value: f64) {
         if let Some(h) = self.get_handle(uuid) {
             h.lock().unwrap().set_parameter(param_id, value);
-            return Some(ParamKind::Stream);
         }
         if let Some(h) = self.get_structural_handle(uuid) {
             h.lock().unwrap().set_parameter(param_id, value);
-            return Some(ParamKind::Structural);
+            self.set_structure_dirty(true);
         }
-        None
     }
 
     #[cfg(test)]
@@ -110,6 +109,8 @@ impl ProcessorChain {
 
     pub fn len(&self) -> usize { self.entries.len() }
     pub fn is_empty(&self) -> bool { self.entries.is_empty() }
+    pub fn is_structure_dirty(&self) -> bool { self.structure_dirty }
+    pub fn set_structure_dirty(&mut self, dirty: bool) { self.structure_dirty = dirty }
 }
 
 #[cfg(test)]
@@ -190,10 +191,9 @@ mod tests {
         let mut chain = ProcessorChain::empty();
         let uuid = Uuid::new_v4();
         chain.push_structural(uuid, Arc::new(Mutex::new(Box::new(TestTrim::default()) as _)));
-        assert_eq!(chain.set_parameter(&uuid, "start", 2.5), Some(ParamKind::Structural));
+        chain.set_parameter(&uuid, "start", 2.5);
         let h = chain.get_structural_handle(&uuid).unwrap();
         assert!((h.lock().unwrap().get_parameter("start") - 2.5).abs() < 1e-9);
-        assert_eq!(chain.set_parameter(&Uuid::new_v4(), "x", 0.0), None);
     }
 
     #[test]
