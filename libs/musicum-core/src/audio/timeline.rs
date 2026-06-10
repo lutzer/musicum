@@ -33,36 +33,38 @@ impl Timeline {
     /// *current output* of this timeline (= that processor's input domain).
     pub fn apply_edit(&mut self, edit_segments: &[Segment]) {
         let sr = self.sample_rate as f64;
+        let output_frames = self.output_frames;
+        let to_frame = |t: f64| ((t.max(0.0) * sr).round() as u64).min(output_frames);
+
         let mut new_segments = Vec::new();
         let mut out_cursor: u64 = 0;
 
         for edit in edit_segments {
-            // Quantize + clamp to the current output domain.
-            let start = ((edit.src_start.max(0.0) * sr).round() as u64).min(self.output_frames);
-            let end = ((edit.src_end.max(0.0) * sr).round() as u64).min(self.output_frames);
+            let start = to_frame(edit.src_start);
+            let end = to_frame(edit.src_end);
             if end <= start {
                 continue;
             }
 
-            // Compose through the existing segments (split at boundaries).
             for existing in &self.segments {
                 let ex_start = existing.out_start_frame;
-                let ex_end = ex_start + existing.frames;
                 let ov_start = start.max(ex_start);
-                let ov_end = end.min(ex_end);
+                let ov_end = end.min(ex_start + existing.frames);
                 if ov_end <= ov_start {
                     continue;
                 }
-                let offset = ov_start - ex_start;
+                let len = ov_end - ov_start;
+
                 new_segments.push(TimelineSegment {
                     out_start_frame: out_cursor,
-                    src_start_frame: existing.src_start_frame + offset,
-                    frames: ov_end - ov_start,
+                    src_start_frame: existing.src_start_frame + (ov_start - ex_start),
+                    frames: len,
                     rate: existing.rate * edit.rate,
                 });
-                out_cursor += ov_end - ov_start;
+                out_cursor += len;
             }
         }
+
         self.segments = new_segments;
         self.output_frames = out_cursor;
     }
