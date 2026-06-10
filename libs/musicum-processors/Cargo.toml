@@ -1,3 +1,3 @@
 [workspace]
-members = ["gain", "trim", "reverb", "cut"]
+members = ["gain", "trim", "reverb", "cut", "pan", "normalize", "crop", "slice", "oscilloscope", "level-meter"]
 resolver = "2"

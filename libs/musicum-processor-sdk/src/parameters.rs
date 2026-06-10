@@ -13,6 +13,11 @@ pub enum ProcessorParamaterInfo {
     Bool  { id: &'static str, name: &'static str, default: bool, editable: bool },
     Time  { id: &'static str, name: &'static str, default: f64, editable: bool },
     Int   { id: &'static str, name: &'static str, default: i32, min: i32, max: i32, editable: bool },
+    Canvas {
+        id:           &'static str,
+        name:         &'static str,
+        aspect_ratio: f32,
+    },
 }
 
 impl ProcessorParamaterInfo {
@@ -86,9 +91,8 @@ impl BoolParam {
         self.value
     }
 
-    /// Set from an `f32`: any non-zero value is `true`.
-    pub fn set(&mut self, v: f32) {
-        self.value = v != 0.0;
+    pub fn set(&mut self, v: bool) {
+        self.value = v;
     }
 }
 

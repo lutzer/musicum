@@ -1,0 +1,11 @@
+[package]
+name = "slice"
+version = "0.1.0"
+edition = "2021"
+description = "slice processor for Musicum"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+musicum-processor-sdk = { path = "../../musicum-processor-sdk" }

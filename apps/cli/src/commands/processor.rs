@@ -32,10 +32,11 @@ pub fn run(json: bool) {
                 .parameters
                 .iter()
                 .map(|p| match p {
-                    ParamInfo::Float { id, default, .. } => format!("{id}={default} (float)"),
-                    ParamInfo::Bool  { id, default, .. } => format!("{id}={} (bool)", *default as u8),
-                    ParamInfo::Time  { id, default, .. } => format!("{id}={default} (time)"),
-                    ParamInfo::Int   { id, default, .. } => format!("{id}={default} (int)"),
+                    ParamInfo::Float  { id, default, .. } => format!("{id}={default} (float)"),
+                    ParamInfo::Bool   { id, default, .. } => format!("{id}={} (bool)", *default as u8),
+                    ParamInfo::Time   { id, default, .. } => format!("{id}={default} (time)"),
+                    ParamInfo::Int    { id, default, .. } => format!("{id}={default} (int)"),
+                    ParamInfo::Canvas { id, aspect_ratio, .. } => format!("{id} (canvas {aspect_ratio:.2})"),
                 })
                 .collect();
             ProcessorListEntry { id: e.id, kind, name: e.name.to_string(), parameters }

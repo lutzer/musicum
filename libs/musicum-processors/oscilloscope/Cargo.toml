@@ -1,0 +1,11 @@
+[package]
+name = "oscilloscope"
+version = "0.1.0"
+edition = "2021"
+description = "oscilloscope visualizer processor for Musicum"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+musicum-processor-sdk = { path = "../../musicum-processor-sdk" }

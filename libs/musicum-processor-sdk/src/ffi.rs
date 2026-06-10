@@ -70,6 +70,11 @@ pub enum ProcessorParamFFI {
         max:      i32,
         editable: bool,
     },
+    Canvas {
+        id:           RStr<'static>,
+        name:         RStr<'static>,
+        aspect_ratio: f32,
+    },
 }
 
 impl From<&'static ProcessorDescriptor> for ProcessorDescriptorFFI {
@@ -94,6 +99,8 @@ impl From<&'static ProcessorParamaterInfo> for ProcessorParamFFI {
                 Self::Time { id: RStr::from(*id), name: RStr::from(*name), default: *default, editable: *editable },
             ProcessorParamaterInfo::Int { id, name, default, min, max, editable } =>
                 Self::Int { id: RStr::from(*id), name: RStr::from(*name), default: *default, min: *min, max: *max, editable: *editable },
+            ProcessorParamaterInfo::Canvas { id, name, aspect_ratio } =>
+                Self::Canvas { id: RStr::from(*id), name: RStr::from(*name), aspect_ratio: *aspect_ratio },
         }
     }
 }

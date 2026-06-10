@@ -53,6 +53,11 @@ pub enum ParamInfo {
         max:      i32,
         editable: bool,
     },
+    Canvas {
+        id:           String,
+        name:         String,
+        aspect_ratio: f32,
+    },
 }
 
 impl From<&ProcessorParamFFI> for ParamInfo {
@@ -71,6 +76,10 @@ impl From<&ProcessorParamFFI> for ParamInfo {
                 ParamInfo::Int {
                     id: id.to_string(), name: name.to_string(),
                     default, min, max, editable,
+                },
+            ProcessorParamFFI::Canvas { id, name, aspect_ratio } =>
+                ParamInfo::Canvas {
+                    id: id.to_string(), name: name.to_string(), aspect_ratio,
                 },
         }
     }

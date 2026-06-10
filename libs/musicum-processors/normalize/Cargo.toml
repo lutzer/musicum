@@ -1,0 +1,11 @@
+[package]
+name = "normalize"
+version = "0.1.0"
+edition = "2021"
+description = "normalize processor for Musicum"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+musicum-processor-sdk = { path = "../../musicum-processor-sdk" }

@@ -25,10 +25,18 @@ pub type SaveResult<'a> = Pin<Box<dyn Future<Output = Result<()>> + 'a>>;
 pub type SaveFn<'a> = Box<dyn Fn(Vec<ProcessorEdit>) -> SaveResult<'a> + 'a>;
 
 #[derive(Clone)]
+enum ParamKind {
+    Float,
+    Int { min: i32, max: i32 },
+    Bool,
+    Other,
+}
+
+#[derive(Clone)]
 struct ParamRow {
-    key:     String,
-    value:   serde_json::Value,
-    is_bool: bool,
+    key:   String,
+    value: serde_json::Value,
+    kind:  ParamKind,
 }
 
 #[derive(Clone, PartialEq)]
@@ -121,25 +129,26 @@ impl EditorState {
             None => return vec![],
         };
         let proc = &self.processors[idx];
-        let bool_keys: std::collections::HashSet<&str> =
-            if proc.kind == ProcessorEditType::StreamProcessor {
-                self.edit_registry
-                    .get_entry(proc.processor_id.as_str())
-                    .map(|entry| {
-                        entry.parameters.iter().filter_map(|p| {
-                            if let ParamInfo::Bool { id, .. } = p { Some(id.as_str()) } else { None }
-                        }).collect()
-                    })
-                    .unwrap_or_default()
-            } else {
-                std::collections::HashSet::new()
-            };
+        let kinds: std::collections::HashMap<&str, ParamKind> = self
+            .edit_registry
+            .get_entry(proc.processor_id.as_str())
+            .map(|entry| {
+                entry.parameters.iter().filter_map(|p| match p {
+                    ParamInfo::Float { id, .. } => Some((id.as_str(), ParamKind::Float)),
+                    ParamInfo::Bool  { id, .. } => Some((id.as_str(), ParamKind::Bool)),
+                    ParamInfo::Int   { id, min, max, .. } =>
+                        Some((id.as_str(), ParamKind::Int { min: *min, max: *max })),
+                    ParamInfo::Time   { id, .. } => Some((id.as_str(), ParamKind::Other)),
+                    ParamInfo::Canvas { .. }    => None,
+                }).collect()
+            })
+            .unwrap_or_default();
         proc.params
             .iter()
             .map(|(k, v)| ParamRow {
-                key:     k.clone(),
-                value:   serde_json::json!(v),
-                is_bool: bool_keys.contains(k.as_str()),
+                key:   k.clone(),
+                value: serde_json::json!(v),
+                kind:  kinds.get(k.as_str()).cloned().unwrap_or(ParamKind::Other),
             })
             .collect()
     }
@@ -208,9 +217,11 @@ impl EditorState {
         let params = self.params_for_selected();
         if let Some(idx) = self.param_state.selected() {
             if let Some(row) = params.get(idx) {
-                self.edit_buf = match &row.value {
-                    serde_json::Value::String(s) => s.clone(),
-                    v => EditorState::format_value(v),
+                self.edit_buf = match (&row.kind, &row.value) {
+                    (_, serde_json::Value::String(s)) => s.clone(),
+                    (ParamKind::Int { .. }, v) =>
+                        format!("{}", v.as_f64().unwrap_or(0.0).round() as i64),
+                    (_, v) => EditorState::format_value(v),
                 };
                 self.status_msg = None;
             }
@@ -246,47 +257,35 @@ impl EditorState {
     fn add_processor(&mut self, available: &AvailableType) {
         let Some(entry) = self.edit_registry.get_entry(&available.id) else { return };
         let insert_at = self.proc_state.selected().map(|i| i + 1).unwrap_or(0);
-        match available.kind {
-            AvailableKind::Structural => {
-                let mut params = std::collections::HashMap::new();
-                for p in &entry.parameters {
-                    let (id, val) = match p {
-                        ParamInfo::Time { id, default, .. } => (id.clone(), *default),
-                        ParamInfo::Int  { id, default, .. } => (id.clone(), *default as f64),
-                        _ => continue,
-                    };
-                    params.insert(id, val);
+        let mut params = std::collections::HashMap::new();
+        for p in &entry.parameters {
+            match p {
+                ParamInfo::Float { id, default, .. } => {
+                    params.insert(id.clone(), *default as f64);
                 }
-                self.processors.insert(insert_at, ProcessorEdit {
-                    uuid:         Uuid::new_v4(),
-                    enabled:      true,
-                    processor_id: available.id.clone(),
-                    kind:         ProcessorEditType::StructuralProcessor,
-                    params,
-                });
-            }
-            AvailableKind::Stream => {
-                let mut params = std::collections::HashMap::new();
-                for p in &entry.parameters {
-                    match p {
-                        ParamInfo::Float { id, default, .. } => {
-                            params.insert(id.clone(), *default as f64);
-                        }
-                        ParamInfo::Bool { id, default, .. } => {
-                            params.insert(id.clone(), if *default { 1.0_f64 } else { 0.0_f64 });
-                        }
-                        _ => {}
-                    }
+                ParamInfo::Bool { id, default, .. } => {
+                    params.insert(id.clone(), if *default { 1.0_f64 } else { 0.0_f64 });
                 }
-                self.processors.insert(insert_at, ProcessorEdit {
-                    uuid:         Uuid::new_v4(),
-                    enabled:      true,
-                    processor_id: available.id.clone(),
-                    kind:         ProcessorEditType::StreamProcessor,
-                    params,
-                });
+                ParamInfo::Time { id, default, .. } => {
+                    params.insert(id.clone(), *default);
+                }
+                ParamInfo::Int { id, default, .. } => {
+                    params.insert(id.clone(), *default as f64);
+                }
+                ParamInfo::Canvas { .. } => {}
             }
         }
+        let kind = match available.kind {
+            AvailableKind::Structural => ProcessorEditType::StructuralProcessor,
+            AvailableKind::Stream     => ProcessorEditType::StreamProcessor,
+        };
+        self.processors.insert(insert_at, ProcessorEdit {
+            uuid: Uuid::new_v4(),
+            enabled: true,
+            processor_id: available.id.clone(),
+            kind,
+            params,
+        });
         self.proc_state.select(Some(insert_at));
     }
 
@@ -407,7 +406,20 @@ where
                     if let Some(idx) = state.param_state.selected() {
                         if let Some(row) = params.get(idx) {
                             let key = row.key.clone();
-                            let value = EditorState::parse_value(&state.edit_buf);
+                            let value = match &row.kind {
+                                ParamKind::Int { min, max } => {
+                                    let parsed = EditorState::parse_value(&state.edit_buf);
+                                    let f = parsed.as_f64().unwrap_or(0.0).round()
+                                        .clamp(*min as f64, *max as f64);
+                                    serde_json::json!(f)
+                                }
+                                ParamKind::Bool => {
+                                    let b = matches!(state.edit_buf.trim().to_ascii_lowercase().as_str(),
+                                        "true" | "1" | "yes" | "on");
+                                    serde_json::json!(if b { 1.0_f64 } else { 0.0_f64 })
+                                }
+                                _ => EditorState::parse_value(&state.edit_buf),
+                            };
                             let label = format!("{key} = {}", state.edit_buf);
                             state.apply_edit_to_processors(&key, value);
                             state.mode = Mode::Normal;
@@ -460,21 +472,24 @@ where
                             .and_then(|i| params.get(i))
                             .cloned();
                         if let Some(row) = selected {
-                            if row.is_bool {
-                                let toggled = if row.value.as_f64().unwrap_or(0.0) != 0.0 {
-                                    0.0_f32
-                                } else {
-                                    1.0_f32
-                                };
-                                let key = row.key.clone();
-                                state.apply_edit_to_processors(&key, serde_json::json!(toggled));
-                                match save(state.processors.clone()).await {
-                                    Ok(_) => state.status_msg = Some(format!("{key} toggled")),
-                                    Err(e) => state.status_msg = Some(format!("error: {e}")),
+                            match row.kind {
+                                ParamKind::Bool => {
+                                    let toggled = if row.value.as_f64().unwrap_or(0.0) != 0.0 {
+                                        0.0_f64
+                                    } else {
+                                        1.0_f64
+                                    };
+                                    let key = row.key.clone();
+                                    state.apply_edit_to_processors(&key, serde_json::json!(toggled));
+                                    match save(state.processors.clone()).await {
+                                        Ok(_) => state.status_msg = Some(format!("{key} toggled")),
+                                        Err(e) => state.status_msg = Some(format!("error: {e}")),
+                                    }
                                 }
-                            } else {
-                                state.enter_edit();
-                                state.mode = Mode::Editing;
+                                _ => {
+                                    state.enter_edit();
+                                    state.mode = Mode::Editing;
+                                }
                             }
                         }
                     }
@@ -550,6 +565,25 @@ fn draw_processors(f: &mut Frame, state: &mut EditorState, area: Rect) {
     f.render_stateful_widget(list, area, &mut state.proc_state);
 }
 
+fn render_value_span(row: &ParamRow, float_style: Style) -> Span<'static> {
+    match row.kind {
+        ParamKind::Bool => {
+            if row.value.as_f64().unwrap_or(0.0) != 0.0 {
+                Span::styled("true", Style::default().fg(Color::Cyan))
+            } else {
+                Span::styled("false", Style::default().fg(Color::DarkGray))
+            }
+        }
+        ParamKind::Int { .. } => {
+            let n = row.value.as_f64().unwrap_or(0.0).round() as i64;
+            Span::styled(format!("{n}"), float_style)
+        }
+        ParamKind::Float | ParamKind::Other => {
+            Span::styled(EditorState::format_value(&row.value), float_style)
+        }
+    }
+}
+
 fn draw_params(f: &mut Frame, state: &mut EditorState, area: Rect) {
     let active = state.active_pane == Pane::Params;
     let border_style = if active {
@@ -576,15 +610,7 @@ fn draw_params(f: &mut Frame, state: &mut EditorState, area: Rect) {
                 } else {
                     Style::default()
                 };
-                let val_span = if row.is_bool {
-                    if row.value.as_f64().unwrap_or(0.0) != 0.0 {
-                        Span::styled("[on]", Style::default().fg(Color::Cyan))
-                    } else {
-                        Span::styled("[off]", Style::default().fg(Color::DarkGray))
-                    }
-                } else {
-                    Span::styled(EditorState::format_value(&row.value), key_style)
-                };
+                let val_span = render_value_span(row, key_style);
                 ListItem::new(Line::from(vec![
                     Span::styled(format!("{}: ", row.key), key_style),
                     val_span,
@@ -618,15 +644,7 @@ fn draw_params(f: &mut Frame, state: &mut EditorState, area: Rect) {
         let items: Vec<ListItem> = params
             .iter()
             .map(|row| {
-                let value_span = if row.is_bool {
-                    if row.value.as_f64().unwrap_or(0.0) != 0.0 {
-                        Span::styled("[on]", Style::default().fg(Color::Cyan))
-                    } else {
-                        Span::styled("[off]", Style::default().fg(Color::DarkGray))
-                    }
-                } else {
-                    Span::styled(EditorState::format_value(&row.value), Style::default().fg(Color::Green))
-                };
+                let value_span = render_value_span(row, Style::default().fg(Color::Green));
                 ListItem::new(Line::from(vec![
                     Span::raw(format!("{}: ", row.key)),
                     value_span,
