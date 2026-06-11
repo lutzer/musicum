@@ -1,3 +1,8 @@
 [workspace]
 members = ["gain", "trim", "reverb", "cut", "pan", "normalize", "crop", "slice", "oscilloscope", "level-meter"]
 resolver = "2"
+
+[workspace.dependencies]
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+typetag     = "0.2"

@@ -2,6 +2,8 @@ use musicum_processor_sdk::{parameters::{FloatParam, ProcessorParamaterInfo}, pr
     BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor,
 }};
 
+pub mod analyzer;
+
 static NORMALIZE_PARAMS: [ProcessorParamaterInfo; 2] = [
     ProcessorParamaterInfo::Float {
         id: "target_dbfs", name: "Target dBFS",
