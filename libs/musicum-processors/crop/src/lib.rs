@@ -52,8 +52,6 @@ impl BaseProcessor for CropProcessor {
             _ => {}
         }
     }
-
-    fn requires_analysis(&self) -> bool { false }
 }
 
 impl StructuralProcessor for CropProcessor {

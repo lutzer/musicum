@@ -46,8 +46,6 @@ impl BaseProcessor for LevelMeterProcessor {
 
     fn get_parameter(&self, _id: &str) -> f64 { 0.0 }
     fn set_parameter(&mut self, _id: &str, _value: f64) {}
-
-    fn requires_analysis(&self) -> bool { false }
 }
 
 impl StreamProcessor for LevelMeterProcessor {

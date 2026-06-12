@@ -3,40 +3,35 @@ use std::any::Any;
 use musicum_processor_sdk::{analyzer::{AnalysisContext, AnalysisRequest, AnalysisResult, AudioAnalyser}, processor::ProcessorContext};
 use serde::{Serialize, Deserialize};
 
+use crate::ANALYZER_ID;
+
 #[derive(Serialize, Deserialize)]
 pub struct NormalizeAnalyzerResult {
-    peak: f32
+    pub peak: f32
 }
 
 #[typetag::serde]
 impl AnalysisResult for NormalizeAnalyzerResult {
     fn as_any(&self) -> &dyn Any { self }
+    fn get_analyzer_id(&self) -> &'static str { ANALYZER_ID }
 }
 
 #[derive(Default)]
 pub struct NormalizeAnalyzer {
     peak: f32,
-    target_dbfs: f32,
-    processor_id: &'static str
+    hash: String
 }
 
 impl AudioAnalyser for NormalizeAnalyzer {
     fn init(&mut self, request: &AnalysisRequest) {
         self.peak = 0.0;
-        self.processor_id = request.processor_uuid;
-
-        // sets parameters for analysis
-        request.params.iter().for_each(|(key,value)| {
-            if key == "target_dbfs" {
-                self.target_dbfs = *value as f32;
-            }
-        })
+        self.hash = request.hash.clone();
     }
 
     fn analyze(
         &mut self,
         samples: &[f32],
-        time: f64,
+        _time: f64,
         exhausted: bool,
         _context: &ProcessorContext,
         analysis_context: &mut AnalysisContext,
@@ -50,11 +45,11 @@ impl AudioAnalyser for NormalizeAnalyzer {
 
         if exhausted {
             let result = NormalizeAnalyzerResult{ peak: self.peak };
-            analysis_context.results.insert(self.processor_id, Box::from(result));
+            analysis_context.results.insert(self.hash.clone(), Box::from(result));
         }
     }
 
     fn id(&self) -> &'static str {
-        "normalize_analyzer"
+        ANALYZER_ID
     }
 }

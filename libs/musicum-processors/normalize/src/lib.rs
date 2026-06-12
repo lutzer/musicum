@@ -1,8 +1,12 @@
-use musicum_processor_sdk::{parameters::{FloatParam, ProcessorParamaterInfo}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor,
+use musicum_processor_sdk::{analyzer::{AnalysisRequest}, parameters::{FloatParam, ProcessorParamaterInfo}, processor::{
+    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor
 }};
 
+use crate::analyzer::NormalizeAnalyzerResult;
+
 pub mod analyzer;
+
+pub static ANALYZER_ID : &'static str = "normalize_analyzer";
 
 static NORMALIZE_PARAMS: [ProcessorParamaterInfo; 2] = [
     ProcessorParamaterInfo::Float {
@@ -11,7 +15,7 @@ static NORMALIZE_PARAMS: [ProcessorParamaterInfo; 2] = [
         unit: "dBFS", editable: true,
     },
     ProcessorParamaterInfo::Float {
-        id: "gain", name: "Gain",
+        id: "_computed_gain", name: "Computed Gain",
         min: 0.0, max: 100.0, default: 1.0, step: 0.001,
         unit: "x", editable: false,
     },
@@ -27,13 +31,15 @@ static DESCRIPTOR: ProcessorDescriptor = ProcessorDescriptor {
 pub struct NormalizeProcessor {
     target_dbfs: FloatParam,
     gain:        FloatParam,
+    requires_analysis: bool,
 }
 
 impl Default for NormalizeProcessor {
     fn default() -> Self {
         Self {
             target_dbfs: NORMALIZE_PARAMS[0].get_param().unwrap_or_default(),
-            gain:        NORMALIZE_PARAMS[1].get_param().unwrap_or_default(),
+            gain: NORMALIZE_PARAMS[1].get_param().unwrap_or_default(),
+            requires_analysis: false
         }
     }
 }
@@ -42,15 +48,32 @@ impl BaseProcessor for NormalizeProcessor {
     fn prepare(
         &mut self,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
-        _ctx: &mut musicum_processor_sdk::analyzer::AnalysisContext,
-    ) {}
+        analysis_context: &mut musicum_processor_sdk::analyzer::AnalysisContext,
+    ) {
+        let analysis_hash = self.get_analysis_hash();
+
+        if let Some(result) = analysis_context.get_result::<NormalizeAnalyzerResult>(&analysis_hash) {
+            let target_linear = 10_f32.powf(self.target_dbfs.get() / 20.0);
+            self.gain.set(target_linear / (result.peak).max(f32::EPSILON));
+            self.requires_analysis = false;
+        } else {
+            analysis_context.requests.push(
+                AnalysisRequest{
+                    analyzer_id: ANALYZER_ID,
+                    hash: analysis_hash,
+                    params: vec![]
+                }
+            );
+            self.requires_analysis = true;
+        }
+    }
 
     fn descriptor(&self) -> &'static ProcessorDescriptor { &DESCRIPTOR }
 
     fn get_parameter(&self, id: &str) -> f64 {
         match id {
             "target_dbfs" => self.target_dbfs.get() as f64,
-            "gain"        => self.gain.get() as f64,
+            "_computed_gain" => self.gain.get() as f64,
             _ => 0.0,
         }
     }
@@ -58,12 +81,15 @@ impl BaseProcessor for NormalizeProcessor {
     fn set_parameter(&mut self, id: &str, value: f64) {
         match id {
             "target_dbfs" => self.target_dbfs.set(value as f32),
-            "gain"        => self.gain.set(value as f32),
             _ => {}
         }
     }
 
-    fn requires_analysis(&self) -> bool { false }
+    fn requires_analysis(&self) -> bool { self.requires_analysis }
+
+    fn get_analysis_hash(&self) -> String {
+        return AnalysisRequest::generate_hash_from(ANALYZER_ID, &vec![])
+    }
 }
 
 impl StreamProcessor for NormalizeProcessor {

@@ -51,10 +51,6 @@ impl BaseProcessor for GainPlugin {
             self.gain.set(value as f32);
         }
     }
-
-    fn requires_analysis(&self) -> bool {
-        false
-    }
 }
 
 impl StreamProcessor for GainPlugin {

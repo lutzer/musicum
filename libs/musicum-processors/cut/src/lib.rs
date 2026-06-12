@@ -49,10 +49,6 @@ impl BaseProcessor for CutProcessor {
         if id == "start" { self.start.set(value); }
         else if id == "end" { self.end.set(value); }
     }
-
-    fn requires_analysis(&self) -> bool {
-        false
-    }
 }
 
 impl StructuralProcessor for CutProcessor {

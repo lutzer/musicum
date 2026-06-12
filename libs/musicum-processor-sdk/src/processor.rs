@@ -32,7 +32,8 @@ pub trait BaseProcessor: Send + Sync {
     fn set_parameter(&mut self, id: &str, value: f64);
 
     /// tells the processor pipeline that this processor needs to run an analysis
-    fn requires_analysis(&self) -> bool;
+    fn requires_analysis(&self) -> bool { false }
+    fn get_analysis_hash(&self) -> String { String::new() }
 }
 
 pub trait StreamProcessor: BaseProcessor {
