@@ -6,10 +6,17 @@ use std::{
 
 use libloading::{Library, Symbol};
 use musicum_processor_sdk::{
-    abi_stable::std_types::{RBox, RSliceMut},
-    analyzer::AnalysisContext,
-    ffi::{AbiStreamProcessor_TO, AbiStructuralProcessor_TO, ProcessorDescriptorFFI, ProcessorEntry},
-    processor::{BaseProcessor, ProcessorContext, ProcessorDescriptor, Segment, StreamProcessor, StructuralProcessor},
+    abi_stable::std_types::{RBox, RSlice, RSliceMut},
+    analyzer::{AnalysisContext, AnalysisRequest, AnalysisResult, AudioAnalyser},
+    ffi::{
+        AbiAnalyzer_TO, AbiStreamProcessor_TO, AbiStructuralProcessor_TO,
+        AnalysisContextFFI, AnalysisRequestFFI,
+        AnalyzerDescriptorFFI, ProcessorDescriptorFFI, ProcessorEntry,
+    },
+    processor::{
+        BaseProcessor, ProcessorContext, ProcessorDescriptor, Segment,
+        StreamProcessor, StructuralProcessor,
+    },
 };
 
 pub enum ProcessorLoadError {
@@ -39,9 +46,11 @@ impl std::fmt::Debug for ProcessorLoadError {
 impl std::error::Error for ProcessorLoadError {}
 
 struct RegistryEntry {
-    descriptor: &'static ProcessorDescriptorFFI,
-    lib: Arc<Library>,
-    create_fn: unsafe extern "C" fn() -> ProcessorEntry,
+    descriptor:      &'static ProcessorDescriptorFFI,
+    lib:             Arc<Library>,
+    create_fn:       unsafe extern "C" fn() -> ProcessorEntry,
+    analyzer_desc:   Option<&'static AnalyzerDescriptorFFI>,
+    analyzer_create: Option<unsafe extern "C" fn() -> AbiAnalyzer_TO<'static, RBox<()>>>,
 }
 
 pub struct LoadedProcessor {
@@ -73,13 +82,18 @@ pub struct FfiStreamProcessor {
 }
 
 impl BaseProcessor for FfiStreamProcessor {
-    fn init(&mut self, ctx: &ProcessorContext, _: &mut AnalysisContext) {
-        self.inner.init(*ctx);
+    fn init(&mut self, ctx: &ProcessorContext, analysis: &mut AnalysisContext) {
+        let ffi_in = AnalysisContextFFI::from_context(analysis);
+        let ffi_out = self.inner.init(*ctx, ffi_in);
+        ffi_out.drain_into(analysis);
     }
     fn descriptor(&self) -> &'static ProcessorDescriptor { unimplemented!() }
     fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }
     fn set_parameter(&mut self, id: &str, value: f64) { self.inner.set_parameter(id.into(), value); }
     fn requires_analysis(&self) -> bool { self.inner.requires_analysis() }
+    fn get_analysis_hash(&self) -> String {
+        self.inner.get_analysis_hash().into()
+    }
 }
 
 impl StreamProcessor for FfiStreamProcessor {
@@ -94,19 +108,82 @@ pub struct FfiStructuralProcessor {
 }
 
 impl BaseProcessor for FfiStructuralProcessor {
-    fn init(&mut self, ctx: &ProcessorContext, _: &mut AnalysisContext) {
-        self.inner.init(*ctx);
+    fn init(&mut self, ctx: &ProcessorContext, analysis: &mut AnalysisContext) {
+        let ffi_in = AnalysisContextFFI::from_context(analysis);
+        let ffi_out = self.inner.init(*ctx, ffi_in);
+        ffi_out.drain_into(analysis);
     }
     fn descriptor(&self) -> &'static ProcessorDescriptor { unimplemented!() }
     fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }
     fn set_parameter(&mut self, id: &str, value: f64) { self.inner.set_parameter(id.into(), value); }
     fn requires_analysis(&self) -> bool { self.inner.requires_analysis() }
+    fn get_analysis_hash(&self) -> String {
+        self.inner.get_analysis_hash().into()
+    }
 }
 
 impl StructuralProcessor for FfiStructuralProcessor {
     fn segments(&self, duration: f64, ctx: &ProcessorContext) -> Vec<Segment> {
         self.inner.segments(duration, *ctx).into_vec()
     }
+}
+
+pub struct FfiAnalyzer {
+    inner:     AbiAnalyzer_TO<'static, RBox<()>>,
+    static_id: &'static str,
+    _lib:      Arc<Library>,
+}
+
+impl FfiAnalyzer {
+    /// Returns the FFI-encoded analyzer output. Unlike the [`AudioAnalyser`]
+    /// trait method (which deserializes via typetag and therefore only
+    /// succeeds when the concrete `AnalysisResult` type is registered in the
+    /// current binary's typetag inventory), this raw form keeps the result
+    /// opaque to the host. Useful when the host needs to store results for
+    /// later forwarding to a processor's `init()` without round-tripping
+    /// through typetag.
+    pub fn analyze_raw(
+        &mut self,
+        samples:   &[f32],
+        time:      f64,
+        exhausted: bool,
+        context:   &ProcessorContext,
+    ) -> Option<musicum_processor_sdk::ffi::AnalysisResultFFI> {
+        match self.inner.analyze(
+            RSlice::from_slice(samples),
+            time,
+            exhausted,
+            *context,
+        ) {
+            musicum_processor_sdk::abi_stable::std_types::ROption::RSome(ffi) => Some(ffi),
+            musicum_processor_sdk::abi_stable::std_types::ROption::RNone => None,
+        }
+    }
+}
+
+impl AudioAnalyser for FfiAnalyzer {
+    fn init(&mut self, request: &AnalysisRequest) {
+        let ffi = AnalysisRequestFFI::from(request);
+        self.inner.init(ffi);
+    }
+
+    fn analyze(
+        &mut self,
+        samples:   &[f32],
+        time:      f64,
+        exhausted: bool,
+        context:   &ProcessorContext,
+    ) -> Option<Box<dyn AnalysisResult>> {
+        self.analyze_raw(samples, time, exhausted, context)
+            .and_then(|ffi| ffi.into_boxed())
+    }
+
+    fn id(&self) -> &'static str { self.static_id }
+}
+
+pub struct LoadedAnalyzer {
+    pub analyzer: FfiAnalyzer,
+    _lib: Arc<Library>,
 }
 
 pub struct ProcessorRegistry {
@@ -165,9 +242,36 @@ impl ProcessorRegistry {
             *sym
         };
 
+        let (analyzer_desc, analyzer_create) = unsafe {
+            let desc_sym: Result<
+                Symbol<unsafe extern "C" fn() -> &'static AnalyzerDescriptorFFI>,
+                _,
+            > = lib.get(b"musicum_analyzer_descriptor\0");
+            match desc_sym {
+                Err(_) => (None, None),
+                Ok(desc_fn) => {
+                    let create_sym: Symbol<
+                        unsafe extern "C" fn() -> AbiAnalyzer_TO<'static, RBox<()>>,
+                    > = lib.get(b"musicum_analyzer_create\0").map_err(|_| {
+                        ProcessorLoadError::SymbolNotFound {
+                            path: path.to_owned(),
+                            symbol: "musicum_analyzer_create",
+                        }
+                    })?;
+                    (Some(desc_fn()), Some(*create_sym))
+                }
+            }
+        };
+
         let id = descriptor.id.as_str().to_owned();
         let lib = Arc::new(lib);
-        self.entries.insert(id, RegistryEntry { descriptor, lib, create_fn });
+        self.entries.insert(id, RegistryEntry {
+            descriptor,
+            lib,
+            create_fn,
+            analyzer_desc,
+            analyzer_create,
+        });
         Ok(())
     }
 
@@ -187,6 +291,27 @@ impl ProcessorRegistry {
 
     pub fn descriptors(&self) -> impl Iterator<Item = &ProcessorDescriptorFFI> {
         self.entries.values().map(|e| e.descriptor)
+    }
+
+    pub fn create_analyzer_for(&self, processor_id: &str) -> Option<LoadedAnalyzer> {
+        let entry = self.entries.get(processor_id)?;
+        let create_fn = entry.analyzer_create?;
+        let inner = unsafe { create_fn() };
+        let static_id = Box::leak(
+            inner.id().as_str().to_owned().into_boxed_str(),
+        );
+        Some(LoadedAnalyzer {
+            analyzer: FfiAnalyzer {
+                inner,
+                static_id,
+                _lib: Arc::clone(&entry.lib),
+            },
+            _lib: Arc::clone(&entry.lib),
+        })
+    }
+
+    pub fn analyzer_descriptor(&self, processor_id: &str) -> Option<&AnalyzerDescriptorFFI> {
+        self.entries.get(processor_id)?.analyzer_desc
     }
 }
 

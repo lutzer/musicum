@@ -44,7 +44,7 @@ pub(crate) mod test_processors {
     pub struct TestTrim { pub start: f64, pub end: f64 }
 
     impl BaseProcessor for TestTrim {
-        fn prepare(&mut self, _: &ProcessorContext, _: &mut AnalysisContext) {}
+        fn init(&mut self, _: &ProcessorContext, _: &mut AnalysisContext) {}
         fn descriptor(&self) -> &'static ProcessorDescriptor { &TEST_TRIM_DESC }
         fn get_parameter(&self, id: &str) -> f64 {
             match id { "start" => self.start, "end" => self.end, _ => 0.0 }
@@ -168,59 +168,17 @@ mod engine_tests {
 mod buffer_tests {
     use std::sync::Arc;
     use std::sync::atomic::Ordering;
-    use crate::audio::producer::{AudioStore, AudioProducer, DecodedChunk,};
+    use crate::audio::producer::{AudioProducer};
     use crate::audio::buffer::{BufferedSource};
     use crate::audio::source::{AudioSource, SymphoniaSource, SharedPipelineState, SourceHandle};
     use crate::audio::structural::StructuralSource;
     use crate::audio::timeline::Timeline;
-
-    fn make_chunk(start_frame: usize, frame_count: usize, channels: u8) -> DecodedChunk {
-        DecodedChunk {
-            start_frame,
-            samples: Arc::from(vec![1.0f32; frame_count * channels as usize]),
-        }
-    }
 
     // Wraps a decoder in a StructuralSource with an identity timeline.
     fn identity_structural(decoder: SymphoniaSource) -> StructuralSource {
         let frames = (decoder.duration_secs() * decoder.sample_rate() as f64).round() as u64;
         let tl = Timeline::identity(frames, decoder.sample_rate());
         StructuralSource::new(Box::new(decoder), Arc::new(std::sync::RwLock::new(tl)))
-    }
-
-    #[test]
-    fn store_starts_empty() {
-        let store = AudioStore::new(100, 2);
-        assert!(store.get_chunk(0).is_none());
-    }
-
-    #[test]
-    fn store_insert_and_retrieve() {
-        let mut store = AudioStore::new(100, 2);
-        store.insert(make_chunk(0, 10, 2));
-        assert!(store.get_chunk(0).is_some());
-        assert!(store.get_chunk(9).is_some());
-        assert!(store.get_chunk(10).is_none());
-    }
-
-    #[test]
-    fn store_get_chunk_by_mid_frame() {
-        let mut store = AudioStore::new(100, 2);
-        store.insert(make_chunk(0, 10, 2));
-        store.insert(make_chunk(10, 10, 2));
-        assert_eq!(store.get_chunk(5).unwrap().start_frame, 0);
-        assert_eq!(store.get_chunk(10).unwrap().start_frame, 10);
-        assert_eq!(store.get_chunk(15).unwrap().start_frame, 10);
-    }
-
-    #[test]
-    fn store_evicts_oldest_when_over_capacity() {
-        // capacity = 10 frames; inserting two 8-frame chunks forces eviction
-        let mut store = AudioStore::new(10, 2);
-        store.insert(make_chunk(0, 8, 2));   // cached = 8
-        store.insert(make_chunk(8, 8, 2));   // cached = 16 > 10 → chunk0 evicted
-        assert!(store.get_chunk(0).is_none());
-        assert!(store.get_chunk(8).is_some());
     }
 
     #[test]
@@ -234,19 +192,16 @@ mod buffer_tests {
 
     #[test]
     fn producer_fills_ring_with_samples() {
-        use std::sync::Mutex;
         let path = super::test_wav_path();
         let decoder = SymphoniaSource::new(&path, 48000, 2).unwrap();
         let sample_rate = decoder.sample_rate() as usize;
         let channels    = decoder.channels() as usize;
         let ring_cap    = 2 * sample_rate * channels;
-        let store_cap   = 30 * sample_rate * channels;
 
         let (ring_tx, ring_rx) = rtrb::RingBuffer::new(ring_cap);
-        let store = Arc::new(Mutex::new(AudioStore::new(store_cap, channels as u8)));
         let state = SharedPipelineState::new();
 
-        let producer = AudioProducer::new(identity_structural(decoder), store, ring_tx, state.clone());
+        let producer = AudioProducer::new(identity_structural(decoder), ring_tx, state.clone());
         std::thread::spawn(|| producer.run());
 
         std::thread::sleep(std::time::Duration::from_millis(200));
@@ -256,7 +211,6 @@ mod buffer_tests {
     #[test]
     #[ignore]
     fn buffered_pipeline_plays_audio() {
-        use std::sync::Mutex;
         use crate::audio::output::{AudioOutput, CpalOutput};
 
         let path = super::test_wav_path();
@@ -266,13 +220,11 @@ mod buffer_tests {
         let channels    = decoder.channels();
         let duration    = decoder.duration_secs();
         let ring_cap    = 2 * sample_rate as usize * channels as usize;
-        let store_cap   = 30 * sample_rate as usize * channels as usize;
 
         let (ring_tx, ring_rx) = rtrb::RingBuffer::new(ring_cap);
-        let store = Arc::new(Mutex::new(AudioStore::new(store_cap, channels)));
         let state = SharedPipelineState::new();
 
-        let producer = AudioProducer::new(identity_structural(decoder), store, ring_tx, state.clone());
+        let producer = AudioProducer::new(identity_structural(decoder), ring_tx, state.clone());
         let source   = BufferedSource::new(ring_rx, sample_rate, channels, duration, state.clone());
 
         std::thread::spawn(|| producer.run());

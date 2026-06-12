@@ -42,6 +42,11 @@ impl Default for OscilloscopeProcessor {
 }
 
 impl BaseProcessor for OscilloscopeProcessor {
+    fn init(
+        &mut self,
+        _context: &musicum_processor_sdk::processor::ProcessorContext,
+        _analysis: &mut musicum_processor_sdk::analyzer::AnalysisContext,
+    ) {}
 
     fn descriptor(&self) -> &'static ProcessorDescriptor { &DESCRIPTOR }
 

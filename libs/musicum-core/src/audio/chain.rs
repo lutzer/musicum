@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use musicum_processor_sdk::BaseProcessor;
 use uuid::Uuid;
 
 use musicum_processor_sdk::processor::{ProcessorContext, StreamProcessor, StructuralProcessor};
@@ -10,25 +11,25 @@ use crate::audio::timeline::Timeline;
 use crate::edit::{ProcessorEdit, ProcessorEditType};
 use crate::processor_loader::ProcessorRegistry;
 
-pub type ProcessorHandle = Arc<Mutex<Box<dyn StreamProcessor>>>;
+pub type StreamHandle = Arc<Mutex<Box<dyn StreamProcessor>>>;
 pub type StructuralHandle = Arc<Mutex<Box<dyn StructuralProcessor>>>;
-
+pub type BaseHandle = Arc<Mutex<Box<dyn BaseProcessor>>>;
 
 // TODO: change entries and structural entries to hashmap, rename entries to stream_entries
 
 pub struct ProcessorChain {
-    entries: Vec<(Uuid, ProcessorHandle)>,
+    stream_entries: Vec<(Uuid, StreamHandle)>,
     structural_entries: Vec<(Uuid, StructuralHandle)>,
     structure_dirty: bool
 }
 
 impl ProcessorChain {
     pub fn empty() -> Self {
-        Self { entries: vec![], structural_entries: vec![], structure_dirty: false }
+        Self { stream_entries: vec![], structural_entries: vec![], structure_dirty: false }
     }
 
     pub fn from_edits(edits: &[ProcessorEdit], registry: &ProcessorRegistry) -> Self {
-        let mut entries = Vec::new();
+        let mut stream_entries = Vec::new();
         let mut structural_entries = Vec::new();
         for edit in edits {
             if !edit.enabled { continue; }
@@ -37,7 +38,7 @@ impl ProcessorChain {
                     let Some(loaded) = registry.create(&edit.processor_id) else { continue };
                     let Some(mut proc) = loaded.into_stream_processor() else { continue };
                     for (id, &value) in &edit.params { proc.set_parameter(id, value); }
-                    entries.push((edit.uuid, Arc::new(Mutex::new(proc)) as ProcessorHandle));
+                    stream_entries.push((edit.uuid, Arc::new(Mutex::new(proc)) as StreamHandle));
                 }
                 ProcessorEditType::StructuralProcessor => {
                     let Some(loaded) = registry.create(&edit.processor_id) else { continue };
@@ -48,7 +49,7 @@ impl ProcessorChain {
                 ProcessorEditType::Analyzer => {}
             }
         }
-        Self { entries, structural_entries, structure_dirty : true }
+        Self { stream_entries, structural_entries, structure_dirty : true }
     }
 
     pub fn build_timeline(
@@ -66,18 +67,18 @@ impl ProcessorChain {
     }
 
     pub fn build_source(&self, root: Box<dyn AudioSource>) -> Box<dyn AudioSource> {
-        self.entries.iter().fold(root, |upstream, (_, handle)| {
+        self.stream_entries.iter().fold(root, |upstream, (_, handle)| {
             Box::new(StreamProcessorNode::new(upstream, Arc::clone(handle)))
                 as Box<dyn AudioSource>
         })
     }
 
-    pub fn get_handle(&self, uuid: &Uuid) -> Option<&ProcessorHandle> {
-        self.entries.iter().find(|(id, _)| id == uuid).map(|(_, h)| h)
+    pub fn get_stream_handle(&self, uuid: &Uuid) -> Option<&StreamHandle> {
+        self.stream_entries.iter().find(|(id, _)| id == uuid).map(|(_, h)| h)
     }
 
-    pub fn handles(&self) -> impl Iterator<Item = (&Uuid, &ProcessorHandle)> {
-        self.entries.iter().map(|(id, h)| (id, h))
+    pub fn stream_handles(&self) -> impl Iterator<Item = (&Uuid, &StreamHandle)> {
+        self.stream_entries.iter().map(|(id, h)| (id, h))
     }
 
     pub fn get_structural_handle(&self, uuid: &Uuid) -> Option<&StructuralHandle> {
@@ -88,12 +89,10 @@ impl ProcessorChain {
         self.structural_entries.iter().map(|(id, h)| (id, h))
     }
 
-    pub fn has_structural(&self) -> bool { !self.structural_entries.is_empty() }
-
     /// Routes a parameter change to whichever handle owns `uuid` and reports
     /// which kind was touched (None if the uuid is unknown).
     pub fn set_parameter(&mut self, uuid: &Uuid, param_id: &str, value: f64) {
-        if let Some(h) = self.get_handle(uuid) {
+        if let Some(h) = self.get_stream_handle(uuid) {
             h.lock().unwrap().set_parameter(param_id, value);
         }
         if let Some(h) = self.get_structural_handle(uuid) {
@@ -107,8 +106,6 @@ impl ProcessorChain {
         self.structural_entries.push((uuid, handle));
     }
 
-    pub fn len(&self) -> usize { self.entries.len() }
-    pub fn is_empty(&self) -> bool { self.entries.is_empty() }
     pub fn is_structure_dirty(&self) -> bool { self.structure_dirty }
     pub fn set_structure_dirty(&mut self, dirty: bool) { self.structure_dirty = dirty }
 }
@@ -132,7 +129,8 @@ mod tests {
     fn empty_edits_produces_empty_chain() {
         let registry = ProcessorRegistry::new();
         let chain = ProcessorChain::from_edits(&[], &registry);
-        assert!(chain.is_empty());
+        assert!(chain.stream_handles().count() == 0);
+        assert!(chain.structural_handles().count() == 0);
     }
 
     #[test]
@@ -140,7 +138,8 @@ mod tests {
         let registry = ProcessorRegistry::new();
         let edits = vec![edit(ProcessorEditType::StreamProcessor, false, "gain")];
         let chain = ProcessorChain::from_edits(&edits, &registry);
-        assert!(chain.is_empty());
+        assert!(chain.stream_handles().count() == 0);
+        assert!(chain.structural_handles().count() == 0);
     }
 
     #[test]
@@ -148,7 +147,7 @@ mod tests {
         let registry = ProcessorRegistry::new();
         let edits = vec![edit(ProcessorEditType::StructuralProcessor, true, "trim")];
         let chain = ProcessorChain::from_edits(&edits, &registry);
-        assert!(!chain.has_structural());
+        assert!(chain.structural_handles().count() > 0);
     }
 
     #[test]
@@ -156,7 +155,7 @@ mod tests {
         let registry = ProcessorRegistry::new();
         let edits = vec![edit(ProcessorEditType::StructuralProcessor, false, "trim")];
         let chain = ProcessorChain::from_edits(&edits, &registry);
-        assert!(!chain.has_structural());
+        assert!(chain.structural_handles().count() == 0);
     }
 
     #[test]
@@ -201,7 +200,8 @@ mod tests {
         let registry = ProcessorRegistry::new();
         let edits = vec![edit(ProcessorEditType::Analyzer, true, "lufs")];
         let chain = ProcessorChain::from_edits(&edits, &registry);
-        assert!(chain.is_empty());
+        assert!(chain.stream_handles().count() == 0);
+        assert!(chain.structural_handles().count() == 0);
     }
 
     #[test]
@@ -209,12 +209,13 @@ mod tests {
         let registry = ProcessorRegistry::new();
         let edits = vec![edit(ProcessorEditType::StreamProcessor, true, "nonexistent")];
         let chain = ProcessorChain::from_edits(&edits, &registry);
-        assert!(chain.is_empty());
+        assert!(chain.stream_handles().count() == 0);
+        assert!(chain.structural_handles().count() == 0);
     }
 
     #[test]
     fn get_handle_returns_none_for_unknown_uuid() {
         let chain = ProcessorChain::empty();
-        assert!(chain.get_handle(&Uuid::new_v4()).is_none());
+        assert!(chain.get_stream_handle(&Uuid::new_v4()).is_none());
     }
 }

@@ -5,26 +5,40 @@
 /// export_processor!(MyProcessor, Stream);
 /// export_processor!(MyProcessor, Structural);
 /// export_processor!(MyProcessor, Analyzer);
+/// export_processor!(MyProcessor, Stream, with: MyAnalyzer);
+/// export_processor!(MyProcessor, Structural, with: MyAnalyzer);
 /// ```
 ///
 /// `T` must implement the corresponding native trait and `Default`.
 /// Generates `musicum_processor_descriptor` and `musicum_processor_create`
-/// as `#[no_mangle] extern "C"` symbols.
+/// as `#[no_mangle] extern "C"` symbols. The `with:` form additionally
+/// emits `musicum_analyzer_descriptor` and `musicum_analyzer_create`.
 #[macro_export]
 macro_rules! export_processor {
     ($ty:ty, Stream) => {
         const _: () = {
             use $crate::ffi::{
-                AbiStreamProcessor, AbiStreamProcessor_TO, ProcessorDescriptorFFI, ProcessorEntry,
+                AbiStreamProcessor, AbiStreamProcessor_TO,
+                AnalysisContextFFI, ProcessorDescriptorFFI, ProcessorEntry,
             };
             use $crate::processor::{BaseProcessor, StreamProcessor};
-            use $crate::abi_stable::{erased_types::TD_Opaque, std_types::{RStr, RSliceMut}};
+            use $crate::abi_stable::{
+                erased_types::TD_Opaque,
+                std_types::{RStr, RString, RSliceMut},
+            };
 
             struct _FfiAdapter($ty);
 
             impl AbiStreamProcessor for _FfiAdapter {
-                fn init(&mut self, ctx: $crate::processor::ProcessorContext) {
-                    self.0.init(&ctx, &mut ::std::default::Default::default());
+                fn init(
+                    &mut self,
+                    ctx: $crate::processor::ProcessorContext,
+                    analysis: AnalysisContextFFI,
+                ) -> AnalysisContextFFI {
+                    let mut native = $crate::analyzer::AnalysisContext::default();
+                    analysis.drain_into(&mut native);
+                    self.0.init(&ctx, &mut native);
+                    AnalysisContextFFI::from_context(&mut native)
                 }
                 fn get_parameter(&self, id: RStr<'_>) -> f64 {
                     self.0.get_parameter(id.as_str())
@@ -35,7 +49,15 @@ macro_rules! export_processor {
                 fn requires_analysis(&self) -> bool {
                     self.0.requires_analysis()
                 }
-                fn process(&mut self, mut samples: RSliceMut<'_, f32>, time: f64, ctx: $crate::processor::ProcessorContext) {
+                fn get_analysis_hash(&self) -> RString {
+                    RString::from(self.0.get_analysis_hash())
+                }
+                fn process(
+                    &mut self,
+                    mut samples: RSliceMut<'_, f32>,
+                    time: f64,
+                    ctx: $crate::processor::ProcessorContext,
+                ) {
                     self.0.process(samples.as_mut_slice(), time, &ctx);
                 }
             }
@@ -65,16 +87,24 @@ macro_rules! export_processor {
     ($ty:ty, Structural) => {
         const _: () = {
             use $crate::ffi::{
-                AbiStructuralProcessor, AbiStructuralProcessor_TO, ProcessorDescriptorFFI, ProcessorEntry,
+                AbiStructuralProcessor, AbiStructuralProcessor_TO,
+                AnalysisContextFFI, ProcessorDescriptorFFI, ProcessorEntry,
             };
             use $crate::processor::{BaseProcessor, StructuralProcessor};
-            use $crate::abi_stable::{erased_types::TD_Opaque, std_types::RStr};
+            use $crate::abi_stable::{erased_types::TD_Opaque, std_types::{RStr, RString}};
 
             struct _FfiAdapter($ty);
 
             impl AbiStructuralProcessor for _FfiAdapter {
-                fn init(&mut self, ctx: $crate::processor::ProcessorContext) {
-                    self.0.init(&ctx, &mut ::std::default::Default::default());
+                fn init(
+                    &mut self,
+                    ctx: $crate::processor::ProcessorContext,
+                    analysis: AnalysisContextFFI,
+                ) -> AnalysisContextFFI {
+                    let mut native = $crate::analyzer::AnalysisContext::default();
+                    analysis.drain_into(&mut native);
+                    self.0.init(&ctx, &mut native);
+                    AnalysisContextFFI::from_context(&mut native)
                 }
                 fn get_parameter(&self, id: RStr<'_>) -> f64 {
                     self.0.get_parameter(id.as_str())
@@ -85,9 +115,14 @@ macro_rules! export_processor {
                 fn requires_analysis(&self) -> bool {
                     self.0.requires_analysis()
                 }
-                fn segments(&self, duration: f64, ctx: $crate::processor::ProcessorContext)
-                    -> $crate::abi_stable::std_types::RVec<$crate::processor::Segment>
-                {
+                fn get_analysis_hash(&self) -> RString {
+                    RString::from(self.0.get_analysis_hash())
+                }
+                fn segments(
+                    &self,
+                    duration: f64,
+                    ctx: $crate::processor::ProcessorContext,
+                ) -> $crate::abi_stable::std_types::RVec<$crate::processor::Segment> {
                     self.0.segments(duration, &ctx).into()
                 }
             }
@@ -117,17 +152,35 @@ macro_rules! export_processor {
     ($ty:ty, Analyzer) => {
         const _: () = {
             use $crate::ffi::{
-                AbiAnalyzer, AbiAnalyzer_TO, ProcessorDescriptorFFI, ProcessorEntry,
+                AbiAnalyzer, AbiAnalyzer_TO,
+                AnalysisRequestFFI, AnalysisResultFFI,
+                ProcessorDescriptorFFI, ProcessorEntry,
             };
             use $crate::analyzer::AudioAnalyser;
-            use $crate::abi_stable::{erased_types::TD_Opaque, std_types::{RSlice, RStr}};
+            use $crate::abi_stable::{
+                erased_types::TD_Opaque,
+                std_types::{ROption, RSlice, RString},
+            };
 
             struct _FfiAdapter($ty);
 
             impl AbiAnalyzer for _FfiAdapter {
-                fn init(&mut self, _ctx: $crate::processor::ProcessorContext) {}
-                fn analyze(&self, samples: RSlice<'_, f32>, ctx: $crate::processor::ProcessorContext) {
-                    self.0.analyze(samples.as_slice(), &ctx, &mut ::std::default::Default::default());
+                fn id(&self) -> RString { RString::from(self.0.id()) }
+                fn init(&mut self, request: AnalysisRequestFFI) {
+                    let native = $crate::analyzer::AnalysisRequest::from(&request);
+                    self.0.init(&native);
+                }
+                fn analyze(
+                    &mut self,
+                    samples:   RSlice<'_, f32>,
+                    time:      f64,
+                    exhausted: bool,
+                    ctx:       $crate::processor::ProcessorContext,
+                ) -> ROption<AnalysisResultFFI> {
+                    match self.0.analyze(samples.as_slice(), time, exhausted, &ctx) {
+                        Some(boxed) => ROption::RSome(AnalysisResultFFI::from_boxed(&boxed)),
+                        None => ROption::RNone,
+                    }
                 }
             }
 
@@ -148,6 +201,78 @@ macro_rules! export_processor {
                         _FfiAdapter(<$ty as ::std::default::Default>::default()),
                         TD_Opaque,
                     )
+                )
+            }
+        };
+    };
+
+    ($ty:ty, Stream, with: $an:ty) => {
+        $crate::export_processor!($ty, Stream);
+        $crate::__export_bundled_analyzer!($an);
+    };
+    ($ty:ty, Structural, with: $an:ty) => {
+        $crate::export_processor!($ty, Structural);
+        $crate::__export_bundled_analyzer!($an);
+    };
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __export_bundled_analyzer {
+    ($an:ty) => {
+        const _: () = {
+            use $crate::ffi::{
+                AbiAnalyzer, AbiAnalyzer_TO,
+                AnalysisRequestFFI, AnalysisResultFFI,
+                AnalyzerDescriptorFFI,
+            };
+            use $crate::analyzer::AudioAnalyser;
+            use $crate::abi_stable::{
+                erased_types::TD_Opaque,
+                std_types::{ROption, RSlice, RStr, RString},
+            };
+
+            struct _FfiAnalyzerAdapter($an);
+
+            impl AbiAnalyzer for _FfiAnalyzerAdapter {
+                fn id(&self) -> RString { RString::from(self.0.id()) }
+                fn init(&mut self, request: AnalysisRequestFFI) {
+                    let native = $crate::analyzer::AnalysisRequest::from(&request);
+                    self.0.init(&native);
+                }
+                fn analyze(
+                    &mut self,
+                    samples:   RSlice<'_, f32>,
+                    time:      f64,
+                    exhausted: bool,
+                    ctx:       $crate::processor::ProcessorContext,
+                ) -> ROption<AnalysisResultFFI> {
+                    match self.0.analyze(samples.as_slice(), time, exhausted, &ctx) {
+                        Some(boxed) => ROption::RSome(AnalysisResultFFI::from_boxed(&boxed)),
+                        None => ROption::RNone,
+                    }
+                }
+            }
+
+            #[no_mangle]
+            pub extern "C" fn musicum_analyzer_descriptor() -> &'static AnalyzerDescriptorFFI {
+                static DESC: ::std::sync::OnceLock<AnalyzerDescriptorFFI> = ::std::sync::OnceLock::new();
+                DESC.get_or_init(|| {
+                    let id: &'static str = <$an as ::std::default::Default>::default().id();
+                    AnalyzerDescriptorFFI {
+                        id:   RStr::from(id),
+                        name: RStr::from(id),
+                    }
+                })
+            }
+
+            #[no_mangle]
+            pub extern "C" fn musicum_analyzer_create()
+                -> AbiAnalyzer_TO<'static, $crate::abi_stable::std_types::RBox<()>>
+            {
+                AbiAnalyzer_TO::from_value(
+                    _FfiAnalyzerAdapter(<$an as ::std::default::Default>::default()),
+                    TD_Opaque,
                 )
             }
         };

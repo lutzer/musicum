@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use musicum_processor_sdk::processor::ProcessorContext;
 
+use crate::audio::analyzer::ChainAnalyzer;
 use crate::audio::buffer::BufferedSource;
 use crate::audio::chain::{ProcessorChain};
 use crate::audio::output::{AudioOutput, AudioOutputError, CpalOutput};
@@ -138,6 +139,10 @@ impl AudioEngine for CpalEngine {
         let source = chain.build_source(buffered);
 
         std::thread::spawn(|| producer.run());
+
+        // run analyzer
+        let analyzer = ChainAnalyzer {};
+        analyzer.run_analysis(&chain);
 
         self.output.set_source(source)?;
         self.source_handle = Some(SourceHandle::new(state, src_rate, src_ch, out_duration));

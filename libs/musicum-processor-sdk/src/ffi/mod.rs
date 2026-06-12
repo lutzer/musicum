@@ -1,8 +1,17 @@
 #![allow(non_local_definitions)]
 
+pub mod analysis;
+pub use analysis::{
+    AnalysisContextFFI, AnalysisRequestFFI, AnalysisResultFFI,
+    AnalyzerDescriptorFFI,
+};
+
+#[cfg(test)]
+mod tests;
+
 use abi_stable::{
     sabi_trait,
-    std_types::{RBox, RSlice, RSliceMut, RStr, RVec},
+    std_types::{RBox, RSlice, RSliceMut, RStr, RString, RVec},
     StableAbi,
 };
 
@@ -112,26 +121,43 @@ impl From<&'static ProcessorParamaterInfo> for ProcessorParamFFI {
 
 #[sabi_trait]
 pub trait AbiStreamProcessor: Send + Sync {
-    fn init(&mut self, ctx: ProcessorContext);
+    fn init(
+        &mut self,
+        ctx: ProcessorContext,
+        analysis: AnalysisContextFFI,
+    ) -> AnalysisContextFFI;
     fn get_parameter(&self, id: RStr<'_>) -> f64;
     fn set_parameter(&mut self, id: RStr<'_>, value: f64);
     fn requires_analysis(&self) -> bool;
+    fn get_analysis_hash(&self) -> RString;
     fn process(&mut self, samples: RSliceMut<'_, f32>, time: f64, ctx: ProcessorContext);
 }
 
 #[sabi_trait]
 pub trait AbiStructuralProcessor: Send + Sync {
-    fn init(&mut self, ctx: ProcessorContext);
+    fn init(
+        &mut self,
+        ctx: ProcessorContext,
+        analysis: AnalysisContextFFI,
+    ) -> AnalysisContextFFI;
     fn get_parameter(&self, id: RStr<'_>) -> f64;
     fn set_parameter(&mut self, id: RStr<'_>, value: f64);
     fn requires_analysis(&self) -> bool;
+    fn get_analysis_hash(&self) -> RString;
     fn segments(&self, duration: f64, ctx: ProcessorContext) -> RVec<Segment>;
 }
 
 #[sabi_trait]
 pub trait AbiAnalyzer: Send + Sync {
-    fn init(&mut self, ctx: ProcessorContext);
-    fn analyze(&self, samples: RSlice<'_, f32>, ctx: ProcessorContext);
+    fn id(&self) -> RString;
+    fn init(&mut self, request: AnalysisRequestFFI);
+    fn analyze(
+        &mut self,
+        samples:   RSlice<'_, f32>,
+        time:      f64,
+        exhausted: bool,
+        ctx:       ProcessorContext,
+    ) -> abi_stable::std_types::ROption<AnalysisResultFFI>;
 }
 
 // ── ProcessorEntry enum ───────────────────────────────────────────────────────

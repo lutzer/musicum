@@ -28,6 +28,7 @@ pub mod node;
 pub mod chain;
 pub mod timeline;
 pub mod structural;
+pub mod analyzer;
 
 #[cfg(test)]
 mod tests;

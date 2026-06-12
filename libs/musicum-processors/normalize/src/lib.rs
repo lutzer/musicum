@@ -5,6 +5,7 @@ use musicum_processor_sdk::{analyzer::{AnalysisRequest}, parameters::{FloatParam
 use crate::analyzer::NormalizeAnalyzerResult;
 
 pub mod analyzer;
+pub use analyzer::NormalizeAnalyzer;
 
 pub static ANALYZER_ID : &'static str = "normalize_analyzer";
 
@@ -15,7 +16,7 @@ static NORMALIZE_PARAMS: [ProcessorParamaterInfo; 2] = [
         unit: "dBFS", editable: true,
     },
     ProcessorParamaterInfo::Float {
-        id: "_computed_gain", name: "Computed Gain",
+        id: "computed_gain", name: "Computed Gain",
         min: 0.0, max: 100.0, default: 1.0, step: 0.001,
         unit: "x", editable: false,
     },
@@ -106,7 +107,11 @@ impl StreamProcessor for NormalizeProcessor {
     }
 }
 
-musicum_processor_sdk::export_processor!(NormalizeProcessor, Stream);
+musicum_processor_sdk::export_processor!(
+    NormalizeProcessor,
+    Stream,
+    with: NormalizeAnalyzer
+);
 
 #[cfg(test)]
 mod tests {

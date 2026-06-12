@@ -24,6 +24,7 @@ rtrb        = "0.3"
 slug        = "0.1"
 walkdir     = "2"
 libloading  = "0.8"
+bincode     = { workspace = true }
 
 musicum-processor-sdk = { path = "../musicum-processor-sdk" }
 

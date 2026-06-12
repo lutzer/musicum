@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use musicum_processor_sdk::{analyzer::{AnalysisContext, AnalysisRequest, AnalysisResult, AudioAnalyser}, processor::ProcessorContext};
+use musicum_processor_sdk::{analyzer::{AnalysisRequest, AnalysisResult, AudioAnalyser}, processor::ProcessorContext};
 use serde::{Serialize, Deserialize};
 
 use crate::ANALYZER_ID;

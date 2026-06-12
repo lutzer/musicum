@@ -76,3 +76,22 @@
 * [ ] automatic slicing
 * [ ] transient detection (serato sample)
 * [ ] sample / lange files getrennt im player 
+
+### Analysis Pipeline
+
+#### sdk changes
+
+* analyze hashes need to take the specific instance into account. so they need to get the processors uuid passed. -> change sdk
+
+#### pipeline
+
+* Analyzers should be run sequentually.
+* each analyzer builds a chain of previous processors and then runs the analysis on that chain
+* analyzes runs on raw data. it does not need to be resampled, it just needs to be structualy edited and processed by previous stream processors in the chain.
+* analyzer should run in a seperate thread that reports back progress to the ui together with the uuid of the processor that requested it. once the result came back it should reinit the processor with the results
+* when structural processors received analysis results, the playback should be paused to rebuild the chain and then immediatly resumed.
+
+#### caching of results
+
+* the analyzer should save the analysis results in a file in the generated dir. sidecar is called clip-uuid.analysis.json - or in whatever format it makes sense to serialize it
+* when a clip is loaded the previous analisis results are loaded from that file and the processors check if the result is already present.
