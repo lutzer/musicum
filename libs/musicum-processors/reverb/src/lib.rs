@@ -77,7 +77,7 @@ impl Default for ReverbPlugin {
 }
 
 impl BaseProcessor for ReverbPlugin {
-    fn prepare(
+    fn init(
         &mut self,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
         _ctx: &mut musicum_processor_sdk::analyzer::AnalysisContext,

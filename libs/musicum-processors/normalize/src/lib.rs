@@ -45,7 +45,7 @@ impl Default for NormalizeProcessor {
 }
 
 impl BaseProcessor for NormalizeProcessor {
-    fn prepare(
+    fn init(
         &mut self,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
         analysis_context: &mut musicum_processor_sdk::analyzer::AnalysisContext,

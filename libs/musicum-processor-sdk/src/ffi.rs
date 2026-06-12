@@ -112,7 +112,7 @@ impl From<&'static ProcessorParamaterInfo> for ProcessorParamFFI {
 
 #[sabi_trait]
 pub trait AbiStreamProcessor: Send + Sync {
-    fn prepare(&mut self, ctx: ProcessorContext);
+    fn init(&mut self, ctx: ProcessorContext);
     fn get_parameter(&self, id: RStr<'_>) -> f64;
     fn set_parameter(&mut self, id: RStr<'_>, value: f64);
     fn requires_analysis(&self) -> bool;
@@ -121,7 +121,7 @@ pub trait AbiStreamProcessor: Send + Sync {
 
 #[sabi_trait]
 pub trait AbiStructuralProcessor: Send + Sync {
-    fn prepare(&mut self, ctx: ProcessorContext);
+    fn init(&mut self, ctx: ProcessorContext);
     fn get_parameter(&self, id: RStr<'_>) -> f64;
     fn set_parameter(&mut self, id: RStr<'_>, value: f64);
     fn requires_analysis(&self) -> bool;
@@ -130,7 +130,7 @@ pub trait AbiStructuralProcessor: Send + Sync {
 
 #[sabi_trait]
 pub trait AbiAnalyzer: Send + Sync {
-    fn prepare(&mut self, ctx: ProcessorContext);
+    fn init(&mut self, ctx: ProcessorContext);
     fn analyze(&self, samples: RSlice<'_, f32>, ctx: ProcessorContext);
 }
 

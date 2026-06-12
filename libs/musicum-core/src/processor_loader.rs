@@ -73,8 +73,8 @@ pub struct FfiStreamProcessor {
 }
 
 impl BaseProcessor for FfiStreamProcessor {
-    fn prepare(&mut self, ctx: &ProcessorContext, _: &mut AnalysisContext) {
-        self.inner.prepare(*ctx);
+    fn init(&mut self, ctx: &ProcessorContext, _: &mut AnalysisContext) {
+        self.inner.init(*ctx);
     }
     fn descriptor(&self) -> &'static ProcessorDescriptor { unimplemented!() }
     fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }
@@ -94,8 +94,8 @@ pub struct FfiStructuralProcessor {
 }
 
 impl BaseProcessor for FfiStructuralProcessor {
-    fn prepare(&mut self, ctx: &ProcessorContext, _: &mut AnalysisContext) {
-        self.inner.prepare(*ctx);
+    fn init(&mut self, ctx: &ProcessorContext, _: &mut AnalysisContext) {
+        self.inner.init(*ctx);
     }
     fn descriptor(&self) -> &'static ProcessorDescriptor { unimplemented!() }
     fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }

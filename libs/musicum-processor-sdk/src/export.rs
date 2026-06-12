@@ -23,8 +23,8 @@ macro_rules! export_processor {
             struct _FfiAdapter($ty);
 
             impl AbiStreamProcessor for _FfiAdapter {
-                fn prepare(&mut self, ctx: $crate::processor::ProcessorContext) {
-                    self.0.prepare(&ctx, &mut ::std::default::Default::default());
+                fn init(&mut self, ctx: $crate::processor::ProcessorContext) {
+                    self.0.init(&ctx, &mut ::std::default::Default::default());
                 }
                 fn get_parameter(&self, id: RStr<'_>) -> f64 {
                     self.0.get_parameter(id.as_str())
@@ -73,8 +73,8 @@ macro_rules! export_processor {
             struct _FfiAdapter($ty);
 
             impl AbiStructuralProcessor for _FfiAdapter {
-                fn prepare(&mut self, ctx: $crate::processor::ProcessorContext) {
-                    self.0.prepare(&ctx, &mut ::std::default::Default::default());
+                fn init(&mut self, ctx: $crate::processor::ProcessorContext) {
+                    self.0.init(&ctx, &mut ::std::default::Default::default());
                 }
                 fn get_parameter(&self, id: RStr<'_>) -> f64 {
                     self.0.get_parameter(id.as_str())
@@ -125,7 +125,7 @@ macro_rules! export_processor {
             struct _FfiAdapter($ty);
 
             impl AbiAnalyzer for _FfiAdapter {
-                fn prepare(&mut self, _ctx: $crate::processor::ProcessorContext) {}
+                fn init(&mut self, _ctx: $crate::processor::ProcessorContext) {}
                 fn analyze(&self, samples: RSlice<'_, f32>, ctx: $crate::processor::ProcessorContext) {
                     self.0.analyze(samples.as_slice(), &ctx, &mut ::std::default::Default::default());
                 }

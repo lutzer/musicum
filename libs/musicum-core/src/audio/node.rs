@@ -28,7 +28,7 @@ impl StreamProcessorNode {
         node.processor
             .lock()
             .unwrap()
-            .prepare(&node.context, &mut AnalysisContext::default());
+            .init(&node.context, &mut AnalysisContext::default());
         node
     }
 }

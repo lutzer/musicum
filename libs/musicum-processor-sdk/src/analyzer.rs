@@ -51,8 +51,7 @@ pub trait AudioAnalyser {
         time: f64,
         exhausted: bool,
         context: &ProcessorContext,
-        analysis_context: &mut AnalysisContext,
-    );
+    ) -> Option<Box<dyn AnalysisResult>>;
 
     fn id(&self) -> &'static str;
 }

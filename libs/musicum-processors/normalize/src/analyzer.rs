@@ -33,9 +33,8 @@ impl AudioAnalyser for NormalizeAnalyzer {
         samples: &[f32],
         _time: f64,
         exhausted: bool,
-        _context: &ProcessorContext,
-        analysis_context: &mut AnalysisContext,
-    ) {
+        _context: &ProcessorContext
+    ) -> Option<Box<dyn AnalysisResult>> {
         for &s in samples {
             let abs = s.abs();
             if abs > self.peak {
@@ -45,8 +44,9 @@ impl AudioAnalyser for NormalizeAnalyzer {
 
         if exhausted {
             let result = NormalizeAnalyzerResult{ peak: self.peak };
-            analysis_context.results.insert(self.hash.clone(), Box::from(result));
+            return Some(Box::from(result))
         }
+        None
     }
 
     fn id(&self) -> &'static str {
