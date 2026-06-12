@@ -117,7 +117,7 @@ fn generate_zsh<C: CommandFactory>() -> Result<()> {
     // Rename so our wrapper can delegate to it.
     let clap_renamed = clap_out.replace("_musicum() {", "_musicum_clap() {");
 
-    print!("{}", clap_renamed);
+    print!("{clap_renamed}");
     print!("{}", zsh_slug_augmentation());
     Ok(())
 }
@@ -202,7 +202,7 @@ fn generate_bash<C: CommandFactory>() -> Result<()> {
         .replace("_musicum() {", "_musicum_static() {")
         .replace("complete -F _musicum musicum", "# (re-registered below)");
 
-    print!("{}", clap_static);
+    print!("{clap_static}");
     print!("{}", bash_slug_augmentation());
     Ok(())
 }

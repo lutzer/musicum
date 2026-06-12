@@ -163,11 +163,9 @@ mod tests {
     #[test]
     fn detail_key_width_computed_across_sections() {
         use super::DetailItem::{Field, Section};
-        let items = vec![
-            Field("slug", "my-clip".into()),
+        let items = [Field("slug", "my-clip".into()),
             Section("file"),
-            Field("path", "/music/x.flac".into()),
-        ];
+            Field("path", "/music/x.flac".into())];
         let key_w = items
             .iter()
             .filter_map(|i| if let super::DetailItem::Field(k, _) = i { Some(k.len()) } else { None })

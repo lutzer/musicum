@@ -14,26 +14,26 @@ pub struct PlaybackQueue {
 impl PlaybackQueue {
 
     pub fn new(items: Vec<PlaybackQueueItem>) -> PlaybackQueue {
-        return PlaybackQueue {
+        PlaybackQueue {
             items, current_index: 0
         }
     }
 
-    pub fn next(&mut self) -> Option<&PlaybackQueueItem> {
+    pub fn next_item(&mut self) -> Option<&PlaybackQueueItem> {
         if self.current_index < self.length() - 1 {
             self.current_index += 1;
-            return Some(&self.items[self.current_index]);
+            Some(&self.items[self.current_index])
         } else {
-            return None
+            None
         }
     }
 
-    pub fn previous(&mut self) -> Option<&PlaybackQueueItem> {
+    pub fn previous_item(&mut self) -> Option<&PlaybackQueueItem> {
          if self.current_index > 0 {
             self.current_index -= 1;
-            return Some(&self.items[self.current_index]);
+            Some(&self.items[self.current_index])
         } else {
-            return None
+            None
         }
     }
 

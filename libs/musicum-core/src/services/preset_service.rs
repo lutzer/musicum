@@ -94,7 +94,7 @@ pub async fn set_processor_param(
 pub async fn update_preset_processors_full(
     db: &DatabaseConnection,
     slug: &str,
-    processors: &Vec<ProcessorEdit>,
+    processors: &[ProcessorEdit],
 ) -> Result<(), ServiceError> {
     update_preset_processors(db, slug, processors).await
 }
@@ -102,7 +102,7 @@ pub async fn update_preset_processors_full(
 pub async fn update_preset_processors(
     db: &DatabaseConnection,
     slug: &str,
-    processors: &Vec<ProcessorEdit>,
+    processors: &[ProcessorEdit],
 ) -> Result<(), ServiceError> {
     let model = get_preset_by_slug(db, slug).await?;
     let now = chrono::Utc::now().to_rfc3339();
@@ -111,7 +111,7 @@ pub async fn update_preset_processors(
         slug:        Set(model.slug),
         title:       Set(model.title),
         description: Set(model.description),
-        processors:  Set(ProcessorEditList(processors.clone())),
+        processors:  Set(ProcessorEditList(processors.to_vec())),
         created_at:  Set(model.created_at),
         updated_at:  Set(now),
     }

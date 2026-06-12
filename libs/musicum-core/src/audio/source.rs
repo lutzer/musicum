@@ -248,8 +248,8 @@ impl SymphoniaSource {
             if let Some(resampler) = &mut self.resampler {
                 if let Ok(out) = resampler.process(&self.decode_buf, None) {
                     for f in 0..out[0].len() {
-                        for c in 0..ch {
-                            self.pending.push_back(out[c][f]);
+                        for frames in out.iter().take(ch) {
+                            self.pending.push_back(frames[f]);
                         }
                     }
                 }

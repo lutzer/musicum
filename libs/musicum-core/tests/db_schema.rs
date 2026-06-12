@@ -76,7 +76,7 @@ async fn schema_reset_on_version_bump() {
     .unwrap();
     drop(db);
 
-    let db2 = db::connect(&path).await.unwrap();
+    let db2 = db::connect(path).await.unwrap();
     assert_eq!(
         file::Entity::find().count(&db2).await.unwrap(),
         0,

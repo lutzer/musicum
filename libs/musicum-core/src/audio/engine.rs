@@ -188,7 +188,7 @@ impl AudioEngine for CpalEngine {
     fn is_playing(&self)  -> bool { self.output.is_playing() }
 
     fn is_exhausted(&self) -> bool {
-        self.source_handle.as_ref().map_or(false, |h| h.is_exhausted())
+        self.source_handle.as_ref().is_some_and(|h| h.is_exhausted())
     }
 
     fn processor_chain(&self) -> &ProcessorChain {

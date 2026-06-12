@@ -145,5 +145,5 @@ async fn resolve_target(
         }
     }
 
-    Err(anyhow!("'{}' is not a known file or clip slug", target))
+    Err(anyhow!("'{target}' is not a known file or clip slug"))
 }

@@ -55,26 +55,26 @@ async fn resolve_target(
 ) -> Result<PlaybackQueue> {
     
     if force_clip {
-        return Ok(get_clip_queue(&db, target).await?);
+        return get_clip_queue(db, target).await;
     }
 
     if force_file {
-        return Ok(get_file_queue(&db, target).await?);
+        return get_file_queue(db, target).await;
     }
 
     if force_collection {
-        return Ok(get_collection_queue(&db, target).await?);
+        return get_collection_queue(db, target).await;
     }
 
-    if let Ok(queue) = get_clip_queue(&db, target).await {
+    if let Ok(queue) = get_clip_queue(db, target).await {
         return Ok(queue);
     }
 
-    if let Ok(queue) = get_collection_queue(&db, target).await {
+    if let Ok(queue) = get_collection_queue(db, target).await {
         return Ok(queue);
     }
 
-    if let Ok(queue) = get_file_queue(&db, target).await {
+    if let Ok(queue) = get_file_queue(db, target).await {
         return Ok(queue);
     }
 
@@ -98,26 +98,26 @@ async fn get_clip_queue(db: &DatabaseConnection, target: &str) -> Result<Playbac
     let file = file_service::get_file_by_id(db, &clip.file_id)
         .await
         .map_err(|_| anyhow!("parent file for clip '{target}' not found"))?;
-    return Ok(PlaybackQueue::new(vec![
+    Ok(PlaybackQueue::new(vec![
         PlaybackQueueItem {
             title: clip.title,
             path: file.path,
             edits: clip.processors.0
         }
-    ]));
+    ]))
 }
 
 async fn get_file_queue(db: &DatabaseConnection, target: &str) -> Result<PlaybackQueue> {
     let file = file_service::get_file_by_slug(db, target)
         .await
         .map_err(|_| anyhow!("no file with slug '{target}'"))?;
-    return Ok(PlaybackQueue::new(vec![
+    Ok(PlaybackQueue::new(vec![
         PlaybackQueueItem {
             title: file.name,
             path: file.path,
             edits: vec![]
         }
-    ]));
+    ]))
 }
 
 async fn get_collection_queue(db: &DatabaseConnection, target: &str) -> Result<PlaybackQueue> {
@@ -126,7 +126,7 @@ async fn get_collection_queue(db: &DatabaseConnection, target: &str) -> Result<P
         .map_err(|_| anyhow!("no collection with slug '{target}'"))?;
     let mut items = Vec::new();
     for c in clips {
-        let file = file_service::get_file_by_id(&db, &c.file_id).await
+        let file = file_service::get_file_by_id(db, &c.file_id).await
             .map_err(|_| anyhow!("parent file for clip '{}' not found", c.title))?;
         items.push(PlaybackQueueItem {
             title: c.title,
@@ -134,8 +134,8 @@ async fn get_collection_queue(db: &DatabaseConnection, target: &str) -> Result<P
             edits: c.processors.0,
         });
     }
-    if items.len() == 0 { bail!("collection does not contain any clips") }
-    return Ok(PlaybackQueue::new(items));
+    if items.is_empty() { bail!("collection does not contain any clips") }
+    Ok(PlaybackQueue::new(items))
 }
 
 fn run_player(
@@ -179,7 +179,7 @@ fn run_player(
         if player.file_ended() && player.is_looping() {
             player.seek(0.0);
         }  else if player.file_ended() {
-            let next = player.next();
+            let next = player.next_clip();
             if !next { player.pause(); }
         }
 
@@ -202,10 +202,10 @@ fn run_player(
                     (KeyCode::Char('l'), _) => player.set_looping(!player.is_looping()),
                     (KeyCode::Char('s'), _) => player.seek(0.0),
                     (KeyCode::Up, KeyModifiers::NONE) => {
-                        player.previous();
+                        player.previous_clip();
                     }
                     (KeyCode::Down, KeyModifiers::NONE) => {
-                        player.next();
+                        player.next_clip();
                     }
                     (KeyCode::Right, KeyModifiers::NONE) => {
                         // let pos = queue.engine().position_secs();
@@ -288,8 +288,8 @@ fn draw(
         let seek_col = if dur > 0.0 {
             ((sh / dur).clamp(0.0, 1.0) * bar_width as f64).floor() as usize
         } else { 0 };
-        let mut chars: Vec<char> = std::iter::repeat('█').take(filled)
-            .chain(std::iter::repeat('░').take(bar_width.saturating_sub(filled)))
+        let mut chars: Vec<char> = std::iter::repeat_n('█', filled)
+            .chain(std::iter::repeat_n('░', bar_width.saturating_sub(filled)))
             .collect();
         if seek_col < chars.len() { chars[seek_col] = '┃'; }
         chars.into_iter().collect()
@@ -367,7 +367,7 @@ fn fmt_duration(secs: f64) -> String {
     format!("{:02}:{:02}", s / 60, s % 60)
 }
 
-fn fmt_edit_row(edits: &Vec<ProcessorEdit>) -> String {
+fn fmt_edit_row(edits: &[ProcessorEdit]) -> String {
     edits
         .iter()
         .filter(|e| e.enabled)
