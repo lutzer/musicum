@@ -28,8 +28,11 @@ fn normalize_bundle_loads_processor_and_analyzer() {
     let mut ctx = AnalysisContext::default();
     let p_ctx = ProcessorContext { playing: false, sample_rate: 44100, number_channels: 2 };
     <dyn musicum_processor_sdk::processor::StreamProcessor as
-        musicum_processor_sdk::processor::BaseProcessor>::init(&mut *proc, &p_ctx, &mut ctx);
+        musicum_processor_sdk::processor::BaseProcessor>::init(
+            &mut *proc, "smoke-test".to_string(), &p_ctx, &mut ctx,
+        );
     assert_eq!(ctx.requests.len(), 1);
+    let request_hash = ctx.requests[0].hash.clone();
 
     let mut loaded = reg.create_analyzer_for("normalize")
         .expect("bundled analyzer present");
@@ -45,7 +48,7 @@ fn normalize_bundle_loads_processor_and_analyzer() {
     );
     let raw = raw.expect("analyzer produced a result");
     assert!(!raw.bytes.is_empty());
-    assert_eq!(raw.analyzer_id.as_str(), "normalize_analyzer");
+    assert_eq!(raw.hash.as_str(), request_hash.as_str());
 }
 
 #[test]

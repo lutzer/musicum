@@ -18,6 +18,7 @@ impl StreamProcessorNode {
     pub fn new(
         upstream:  Box<dyn AudioSource>,
         processor: Arc<Mutex<Box<dyn StreamProcessor>>>,
+        uuid:      String,
     ) -> Self {
         let context = ProcessorContext {
             playing:         true,
@@ -28,7 +29,7 @@ impl StreamProcessorNode {
         node.processor
             .lock()
             .unwrap()
-            .init(&node.context, &mut AnalysisContext::default());
+            .init(uuid, &node.context, &mut AnalysisContext::default());
         node
     }
 }

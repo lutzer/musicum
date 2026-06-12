@@ -123,6 +123,7 @@ impl From<&'static ProcessorParamaterInfo> for ProcessorParamFFI {
 pub trait AbiStreamProcessor: Send + Sync {
     fn init(
         &mut self,
+        uuid: RString,
         ctx: ProcessorContext,
         analysis: AnalysisContextFFI,
     ) -> AnalysisContextFFI;
@@ -137,6 +138,7 @@ pub trait AbiStreamProcessor: Send + Sync {
 pub trait AbiStructuralProcessor: Send + Sync {
     fn init(
         &mut self,
+        uuid: RString,
         ctx: ProcessorContext,
         analysis: AnalysisContextFFI,
     ) -> AnalysisContextFFI;
@@ -149,7 +151,6 @@ pub trait AbiStructuralProcessor: Send + Sync {
 
 #[sabi_trait]
 pub trait AbiAnalyzer: Send + Sync {
-    fn id(&self) -> RString;
     fn init(&mut self, request: AnalysisRequestFFI);
     fn analyze(
         &mut self,

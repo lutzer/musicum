@@ -33,6 +33,7 @@ pub struct NormalizeProcessor {
     target_dbfs: FloatParam,
     gain:        FloatParam,
     requires_analysis: bool,
+    uuid: String
 }
 
 impl Default for NormalizeProcessor {
@@ -40,6 +41,7 @@ impl Default for NormalizeProcessor {
         Self {
             target_dbfs: NORMALIZE_PARAMS[0].get_param().unwrap_or_default(),
             gain: NORMALIZE_PARAMS[1].get_param().unwrap_or_default(),
+            uuid: String::new(),
             requires_analysis: false
         }
     }
@@ -48,9 +50,11 @@ impl Default for NormalizeProcessor {
 impl BaseProcessor for NormalizeProcessor {
     fn init(
         &mut self,
+        uuid: String,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
         analysis_context: &mut musicum_processor_sdk::analyzer::AnalysisContext,
     ) {
+        self.uuid = uuid;
         let analysis_hash = self.get_analysis_hash();
 
         if let Some(result) = analysis_context.get_result::<NormalizeAnalyzerResult>(&analysis_hash) {
@@ -74,7 +78,7 @@ impl BaseProcessor for NormalizeProcessor {
     fn get_parameter(&self, id: &str) -> f64 {
         match id {
             "target_dbfs" => self.target_dbfs.get() as f64,
-            "_computed_gain" => self.gain.get() as f64,
+            "computed_gain" => self.gain.get() as f64,
             _ => 0.0,
         }
     }
@@ -89,7 +93,7 @@ impl BaseProcessor for NormalizeProcessor {
     fn requires_analysis(&self) -> bool { self.requires_analysis }
 
     fn get_analysis_hash(&self) -> String {
-        return AnalysisRequest::generate_hash_from(ANALYZER_ID, &vec![])
+        return AnalysisRequest::generate_hash_from(&self.uuid, &vec![])
     }
 }
 
@@ -110,7 +114,7 @@ impl StreamProcessor for NormalizeProcessor {
 musicum_processor_sdk::export_processor!(
     NormalizeProcessor,
     Stream,
-    with: NormalizeAnalyzer
+    with: NormalizeAnalyzer = ANALYZER_ID
 );
 
 #[cfg(test)]
@@ -155,10 +159,10 @@ mod tests {
     #[test]
     fn gain_clamps() {
         let mut p = NormalizeProcessor::default();
-        p.set_parameter("gain", 9999.0);
-        assert_eq!(p.get_parameter("gain"), 100.0);
-        p.set_parameter("gain", -1.0);
-        assert_eq!(p.get_parameter("gain"), 0.0);
+        p.set_parameter("computed_gain", 9999.0);
+        assert_eq!(p.get_parameter("computed_gain"), 100.0);
+        p.set_parameter("computed_gain", -1.0);
+        assert_eq!(p.get_parameter("computed_gain"), 0.0);
     }
 
     /// Pins current behavior: the SDK does not enforce `editable` at the
@@ -167,8 +171,8 @@ mod tests {
     #[test]
     fn set_parameter_gain_writes_despite_not_editable() {
         let mut p = NormalizeProcessor::default();
-        p.set_parameter("gain", 2.5);
-        assert!((p.get_parameter("gain") - 2.5).abs() < 1e-6);
+        p.set_parameter("computed_gain", 2.5);
+        assert!((p.get_parameter("computed_gain") - 2.5).abs() < 1e-6);
     }
 
     #[test]

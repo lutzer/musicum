@@ -50,18 +50,18 @@ fn leak_static_str(s: &str) -> &'static str {
 #[repr(C)]
 #[derive(StableAbi, Clone)]
 pub struct AnalysisResultFFI {
-    pub analyzer_id: RString,
+    pub hash:  RString,
     /// bincode-serialized `Box<dyn AnalysisResult>` (typetag dispatch).
-    pub bytes:       RVec<u8>,
+    pub bytes: RVec<u8>,
 }
 
 impl AnalysisResultFFI {
     #[allow(clippy::borrowed_box)]
-    pub fn from_boxed(boxed: &Box<dyn AnalysisResult>) -> Self {
+    pub fn from_boxed(hash: String, boxed: &Box<dyn AnalysisResult>) -> Self {
         let bytes = bincode::serialize(boxed)
             .expect("AnalysisResult must be serializable");
         Self {
-            analyzer_id: RString::from(boxed.get_analyzer_id()),
+            hash: RString::from(hash),
             bytes: bytes.into(),
         }
     }
@@ -75,7 +75,6 @@ impl AnalysisResultFFI {
 #[derive(StableAbi, Clone)]
 pub struct AnalysisContextFFI {
     pub requests: RVec<AnalysisRequestFFI>,
-    pub hashes:   RVec<RString>,
     pub results:  RVec<AnalysisResultFFI>,
 }
 
@@ -83,17 +82,16 @@ impl AnalysisContextFFI {
     /// Serializes everything in `ctx` into ABI-safe form.
     /// `ctx.requests` is *moved* into the ffi struct (cleared on `ctx`)
     /// so the host can later see only newly-appended requests after a
-    /// dylib `init` call. `ctx.results` is borrowed and serialized.
+    /// dylib `init` call. `ctx.results` is borrowed and serialized;
+    /// each result carries its own hash.
     pub fn from_context(ctx: &mut AnalysisContext) -> Self {
         let requests = std::mem::take(&mut ctx.requests)
             .iter().map(AnalysisRequestFFI::from).collect();
-        let mut hashes  = RVec::new();
         let mut results = RVec::new();
         for (hash, boxed) in ctx.results.iter() {
-            hashes.push(RString::from(hash.as_str()));
-            results.push(AnalysisResultFFI::from_boxed(boxed));
+            results.push(AnalysisResultFFI::from_boxed(hash.clone(), boxed));
         }
-        Self { requests, hashes, results }
+        Self { requests, results }
     }
 
     /// Drains this FFI snapshot into `ctx` on the receiving side.
@@ -104,9 +102,10 @@ impl AnalysisContextFFI {
         for ffi_req in self.requests.into_iter() {
             ctx.requests.push(AnalysisRequest::from(&ffi_req));
         }
-        for (hash, ffi_res) in self.hashes.into_iter().zip(self.results.into_iter()) {
+        for ffi_res in self.results.into_iter() {
+            let hash: String = ffi_res.hash.clone().into();
             if let Some(boxed) = ffi_res.into_boxed() {
-                ctx.results.insert(hash.into(), boxed);
+                ctx.results.insert(hash, boxed);
             }
         }
     }

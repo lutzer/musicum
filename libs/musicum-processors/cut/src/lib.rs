@@ -30,6 +30,7 @@ impl Default for CutProcessor {
 impl BaseProcessor for CutProcessor {
     fn init(
         &mut self,
+        _uuid: String,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
         _ctx: &mut musicum_processor_sdk::analyzer::AnalysisContext,
     ) {

@@ -82,9 +82,9 @@ pub struct FfiStreamProcessor {
 }
 
 impl BaseProcessor for FfiStreamProcessor {
-    fn init(&mut self, ctx: &ProcessorContext, analysis: &mut AnalysisContext) {
+    fn init(&mut self, uuid: String, ctx: &ProcessorContext, analysis: &mut AnalysisContext) {
         let ffi_in = AnalysisContextFFI::from_context(analysis);
-        let ffi_out = self.inner.init(*ctx, ffi_in);
+        let ffi_out = self.inner.init(uuid.into(), *ctx, ffi_in);
         ffi_out.drain_into(analysis);
     }
     fn descriptor(&self) -> &'static ProcessorDescriptor { unimplemented!() }
@@ -108,9 +108,9 @@ pub struct FfiStructuralProcessor {
 }
 
 impl BaseProcessor for FfiStructuralProcessor {
-    fn init(&mut self, ctx: &ProcessorContext, analysis: &mut AnalysisContext) {
+    fn init(&mut self, uuid: String, ctx: &ProcessorContext, analysis: &mut AnalysisContext) {
         let ffi_in = AnalysisContextFFI::from_context(analysis);
-        let ffi_out = self.inner.init(*ctx, ffi_in);
+        let ffi_out = self.inner.init(uuid.into(), *ctx, ffi_in);
         ffi_out.drain_into(analysis);
     }
     fn descriptor(&self) -> &'static ProcessorDescriptor { unimplemented!() }
@@ -129,9 +129,8 @@ impl StructuralProcessor for FfiStructuralProcessor {
 }
 
 pub struct FfiAnalyzer {
-    inner:     AbiAnalyzer_TO<'static, RBox<()>>,
-    static_id: &'static str,
-    _lib:      Arc<Library>,
+    inner: AbiAnalyzer_TO<'static, RBox<()>>,
+    _lib:  Arc<Library>,
 }
 
 impl FfiAnalyzer {
@@ -173,12 +172,12 @@ impl AudioAnalyser for FfiAnalyzer {
         time:      f64,
         exhausted: bool,
         context:   &ProcessorContext,
-    ) -> Option<Box<dyn AnalysisResult>> {
-        self.analyze_raw(samples, time, exhausted, context)
-            .and_then(|ffi| ffi.into_boxed())
+    ) -> Option<(String, Box<dyn AnalysisResult>)> {
+        let ffi = self.analyze_raw(samples, time, exhausted, context)?;
+        let hash: String = ffi.hash.clone().into();
+        let boxed = ffi.into_boxed()?;
+        Some((hash, boxed))
     }
-
-    fn id(&self) -> &'static str { self.static_id }
 }
 
 pub struct LoadedAnalyzer {
@@ -297,13 +296,9 @@ impl ProcessorRegistry {
         let entry = self.entries.get(processor_id)?;
         let create_fn = entry.analyzer_create?;
         let inner = unsafe { create_fn() };
-        let static_id = Box::leak(
-            inner.id().as_str().to_owned().into_boxed_str(),
-        );
         Some(LoadedAnalyzer {
             analyzer: FfiAnalyzer {
                 inner,
-                static_id,
                 _lib: Arc::clone(&entry.lib),
             },
             _lib: Arc::clone(&entry.lib),

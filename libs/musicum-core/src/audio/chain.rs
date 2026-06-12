@@ -67,8 +67,8 @@ impl ProcessorChain {
     }
 
     pub fn build_source(&self, root: Box<dyn AudioSource>) -> Box<dyn AudioSource> {
-        self.stream_entries.iter().fold(root, |upstream, (_, handle)| {
-            Box::new(StreamProcessorNode::new(upstream, Arc::clone(handle)))
+        self.stream_entries.iter().fold(root, |upstream, (id, handle)| {
+            Box::new(StreamProcessorNode::new(upstream, Arc::clone(handle), id.to_string()))
                 as Box<dyn AudioSource>
         })
     }

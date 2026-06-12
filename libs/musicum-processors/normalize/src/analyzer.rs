@@ -3,8 +3,6 @@ use std::any::Any;
 use musicum_processor_sdk::{analyzer::{AnalysisRequest, AnalysisResult, AudioAnalyser}, processor::ProcessorContext};
 use serde::{Serialize, Deserialize};
 
-use crate::ANALYZER_ID;
-
 #[derive(Serialize, Deserialize)]
 pub struct NormalizeAnalyzerResult {
     pub peak: f32
@@ -13,7 +11,6 @@ pub struct NormalizeAnalyzerResult {
 #[typetag::serde]
 impl AnalysisResult for NormalizeAnalyzerResult {
     fn as_any(&self) -> &dyn Any { self }
-    fn get_analyzer_id(&self) -> &'static str { ANALYZER_ID }
 }
 
 #[derive(Default)]
@@ -34,7 +31,7 @@ impl AudioAnalyser for NormalizeAnalyzer {
         _time: f64,
         exhausted: bool,
         _context: &ProcessorContext
-    ) -> Option<Box<dyn AnalysisResult>> {
+    ) -> Option<(String, Box<dyn AnalysisResult>)> {
         for &s in samples {
             let abs = s.abs();
             if abs > self.peak {
@@ -44,12 +41,8 @@ impl AudioAnalyser for NormalizeAnalyzer {
 
         if exhausted {
             let result = NormalizeAnalyzerResult{ peak: self.peak };
-            return Some(Box::from(result))
+            return Some((self.hash.clone(), Box::from(result)))
         }
         None
-    }
-
-    fn id(&self) -> &'static str {
-        ANALYZER_ID
     }
 }

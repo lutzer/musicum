@@ -33,6 +33,7 @@ impl Default for GainPlugin {
 impl BaseProcessor for GainPlugin {
     fn init(
         &mut self,
+        _uuid: String,
         _context: &musicum_processor_sdk::processor::ProcessorContext,
         _ctx: &mut musicum_processor_sdk::analyzer::AnalysisContext,
     ) {

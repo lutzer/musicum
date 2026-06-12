@@ -8,7 +8,6 @@ struct DummyResult { pub value: f32 }
 #[typetag::serde]
 impl AnalysisResult for DummyResult {
     fn as_any(&self) -> &dyn Any { self }
-    fn get_analyzer_id(&self) -> &'static str { "dummy" }
 }
 
 #[test]
@@ -28,7 +27,8 @@ fn analysis_request_roundtrips_through_ffi() {
 #[test]
 fn analysis_result_roundtrips_through_ffi() {
     let boxed: Box<dyn AnalysisResult> = Box::new(DummyResult { value: 0.42 });
-    let ffi = AnalysisResultFFI::from_boxed(&boxed);
+    let ffi = AnalysisResultFFI::from_boxed("h1".to_string(), &boxed);
+    assert_eq!(ffi.hash.as_str(), "h1");
     let restored: Box<dyn AnalysisResult> = ffi.into_boxed().expect("decode");
     let cast = restored.as_any().downcast_ref::<DummyResult>().expect("type");
     assert!((cast.value - 0.42).abs() < 1e-6);

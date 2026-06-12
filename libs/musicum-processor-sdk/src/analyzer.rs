@@ -24,9 +24,9 @@ pub struct AnalysisRequest {
 
 impl AnalysisRequest {
 
-     pub fn generate_hash_from(analyzer_id: &'static str, params: &[(String, f64)] ) -> String {
+     pub fn generate_hash_from(processor_uuid: &str, params: &[(String, f64)] ) -> String {
         let mut hasher = DefaultHasher::new();
-        analyzer_id.hash(&mut hasher);
+        processor_uuid.hash(&mut hasher);
         for (key, value) in params {
             key.hash(&mut hasher);
             value.to_bits().hash(&mut hasher);
@@ -39,7 +39,6 @@ impl AnalysisRequest {
 #[typetag::serde(tag = "type")]
 pub trait AnalysisResult: Send + Sync {
     fn as_any(&self) -> &dyn Any;
-    fn get_analyzer_id(&self) -> &'static str;
 }
 
 pub trait AudioAnalyser {
@@ -51,7 +50,5 @@ pub trait AudioAnalyser {
         time: f64,
         exhausted: bool,
         context: &ProcessorContext,
-    ) -> Option<Box<dyn AnalysisResult>>;
-
-    fn id(&self) -> &'static str;
+    ) -> Option<(String, Box<dyn AnalysisResult>)>;
 }

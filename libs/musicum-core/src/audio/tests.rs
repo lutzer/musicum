@@ -44,7 +44,7 @@ pub(crate) mod test_processors {
     pub struct TestTrim { pub start: f64, pub end: f64 }
 
     impl BaseProcessor for TestTrim {
-        fn init(&mut self, _: &ProcessorContext, _: &mut AnalysisContext) {}
+        fn init(&mut self, _: String, _: &ProcessorContext, _: &mut AnalysisContext) {}
         fn descriptor(&self) -> &'static ProcessorDescriptor { &TEST_TRIM_DESC }
         fn get_parameter(&self, id: &str) -> f64 {
             match id { "start" => self.start, "end" => self.end, _ => 0.0 }
