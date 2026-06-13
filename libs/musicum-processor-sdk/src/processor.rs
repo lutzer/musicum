@@ -22,9 +22,9 @@ pub struct ProcessorContext {
 pub trait BaseProcessor: Send + Sync {
     /// Prepares the processor, reads and writes from AnalysisContext if necesarry
     fn init(&mut self, 
-        uuid: String,
-        context: &ProcessorContext,
-        ctx: &mut AnalysisContext);
+        _uuid: String,
+        _context: &ProcessorContext,
+        _ctx: &mut AnalysisContext) {}
 
     /// gets the processors descriptor
     fn descriptor(&self) ->  &'static ProcessorDescriptor;
