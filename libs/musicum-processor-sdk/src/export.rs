@@ -38,21 +38,11 @@ macro_rules! export_processor {
 macro_rules! export_analyzer {
     ($an:ty, $id:expr) => {
         const _: () = {
-            use $crate::ffi::{AbiAnalyzer_TO, FfiAnalyzerAdapter, AnalyzerDescriptorFFI};
+            use $crate::ffi::{AbiAnalyzer_TO, FfiAnalyzerAdapter};
             use $crate::abi_stable::{
                 erased_types::TD_Opaque,
                 std_types::{RBox, RStr},
             };
-
-            #[no_mangle]
-            pub extern "C" fn musicum_analyzer_descriptor() -> &'static AnalyzerDescriptorFFI {
-                static DESC: ::std::sync::OnceLock<AnalyzerDescriptorFFI> =
-                    ::std::sync::OnceLock::new();
-                DESC.get_or_init(|| {
-                    let id: &'static str = $id;
-                    AnalyzerDescriptorFFI { id: RStr::from(id), name: RStr::from(id) }
-                })
-            }
 
             #[no_mangle]
             pub extern "C" fn musicum_analyzer_create() -> AbiAnalyzer_TO<'static, RBox<()>> {

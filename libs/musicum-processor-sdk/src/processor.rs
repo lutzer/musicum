@@ -1,7 +1,7 @@
 use abi_stable::StableAbi;
 use crate::{analyzer::AnalysisContext, parameters::ProcessorParamaterInfo};
 
-pub enum ProcessorType { StructuralProcessor, StreamProcessor, Analyzer }
+pub enum ProcessorType { StructuralProcessor, StreamProcessor, StructuralAndStreamProcesssor }
 
 pub struct ProcessorDescriptor {
     pub id:             &'static str,
@@ -38,7 +38,7 @@ pub trait BaseProcessor: Send + Sync + 'static {
     fn set_parameter(&mut self, _id: &str, _value: f64) {}
 
     fn requires_analysis(&self) -> bool { false }
-    fn get_analysis_hash(&self) -> String { String::new() }
+    fn analysis_hash(&self) -> String { String::new() }
 
     /// Default no-op: structural processors that don't transform samples.
     fn process(

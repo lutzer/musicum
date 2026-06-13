@@ -55,7 +55,7 @@ impl BaseProcessor for NormalizeProcessor {
         analysis_context: &mut musicum_processor_sdk::analyzer::AnalysisContext,
     ) {
         self.uuid = uuid;
-        let analysis_hash = self.get_analysis_hash();
+        let analysis_hash = self.analysis_hash();
 
         if let Some(result) = analysis_context.get_result::<NormalizeAnalyzerResult>(&analysis_hash) {
             let target_linear = 10_f32.powf(self.target_dbfs.get() / 20.0);
@@ -90,7 +90,7 @@ impl BaseProcessor for NormalizeProcessor {
 
     fn requires_analysis(&self) -> bool { self.requires_analysis }
 
-    fn get_analysis_hash(&self) -> String {
+    fn analysis_hash(&self) -> String {
         return AnalysisRequest::generate_hash_from(&self.uuid, &vec![])
     }
 

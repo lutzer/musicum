@@ -1,11 +1,10 @@
 //! ABI-safe representations of the analysis types.
 
 use abi_stable::{
-    std_types::{RStr, RString, RVec, Tuple2},
-    StableAbi,
+    StableAbi, sabi_trait, std_types::{ROption, RSlice, RStr, RString, RVec, Tuple2}
 };
 
-use crate::analyzer::{AnalysisContext, AnalysisRequest, AnalysisResult};
+use crate::{AudioAnalyser, analyzer::{AnalysisContext, AnalysisRequest, AnalysisResult}, ffi::ProcessorContextFFI};
 
 #[repr(C)]
 #[derive(StableAbi, Clone)]
@@ -111,9 +110,37 @@ impl AnalysisContextFFI {
     }
 }
 
-#[repr(C)]
-#[derive(StableAbi, Clone)]
-pub struct AnalyzerDescriptorFFI {
-    pub id:   RStr<'static>,
-    pub name: RStr<'static>,
+// ── ABI-safe analyzer trait + generic adapter ─────────────────────────────────
+
+#[sabi_trait]
+pub trait AbiAnalyzer: Send + Sync {
+    fn init(&mut self, request: AnalysisRequestFFI);
+    fn analyze(
+        &mut self,
+        samples:   RSlice<'_, f32>,
+        time:      f64,
+        exhausted: bool,
+        ctx:       ProcessorContextFFI,
+    ) -> ROption<AnalysisResultFFI>;
+}
+
+pub struct FfiAnalyzerAdapter<T: AudioAnalyser>(pub T);
+
+impl<T: AudioAnalyser + Send + Sync> AbiAnalyzer for FfiAnalyzerAdapter<T> {
+    fn init(&mut self, request: AnalysisRequestFFI) {
+        let native = AnalysisRequest::from(&request);
+        self.0.init(&native);
+    }
+    fn analyze(
+        &mut self,
+        samples:   RSlice<'_, f32>,
+        time:      f64,
+        exhausted: bool,
+        ctx:       ProcessorContextFFI,
+    ) -> ROption<AnalysisResultFFI> {
+        match self.0.analyze(samples.as_slice(), time, exhausted, &ctx) {
+            Some((hash, boxed)) => ROption::RSome(AnalysisResultFFI::from_boxed(hash, &boxed)),
+            None => ROption::RNone,
+        }
+    }
 }
