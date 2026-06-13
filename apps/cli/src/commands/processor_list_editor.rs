@@ -9,7 +9,8 @@ use crossterm::{
 use musicum_core::{
     config::Config,
     edit::{ProcessorEdit, ProcessorEditType},
-    EditRegistry, EditType, ParamInfo, ProcessorRegistry,
+    edit_registry::{EditParamInfo, EditRegistry},
+    ProcessorRegistry,
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -43,6 +44,7 @@ struct ParamRow {
 enum AvailableKind {
     Structural,
     Stream,
+    Combined,
 }
 
 #[derive(Clone)]
@@ -83,18 +85,17 @@ impl EditorState {
     fn new(title: String, processors: Vec<ProcessorEdit>) -> Self {
         let mut proc_reg = ProcessorRegistry::new();
         proc_reg.load_dir(&Config::get().processors.processor_dir).ok();
-        let edit_registry = EditRegistry::new(std::sync::Arc::new(proc_reg));
+        let edit_registry = EditRegistry::new(&proc_reg);
         let mut available_types: Vec<AvailableType> = edit_registry
             .list_entries()
-            .into_iter()
-            .filter(|e| !matches!(e.edit_type, EditType::Analyzer))
+            .iter()
             .map(|e| AvailableType {
-                id:   e.id,
-                name: e.name,
-                kind: match e.edit_type {
-                    EditType::Structural => AvailableKind::Structural,
-                    EditType::Stream     => AvailableKind::Stream,
-                    EditType::Analyzer   => unreachable!(),
+                id:   e.id(),
+                name: e.name(),
+                kind: match e.edit_type() {
+                    ProcessorEditType::StructuralProcessor           => AvailableKind::Structural,
+                    ProcessorEditType::StreamProcessor               => AvailableKind::Stream,
+                    ProcessorEditType::StructuralAndStreamProcesssor => AvailableKind::Combined,
                 },
             })
             .collect();
@@ -129,17 +130,16 @@ impl EditorState {
             None => return vec![],
         };
         let proc = &self.processors[idx];
-        let kinds: std::collections::HashMap<&str, ParamKind> = self
+        let kinds: std::collections::HashMap<String, ParamKind> = self
             .edit_registry
             .get_entry(proc.processor_id.as_str())
             .map(|entry| {
-                entry.parameters.iter().filter_map(|p| match p {
-                    ParamInfo::Float { id, .. } => Some((id.as_str(), ParamKind::Float)),
-                    ParamInfo::Bool  { id, .. } => Some((id.as_str(), ParamKind::Bool)),
-                    ParamInfo::Int   { id, min, max, .. } =>
-                        Some((id.as_str(), ParamKind::Int { min: *min, max: *max })),
-                    ParamInfo::Time   { id, .. } => Some((id.as_str(), ParamKind::Other)),
-                    ParamInfo::Canvas { .. }    => None,
+                entry.parameters().into_iter().filter_map(|p| match p {
+                    EditParamInfo::Float { id, .. }           => Some((id, ParamKind::Float)),
+                    EditParamInfo::Bool  { id, .. }           => Some((id, ParamKind::Bool)),
+                    EditParamInfo::Int   { id, min, max, .. } => Some((id, ParamKind::Int { min, max })),
+                    EditParamInfo::Time  { id, .. }           => Some((id, ParamKind::Other)),
+                    EditParamInfo::Hidden                     => None,
                 }).collect()
             })
             .unwrap_or_default();
@@ -148,7 +148,7 @@ impl EditorState {
             .map(|(k, v)| ParamRow {
                 key:   k.clone(),
                 value: serde_json::json!(v),
-                kind:  kinds.get(k.as_str()).cloned().unwrap_or(ParamKind::Other),
+                kind:  kinds.get(k).cloned().unwrap_or(ParamKind::Other),
             })
             .collect()
     }
@@ -159,7 +159,7 @@ impl EditorState {
         let kind_str = match entry.kind {
             ProcessorEditType::StructuralProcessor => "structural",
             ProcessorEditType::StreamProcessor => "stream",
-            ProcessorEditType::Analyzer => "analyzer",
+            ProcessorEditType::StructuralAndStreamProcesssor => "structural+stream",
         };
         format!("[{kind_str}] {}{flag}  ({short_uuid})", entry.processor_id)
     }
@@ -258,26 +258,27 @@ impl EditorState {
         let Some(entry) = self.edit_registry.get_entry(&available.id) else { return };
         let insert_at = self.proc_state.selected().map(|i| i + 1).unwrap_or(0);
         let mut params = std::collections::HashMap::new();
-        for p in &entry.parameters {
+        for p in entry.parameters() {
             match p {
-                ParamInfo::Float { id, default, .. } => {
-                    params.insert(id.clone(), *default as f64);
+                EditParamInfo::Float { id, default, .. } => {
+                    params.insert(id, default as f64);
                 }
-                ParamInfo::Bool { id, default, .. } => {
-                    params.insert(id.clone(), if *default { 1.0_f64 } else { 0.0_f64 });
+                EditParamInfo::Bool { id, default, .. } => {
+                    params.insert(id, if default { 1.0_f64 } else { 0.0_f64 });
                 }
-                ParamInfo::Time { id, default, .. } => {
-                    params.insert(id.clone(), *default);
+                EditParamInfo::Time { id, default, .. } => {
+                    params.insert(id, default);
                 }
-                ParamInfo::Int { id, default, .. } => {
-                    params.insert(id.clone(), *default as f64);
+                EditParamInfo::Int { id, default, .. } => {
+                    params.insert(id, default as f64);
                 }
-                ParamInfo::Canvas { .. } => {}
+                EditParamInfo::Hidden => {}
             }
         }
         let kind = match available.kind {
             AvailableKind::Structural => ProcessorEditType::StructuralProcessor,
             AvailableKind::Stream     => ProcessorEditType::StreamProcessor,
+            AvailableKind::Combined   => ProcessorEditType::StructuralAndStreamProcesssor,
         };
         self.processors.insert(insert_at, ProcessorEdit {
             uuid: Uuid::new_v4(),
@@ -711,7 +712,8 @@ fn draw_picker_overlay(f: &mut Frame, state: &EditorState, area: Rect) {
             };
             let badge = match avail.kind {
                 AvailableKind::Structural => "[structural]  ",
-                AvailableKind::Stream      => "[stream]       ",
+                AvailableKind::Stream     => "[stream]       ",
+                AvailableKind::Combined   => "[combo]        ",
             };
             ListItem::new(Line::from(vec![
                 Span::styled(format!("{badge} "), Style::default().fg(Color::DarkGray)),

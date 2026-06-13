@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 
 use crate::edit::ProcessorEdit;
-use crate::processor_loader::ProcessorRegistry;
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -32,7 +31,6 @@ pub async fn export_audio(
     _edits: &[ProcessorEdit],
     _output_path: &Path,
     _options: ExportOptions,
-    _registry: &ProcessorRegistry,
     _progress: impl Fn(f64, f64),
 ) -> Result<ExportResult> {
     todo!("export_audio: needs reimplementation with the new processor loader")

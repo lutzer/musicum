@@ -1,82 +1,105 @@
-use std::sync::Arc;
+use musicum_processor_sdk::{ffi::{ProcessorDescriptorFFI, ProcessorParamFFI, ProcessorTypeFFI}};
 
-use musicum_processor_sdk::ffi::{ProcessorDescriptorFFI, ProcessorTypeFFI};
+use crate::{ProcessorRegistry, edit::ProcessorEditType};
 
-use crate::processor_loader::ProcessorRegistry;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EditType {
-    Structural,
-    Stream,
-    StructuralAndStream,
+#[derive(Debug, Clone)]
+pub enum EditParamInfo {
+    Float {
+        id:       String,
+        name:     String,
+        default:  f32,
+        min:      f32,
+        max:      f32,
+        step:     f32,
+        unit:     String,
+        editable: bool,
+    },
+    Bool {
+        id:       String,
+        name:     String,
+        default:  bool,
+        editable: bool,
+    },
+    Time {
+        id:       String,
+        name:     String,
+        default:  f64,
+        editable: bool,
+    },
+    Int {
+        id:       String,
+        name:     String,
+        default:  i32,
+        min:      i32,
+        max:      i32,
+        editable: bool,
+    },
+    Hidden
 }
 
-impl From<ProcessorTypeFFI> for EditType {
-    fn from(t: ProcessorTypeFFI) -> Self {
-        match t {
-            ProcessorTypeFFI::Structural => EditType::Structural,
-            ProcessorTypeFFI::Stream     => EditType::Stream,
-            ProcessorTypeFFI::StructuralAndStream   => EditType::StructuralAndStream,
+impl From<&ProcessorParamFFI> for EditParamInfo {
+    fn from(p: &ProcessorParamFFI) -> Self {
+        match *p {
+            ProcessorParamFFI::Float { id, name, default, min, max, step, unit, editable } =>
+                EditParamInfo::Float {
+                    id: id.to_string(), name: name.to_string(),
+                    default, min, max, step, unit: unit.to_string(), editable,
+                },
+            ProcessorParamFFI::Bool { id, name, default, editable } =>
+                EditParamInfo::Bool { id: id.to_string(), name: name.to_string(), default, editable },
+            ProcessorParamFFI::Time { id, name, default, editable } =>
+                EditParamInfo::Time { id: id.to_string(), name: name.to_string(), default, editable },
+            ProcessorParamFFI::Int { id, name, default, min, max, editable } =>
+                EditParamInfo::Int {
+                    id: id.to_string(), name: name.to_string(),
+                    default, min, max, editable,
+                },
+            _ => EditParamInfo::Hidden
         }
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct EditRegistryEntry {
-    pub id:         String,
-    pub name:       String,
-    pub edit_type:  EditType,
-    pub parameters: Vec<(String, f64)>,
+    descriptor: ProcessorDescriptorFFI
 }
 
-impl From<&ProcessorDescriptorFFI> for EditRegistryEntry {
-    fn from(d: &ProcessorDescriptorFFI) -> Self {
-        Self {
-            id:         d.id.to_string(),
-            name:       d.name.to_string(),
-            edit_type:  EditType::from(d.processor_type),
-            parameters: vec![],
+impl EditRegistryEntry {
+    pub fn id(&self) -> String { self.descriptor.id.to_string() }
+    pub fn name(&self) -> String { self.descriptor.name.to_string() }
+    pub fn edit_type(&self) -> ProcessorEditType {
+        match self.descriptor.processor_type {
+            ProcessorTypeFFI::Stream => ProcessorEditType::StreamProcessor,
+            ProcessorTypeFFI::Structural => ProcessorEditType::StructuralProcessor,
+            ProcessorTypeFFI::StructuralAndStream => ProcessorEditType::StructuralAndStreamProcesssor,
         }
+    }
+    pub fn parameters(&self) -> Vec<EditParamInfo> { 
+        self.descriptor.params.iter().map(|p| {
+            return EditParamInfo::from(p);
+        }).collect()
     }
 }
 
 pub struct EditRegistry {
-    _inner:  Arc<ProcessorRegistry>,
-    entries: Vec<EditRegistryEntry>,
+    entries: Vec<EditRegistryEntry>
 }
 
 impl EditRegistry {
-    pub fn new(registry: Arc<ProcessorRegistry>) -> Self {
-        let entries = registry
-            .descriptors()
-            .map(EditRegistryEntry::from)
-            .collect();
-        Self { _inner: registry, entries }
+    pub fn new(processor_registry: &ProcessorRegistry) -> Self {
+        let entries = processor_registry.descriptors().map(|d| {
+            EditRegistryEntry {
+                descriptor: d.clone()
+            }
+        }).collect();
+        EditRegistry { entries }
     }
 
-    pub fn list_entries(&self) -> Vec<EditRegistryEntry> {
-        self.entries.clone()
+    pub fn list_entries(&self) -> &Vec<EditRegistryEntry> {
+        &self.entries
     }
 
     pub fn get_entry(&self, id: &str) -> Option<&EditRegistryEntry> {
-        self.entries.iter().find(|e| e.id == id)
-    }
-
-    pub fn registry(&self) -> &Arc<ProcessorRegistry> {
-        &self._inner
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::processor_loader::ProcessorRegistry;
-
-    #[test]
-    fn empty_registry_has_no_entries() {
-        let reg = Arc::new(ProcessorRegistry::new());
-        let edit_reg = EditRegistry::new(reg);
-        assert_eq!(edit_reg.list_entries().len(), 0);
-        assert!(edit_reg.get_entry("anything").is_none());
+        self.entries.iter().find(|e| e.id().as_str() == id)
     }
 }

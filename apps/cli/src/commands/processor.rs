@@ -1,6 +1,9 @@
-use std::sync::Arc;
-
-use musicum_core::{config::Config, EditRegistry, EditType, ParamInfo, ProcessorRegistry};
+use musicum_core::{
+    config::Config,
+    edit::ProcessorEditType,
+    edit_registry::{EditParamInfo, EditRegistry},
+    ProcessorRegistry,
+};
 use serde::Serialize;
 
 use crate::output::{print_json, print_table};
@@ -17,29 +20,29 @@ struct ProcessorListEntry {
 pub fn run(json: bool) {
     let mut proc_reg = ProcessorRegistry::new();
     proc_reg.load_dir(&Config::get().processors.processor_dir).ok();
-    let registry = EditRegistry::new(Arc::new(proc_reg));
+    let registry = EditRegistry::new(&proc_reg);
     let mut entries: Vec<ProcessorListEntry> = registry
         .list_entries()
-        .into_iter()
+        .iter()
         .map(|e| {
-            let kind = match e.edit_type {
-                EditType::Structural => "structural",
-                EditType::Stream     => "stream",
-                EditType::Analyzer   => "analyzer",
+            let kind = match e.edit_type() {
+                ProcessorEditType::StructuralProcessor           => "structural",
+                ProcessorEditType::StreamProcessor               => "stream",
+                ProcessorEditType::StructuralAndStreamProcesssor => "structural+stream",
             }
             .to_string();
-            let parameters = e
-                .parameters
+            let parameters: Vec<String> = e
+                .parameters()
                 .iter()
-                .map(|p| match p {
-                    ParamInfo::Float  { id, default, .. } => format!("{id}={default} (float)"),
-                    ParamInfo::Bool   { id, default, .. } => format!("{id}={} (bool)", *default as u8),
-                    ParamInfo::Time   { id, default, .. } => format!("{id}={default} (time)"),
-                    ParamInfo::Int    { id, default, .. } => format!("{id}={default} (int)"),
-                    ParamInfo::Canvas { id, aspect_ratio, .. } => format!("{id} (canvas {aspect_ratio:.2})"),
+                .filter_map(|p| match p {
+                    EditParamInfo::Float { id, default, .. } => Some(format!("{id}={default} (float)")),
+                    EditParamInfo::Bool  { id, default, .. } => Some(format!("{id}={} (bool)", *default as u8)),
+                    EditParamInfo::Time  { id, default, .. } => Some(format!("{id}={default} (time)")),
+                    EditParamInfo::Int   { id, default, .. } => Some(format!("{id}={default} (int)")),
+                    EditParamInfo::Hidden                    => None,
                 })
                 .collect();
-            ProcessorListEntry { id: e.id, kind, name: e.name.to_string(), parameters }
+            ProcessorListEntry { id: e.id(), kind, name: e.name(), parameters }
         })
         .collect();
 

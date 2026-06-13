@@ -133,7 +133,7 @@ pub async fn run(db: &DatabaseConnection, args: ClipArgs) -> Result<()> {
                             let type_str = match &p.kind {
                                 ProcessorEditType::StructuralProcessor => "structural",
                                 ProcessorEditType::StreamProcessor => "stream",
-                                ProcessorEditType::Analyzer => "analyzer",
+                                ProcessorEditType::StructuralAndStreamProcesssor => "structural+stream",
                             };
                             let params_str = p.params.iter()
                                 .map(|(k, v)| format!("{k}={v}"))

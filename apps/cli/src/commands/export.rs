@@ -2,18 +2,11 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use clap::Args;
-use indicatif::{ProgressBar, ProgressStyle};
 use musicum_core::{
     edit::ProcessorEdit,
-    EditRegistry, ProcessorRegistry,
-    services::{
-        clip_service, file_service,
-        export_service::{export_audio, ExportOptions},
-    },
+    services::{clip_service, file_service},
 };
 use sea_orm::DatabaseConnection;
-
-use crate::output::{DetailItem, print_result};
 
 #[derive(Args)]
 pub struct ExportArgs {
@@ -48,69 +41,11 @@ pub struct ExportArgs {
     pub overwrite: bool,
 }
 
-pub async fn run(db: &DatabaseConnection, args: ExportArgs) -> Result<()> {
-    let (file_path, edits) = resolve_target(db, &args.slug, args.file, args.clip).await?;
-
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.green} {msg}")
-            .unwrap(),
-    );
-    pb.set_message(format!("Exporting {} → {}", args.slug, args.output.display()));
-    pb.enable_steady_tick(std::time::Duration::from_millis(120));
-
-    let pb2 = pb.clone();
-    let options = ExportOptions {
-        sample_rate:  args.samplerate,
-        channels:     args.channels,
-        bitrate_kbps: args.bitrate,
-        overwrite:    args.overwrite,
-    };
-    let mut proc_reg = ProcessorRegistry::new();
-    proc_reg.load_dir(&musicum_core::config::Config::get().processors.processor_dir).ok();
-    let registry = EditRegistry::new(std::sync::Arc::new(proc_reg));
-
-    let result = export_audio(
-        &file_path,
-        &edits,
-        &args.output,
-        options,
-        registry.registry(),
-        move |cursor_secs, total_secs| {
-            if total_secs > 0.0 && pb2.length().is_none() {
-                pb2.set_length((total_secs * 1000.0) as u64);
-                pb2.set_style(
-                    ProgressStyle::with_template(
-                        "{spinner:.green} {msg} [{bar:40}] {percent}% ({elapsed}/{eta})"
-                    )
-                    .unwrap()
-                    .progress_chars("█░"),
-                );
-            }
-            if total_secs > 0.0 {
-                pb2.set_position((cursor_secs * 1000.0) as u64);
-            }
-        },
-    ).await?;
-
-    pb.finish_and_clear();
-
-    let mut items = vec![
-        DetailItem::Field("slug",     args.slug.clone()),
-        DetailItem::Field("output",   result.output_path.display().to_string()),
-        DetailItem::Field("format",   result.format.clone()),
-        DetailItem::Field("duration", format!("{:.3}s", result.duration)),
-        DetailItem::Field("rate",     format!("{}Hz", result.sample_rate)),
-        DetailItem::Field("channels", result.channels.to_string()),
-    ];
-    if let Some(kbps) = result.bitrate_kbps {
-        items.push(DetailItem::Field("bitrate", format!("{kbps}kbps")));
-    }
-
-    print_result("Exported", &items);
-    Ok(())
+pub async fn run(_db: &DatabaseConnection, _args: ExportArgs) -> Result<()> {
+    todo!("to be implemented")
 }
 
+#[allow(dead_code)]
 async fn resolve_target(
     db: &DatabaseConnection,
     target: &str,

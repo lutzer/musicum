@@ -3,8 +3,9 @@ use clap::{Args, Subcommand};
 use musicum_core::{
     config::Config,
     edit::{ProcessorEdit, ProcessorEditType},
-    EditRegistry, EditType, ParamInfo, ProcessorRegistry,
+    edit_registry::{EditParamInfo, EditRegistry},
     services::preset_service,
+    ProcessorRegistry,
 };
 use sea_orm::DatabaseConnection;
 use slug::slugify;
@@ -98,7 +99,7 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
                             let kind = match &entry.kind {
                                 ProcessorEditType::StructuralProcessor => "structural",
                                 ProcessorEditType::StreamProcessor => "stream",
-                                ProcessorEditType::Analyzer => "analyzer",
+                                ProcessorEditType::StructuralAndStreamProcesssor => "structural+stream",
                             };
                             let params_str = entry.params.iter()
                                 .map(|(k, v)| format!("{k}={v}"))
@@ -132,14 +133,14 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
         PresetCommand::AddProcessor { preset_slug, processor_type } => {
             let mut proc_reg = ProcessorRegistry::new();
             proc_reg.load_dir(&Config::get().processors.processor_dir).ok();
-            let reg = EditRegistry::new(std::sync::Arc::new(proc_reg));
+            let reg = EditRegistry::new(&proc_reg);
             let all_entries = reg.list_entries();
             let structural: Vec<_> = all_entries.iter()
-                .filter(|e| matches!(e.edit_type, EditType::Structural))
+                .filter(|e| matches!(e.edit_type(), ProcessorEditType::StructuralProcessor))
                 .collect();
-            let entry = structural.iter().find(|e| e.id == processor_type)
+            let entry = structural.iter().find(|e| e.id() == processor_type)
                 .ok_or_else(|| {
-                    let mut valid: Vec<&str> = structural.iter().map(|e| e.id.as_str()).collect();
+                    let mut valid: Vec<String> = structural.iter().map(|e| e.id()).collect();
                     valid.sort_unstable();
                     anyhow::anyhow!(
                         "unknown processor type '{}'. Valid types: {}",
@@ -149,13 +150,13 @@ pub async fn run(db: &DatabaseConnection, args: PresetArgs) -> Result<()> {
                 })?;
 
             let mut default_params = std::collections::HashMap::new();
-            for p in &entry.parameters {
+            for p in entry.parameters() {
                 match p {
-                    ParamInfo::Time { id, default, .. } => {
-                        default_params.insert(id.clone(), *default);
+                    EditParamInfo::Time { id, default, .. } => {
+                        default_params.insert(id.clone(), default);
                     }
-                    ParamInfo::Int  { id, default, .. } => {
-                        default_params.insert(id.clone(), *default as f64);
+                    EditParamInfo::Int  { id, default, .. } => {
+                        default_params.insert(id.clone(), default as f64);
                     }
                     _ => {}
                 }

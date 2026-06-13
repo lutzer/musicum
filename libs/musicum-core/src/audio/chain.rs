@@ -145,7 +145,9 @@ fn is_stream(t: ProcessorTypeFFI) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::edit::ProcessorEditType;
+
+use super::*;
     use std::collections::HashMap;
     use musicum_processor_sdk::BaseProcessor;
 
@@ -235,14 +237,6 @@ mod tests {
         assert!((h.lock().unwrap().get_parameter("start") - 2.5).abs() < 1e-9);
     }
 
-    #[test]
-    fn analyzer_is_skipped() {
-        let registry = ProcessorRegistry::new();
-        let edits = vec![edit(ProcessorEditType::Analyzer, true, "lufs")];
-        let chain = ProcessorChain::from_edits(&edits, &registry);
-        assert_eq!(chain.stream_handles().count(), 0);
-        assert_eq!(chain.structural_handles().count(), 0);
-    }
 
     #[test]
     fn unregistered_processor_id_is_skipped() {
