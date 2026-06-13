@@ -102,7 +102,7 @@ impl AudioEngine for CpalEngine {
     fn load_with_processors(
         &mut self,
         path: &Path,
-        chain: ProcessorChain,
+        mut chain: ProcessorChain,
     ) -> anyhow::Result<()> {
         if let Some(h) = &self.source_handle {
             h.shutdown();
@@ -118,6 +118,7 @@ impl AudioEngine for CpalEngine {
         let source_frames = (decoder.duration_secs() * src_rate as f64).round() as u64;
 
         let ctx = ProcessorContext { playing: false, sample_rate: src_rate, number_channels: src_ch as u32 };
+        chain.init_all(&ctx);
         let timeline = Arc::new(RwLock::new(chain.build_timeline(source_frames, src_rate, &ctx)));
         let out_duration = timeline.read().unwrap().output_duration();
 

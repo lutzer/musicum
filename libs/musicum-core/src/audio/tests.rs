@@ -22,12 +22,19 @@ fn test_wav_path() -> std::path::PathBuf {
 
 #[cfg(test)]
 pub(crate) mod test_processors {
-    use musicum_processor_sdk::analyzer::AnalysisContext;
+    use std::sync::{Arc, Mutex};
+    use musicum_processor_sdk::analyzer::{AnalysisContext, AnalysisRequest};
     use musicum_processor_sdk::parameters::ProcessorParamaterInfo;
     use musicum_processor_sdk::processor::{
         BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorType,
-        Segment, StructuralProcessor,
+        Segment, StreamProcessor, StructuralProcessor,
     };
+
+    #[derive(Default, Clone)]
+    pub struct InitRecord {
+        pub uuid: String,
+        pub posted_request: bool,
+    }
 
     static TEST_TRIM_PARAMS: [ProcessorParamaterInfo; 2] = [
         ProcessorParamaterInfo::Time { id: "start", name: "Start", default: 0.0, editable: true },
@@ -41,10 +48,25 @@ pub(crate) mod test_processors {
     };
 
     #[derive(Default)]
-    pub struct TestTrim { pub start: f64, pub end: f64 }
+    pub struct TestTrim {
+        pub start: f64,
+        pub end: f64,
+        pub record: Option<Arc<Mutex<InitRecord>>>,
+    }
 
     impl BaseProcessor for TestTrim {
-        fn init(&mut self, _: String, _: &ProcessorContext, _: &mut AnalysisContext) {}
+        fn init(&mut self, uuid: String, _: &ProcessorContext, ctx: &mut AnalysisContext) {
+            if let Some(rec) = &self.record {
+                let mut r = rec.lock().unwrap();
+                r.uuid = uuid;
+                r.posted_request = true;
+                ctx.requests.push(AnalysisRequest {
+                    analyzer_id: "test",
+                    hash: "h2".to_string(),
+                    params: vec![],
+                });
+            }
+        }
         fn descriptor(&self) -> &'static ProcessorDescriptor { &TEST_TRIM_DESC }
         fn get_parameter(&self, id: &str) -> f64 {
             match id { "start" => self.start, "end" => self.end, _ => 0.0 }
@@ -61,6 +83,40 @@ pub(crate) mod test_processors {
             if end <= self.start { return vec![]; }
             vec![Segment { src_start: self.start.max(0.0), src_end: end, rate: 1.0 }]
         }
+    }
+
+    static TEST_STREAM_PARAMS: [ProcessorParamaterInfo; 0] = [];
+    static TEST_STREAM_DESC: ProcessorDescriptor = ProcessorDescriptor {
+        id: "test_stream",
+        name: "TestStream",
+        processor_type: ProcessorType::StreamProcessor,
+        parameters: &TEST_STREAM_PARAMS,
+    };
+
+    #[derive(Default)]
+    pub struct TestStream {
+        pub record: Arc<Mutex<InitRecord>>,
+    }
+
+    impl BaseProcessor for TestStream {
+        fn init(&mut self, uuid: String, _: &ProcessorContext, ctx: &mut AnalysisContext) {
+            let mut rec = self.record.lock().unwrap();
+            rec.uuid = uuid;
+            rec.posted_request = true;
+            ctx.requests.push(AnalysisRequest {
+                analyzer_id: "test",
+                hash: "h".to_string(),
+                params: vec![],
+            });
+        }
+        fn descriptor(&self) -> &'static ProcessorDescriptor { &TEST_STREAM_DESC }
+        fn get_parameter(&self, _: &str) -> f64 { 0.0 }
+        fn set_parameter(&mut self, _: &str, _: f64) {}
+        fn requires_analysis(&self) -> bool { false }
+    }
+
+    impl StreamProcessor for TestStream {
+        fn process(&mut self, _: &mut [f32], _: f64, _: &ProcessorContext) {}
     }
 }
 

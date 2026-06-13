@@ -1,9 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use musicum_processor_sdk::{
-    analyzer::AnalysisContext,
-    processor::{ProcessorContext, StreamProcessor},
-};
+use musicum_processor_sdk::processor::{ProcessorContext, StreamProcessor};
 use crate::audio::source::AudioSource;
 
 pub trait AudioNode: AudioSource {}
@@ -18,19 +15,13 @@ impl StreamProcessorNode {
     pub fn new(
         upstream:  Box<dyn AudioSource>,
         processor: Arc<Mutex<Box<dyn StreamProcessor>>>,
-        uuid:      String,
     ) -> Self {
         let context = ProcessorContext {
             playing:         true,
             sample_rate:     upstream.sample_rate(),
             number_channels: upstream.channels() as u32,
         };
-        let node = Self { upstream, processor, context };
-        node.processor
-            .lock()
-            .unwrap()
-            .init(uuid, &node.context, &mut AnalysisContext::default());
-        node
+        Self { upstream, processor, context }
     }
 }
 

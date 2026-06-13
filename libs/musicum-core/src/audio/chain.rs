@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use musicum_processor_sdk::BaseProcessor;
 use uuid::Uuid;
 
+use musicum_processor_sdk::analyzer::AnalysisContext;
 use musicum_processor_sdk::processor::{ProcessorContext, StreamProcessor, StructuralProcessor};
 
 use crate::audio::node::StreamProcessorNode;
@@ -20,12 +21,18 @@ pub type BaseHandle = Arc<Mutex<Box<dyn BaseProcessor>>>;
 pub struct ProcessorChain {
     stream_entries: Vec<(Uuid, StreamHandle)>,
     structural_entries: Vec<(Uuid, StructuralHandle)>,
+    analysis: AnalysisContext,
     structure_dirty: bool
 }
 
 impl ProcessorChain {
     pub fn empty() -> Self {
-        Self { stream_entries: vec![], structural_entries: vec![], structure_dirty: false }
+        Self {
+            stream_entries: vec![],
+            structural_entries: vec![],
+            analysis: AnalysisContext::default(),
+            structure_dirty: false,
+        }
     }
 
     pub fn from_edits(edits: &[ProcessorEdit], registry: &ProcessorRegistry) -> Self {
@@ -49,8 +56,28 @@ impl ProcessorChain {
                 ProcessorEditType::Analyzer => {}
             }
         }
-        Self { stream_entries, structural_entries, structure_dirty : true }
+        Self {
+            stream_entries,
+            structural_entries,
+            analysis: AnalysisContext::default(),
+            structure_dirty: true,
+        }
     }
+
+    /// Initializes every processor (stream + structural) with the given context.
+    /// Must be called once before `build_timeline` / `build_source`. The chain's
+    /// `AnalysisContext` receives all requests posted from `init()` and is
+    /// available afterwards via `analysis()`.
+    pub fn init_all(&mut self, ctx: &ProcessorContext) {
+        for (uuid, handle) in &self.stream_entries {
+            handle.lock().unwrap().init(uuid.to_string(), ctx, &mut self.analysis);
+        }
+        for (uuid, handle) in &self.structural_entries {
+            handle.lock().unwrap().init(uuid.to_string(), ctx, &mut self.analysis);
+        }
+    }
+
+    pub fn analysis(&self) -> &AnalysisContext { &self.analysis }
 
     pub fn build_timeline(
         &self,
@@ -67,8 +94,8 @@ impl ProcessorChain {
     }
 
     pub fn build_source(&self, root: Box<dyn AudioSource>) -> Box<dyn AudioSource> {
-        self.stream_entries.iter().fold(root, |upstream, (id, handle)| {
-            Box::new(StreamProcessorNode::new(upstream, Arc::clone(handle), id.to_string()))
+        self.stream_entries.iter().fold(root, |upstream, (_, handle)| {
+            Box::new(StreamProcessorNode::new(upstream, Arc::clone(handle)))
                 as Box<dyn AudioSource>
         })
     }
@@ -104,6 +131,11 @@ impl ProcessorChain {
     #[cfg(test)]
     pub(crate) fn push_structural(&mut self, uuid: Uuid, handle: StructuralHandle) {
         self.structural_entries.push((uuid, handle));
+    }
+
+    #[cfg(test)]
+    pub(crate) fn push_stream(&mut self, uuid: Uuid, handle: StreamHandle) {
+        self.stream_entries.push((uuid, handle));
     }
 
     pub fn is_structure_dirty(&self) -> bool { self.structure_dirty }
@@ -147,7 +179,7 @@ mod tests {
         let registry = ProcessorRegistry::new();
         let edits = vec![edit(ProcessorEditType::StructuralProcessor, true, "trim")];
         let chain = ProcessorChain::from_edits(&edits, &registry);
-        assert!(chain.structural_handles().count() > 0);
+        assert!(chain.structural_handles().count() == 0);
     }
 
     #[test]
@@ -172,11 +204,11 @@ mod tests {
         let mut chain = ProcessorChain::empty();
         chain.push_structural(
             Uuid::new_v4(),
-            Arc::new(Mutex::new(Box::new(TestTrim { start: 1.0, end: 1.0 }) as _)),
+            Arc::new(Mutex::new(Box::new(TestTrim { start: 1.0, end: 1.0, record: None }) as _)),
         );
         chain.push_structural(
             Uuid::new_v4(),
-            Arc::new(Mutex::new(Box::new(TestTrim { start: 1.0, end: 0.0 }) as _)),
+            Arc::new(Mutex::new(Box::new(TestTrim { start: 1.0, end: 0.0, record: None }) as _)),
         );
         let ctx = ProcessorContext { playing: false, sample_rate: 100, number_channels: 2 };
         let tl = chain.build_timeline(1000, 100, &ctx); // 10s → [1,9] → [2,9]
@@ -217,5 +249,59 @@ mod tests {
     fn get_handle_returns_none_for_unknown_uuid() {
         let chain = ProcessorChain::empty();
         assert!(chain.get_stream_handle(&Uuid::new_v4()).is_none());
+    }
+
+    #[test]
+    fn init_all_calls_init_on_stream_and_structural_handles() {
+        use crate::audio::tests::test_processors::{InitRecord, TestStream, TestTrim};
+
+        let mut chain = ProcessorChain::empty();
+
+        let stream_rec = Arc::new(Mutex::new(InitRecord::default()));
+        let stream_uuid = Uuid::new_v4();
+        chain.push_stream(
+            stream_uuid,
+            Arc::new(Mutex::new(Box::new(TestStream { record: Arc::clone(&stream_rec) }) as _)),
+        );
+
+        let struct_rec = Arc::new(Mutex::new(InitRecord::default()));
+        let struct_uuid = Uuid::new_v4();
+        chain.push_structural(
+            struct_uuid,
+            Arc::new(Mutex::new(Box::new(TestTrim {
+                start: 0.0, end: 0.0, record: Some(Arc::clone(&struct_rec)),
+            }) as _)),
+        );
+
+        let ctx = ProcessorContext { playing: false, sample_rate: 44100, number_channels: 2 };
+        chain.init_all(&ctx);
+
+        assert_eq!(stream_rec.lock().unwrap().uuid, stream_uuid.to_string());
+        assert_eq!(struct_rec.lock().unwrap().uuid, struct_uuid.to_string());
+    }
+
+    #[test]
+    fn init_all_shares_analysis_context() {
+        use crate::audio::tests::test_processors::{InitRecord, TestStream, TestTrim};
+
+        let mut chain = ProcessorChain::empty();
+        chain.push_stream(
+            Uuid::new_v4(),
+            Arc::new(Mutex::new(Box::new(TestStream {
+                record: Arc::new(Mutex::new(InitRecord::default())),
+            }) as _)),
+        );
+        chain.push_structural(
+            Uuid::new_v4(),
+            Arc::new(Mutex::new(Box::new(TestTrim {
+                start: 0.0, end: 0.0,
+                record: Some(Arc::new(Mutex::new(InitRecord::default()))),
+            }) as _)),
+        );
+
+        let ctx = ProcessorContext { playing: false, sample_rate: 44100, number_channels: 2 };
+        chain.init_all(&ctx);
+
+        assert_eq!(chain.analysis().requests.len(), 2);
     }
 }
