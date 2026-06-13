@@ -11,7 +11,7 @@ use musicum_processor_sdk::{
     ffi::{
         AbiAnalyzer_TO, AbiProcessor_TO,
         AnalysisContextFFI, AnalysisRequestFFI, AnalysisResultFFI,
-        AnalyzerDescriptorFFI, ProcessorDescriptorFFI,
+        ProcessorDescriptorFFI, ProcessorTypeFFI,
     },
     processor::{BaseProcessor, ProcessorContext, Segment},
 };
@@ -46,7 +46,6 @@ struct RegistryEntry {
     descriptor:      &'static ProcessorDescriptorFFI,
     lib:             Arc<Library>,
     create_fn:       unsafe extern "C" fn() -> AbiProcessor_TO<'static, RBox<()>>,
-    analyzer_desc:   Option<&'static AnalyzerDescriptorFFI>,
     analyzer_create: Option<unsafe extern "C" fn() -> AbiAnalyzer_TO<'static, RBox<()>>>,
 }
 
@@ -64,7 +63,7 @@ impl BaseProcessor for FfiProcessor {
     fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }
     fn set_parameter(&mut self, id: &str, value: f64) { self.inner.set_parameter(id.into(), value); }
     fn requires_analysis(&self) -> bool { self.inner.requires_analysis() }
-    fn get_analysis_hash(&self) -> String { self.inner.get_analysis_hash().into() }
+    fn analysis_hash(&self) -> String { self.inner.get_analysis_hash().into() }
     fn process(&mut self, buffer: &mut [f32], time: f64, ctx: &ProcessorContext) {
         self.inner.process(RSliceMut::from_mut_slice(buffer), time, *ctx);
     }
@@ -150,28 +149,15 @@ impl ProcessorRegistry {
             *sym
         };
 
-        let (analyzer_desc, analyzer_create) = unsafe {
-            let desc_sym: Result<
-                Symbol<unsafe extern "C" fn() -> &'static AnalyzerDescriptorFFI>, _,
-            > = lib.get(b"musicum_analyzer_descriptor\0");
-            match desc_sym {
-                Err(_) => (None, None),
-                Ok(desc_fn) => {
-                    let create_sym: Symbol<
-                        unsafe extern "C" fn() -> AbiAnalyzer_TO<'static, RBox<()>>,
-                    > = lib.get(b"musicum_analyzer_create\0").map_err(|_| {
-                        ProcessorLoadError::SymbolNotFound {
-                            path: path.to_owned(), symbol: "musicum_analyzer_create",
-                        }
-                    })?;
-                    (Some(desc_fn()), Some(*create_sym))
-                }
-            }
+        let analyzer_create: Option<unsafe extern "C" fn() -> AbiAnalyzer_TO<'static, RBox<()>>> = unsafe {
+            let sym: Result<Symbol<unsafe extern "C" fn() -> AbiAnalyzer_TO<'static, RBox<()>>>, _> =
+                lib.get(b"musicum_analyzer_create\0");
+            sym.ok().map(|s| *s)
         };
 
         let id = descriptor.id.as_str().to_owned();
         self.entries.insert(id, RegistryEntry {
-            descriptor, lib: Arc::new(lib), create_fn, analyzer_desc, analyzer_create,
+            descriptor, lib: Arc::new(lib), create_fn, analyzer_create,
         });
         Ok(())
     }
@@ -192,15 +178,15 @@ impl ProcessorRegistry {
         self.entries.values().map(|e| e.descriptor)
     }
 
+    pub fn processor_type(&self, id: &str) -> Option<ProcessorTypeFFI> {
+        self.descriptor(id).map(|d| d.processor_type)
+    }
+
     pub fn create_analyzer_for(&self, processor_id: &str) -> Option<FfiAnalyzer> {
         let entry = self.entries.get(processor_id)?;
         let create_fn = entry.analyzer_create?;
         let inner = unsafe { create_fn() };
         Some(FfiAnalyzer { inner, _lib: Arc::clone(&entry.lib) })
-    }
-
-    pub fn analyzer_descriptor(&self, processor_id: &str) -> Option<&AnalyzerDescriptorFFI> {
-        self.entries.get(processor_id)?.analyzer_desc
     }
 }
 

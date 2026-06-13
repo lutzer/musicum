@@ -12,7 +12,7 @@ pub mod edit {
 }
 
 pub use db::entities::edit::ProcessorEdit;
-pub use edit_registry::{EditRegistry, EditRegistryEntry, EditType, ParamInfo};
+pub use edit_registry::{EditRegistry, EditRegistryEntry, EditType};
 pub use error::ServiceError;
 pub use processor_loader::{FfiProcessor, ProcessorLoadError, ProcessorRegistry};
 

@@ -149,6 +149,8 @@ mod source_tests {
 mod engine_tests {
     use std::sync::{Arc, Mutex};
     use uuid::Uuid;
+    use musicum_processor_sdk::BaseProcessor;
+    use musicum_processor_sdk::ffi::ProcessorTypeFFI;
     use crate::audio::chain::ProcessorChain;
     use crate::audio::engine::{AudioEngine, CpalEngine};
     use super::test_processors::TestTrim;
@@ -159,9 +161,11 @@ mod engine_tests {
         let path = super::test_wav_path(); // 1s, 440 Hz
         let mut chain = ProcessorChain::empty();
         let uuid = Uuid::new_v4();
-        chain.push_structural(uuid, Arc::new(Mutex::new(
-            Box::new(TestTrim::default()) as Box<dyn musicum_processor_sdk::processor::StructuralProcessor>,
-        )));
+        chain.push_handle(
+            uuid,
+            ProcessorTypeFFI::Structural,
+            Arc::new(Mutex::new(Box::new(TestTrim::default()) as Box<dyn BaseProcessor>)),
+        );
 
         let mut engine = CpalEngine::new().unwrap();
         engine.load_with_processors(&path, chain).unwrap();

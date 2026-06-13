@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
-pub enum ProcessorEditType { StructuralProcessor, StreamProcessor, Analyzer }
+pub enum ProcessorEditType { StructuralProcessor, StreamProcessor, StructuralAndStreamProcesssor }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct ProcessorEdit {

@@ -1,5 +1,9 @@
 ## TODO
 
+## PENDING
+
+* fix descriptor field for base processor in exports and loader, it should belong to the BaseProcessor trait and not in a seperate trait
+
 ## core
 * [x] Sync key to add potential new files from the source directory
 * [x] Sync presets collections, everything

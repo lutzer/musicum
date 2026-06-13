@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use musicum_processor_sdk::ffi::{ProcessorDescriptorFFI, ProcessorParamFFI, ProcessorTypeFFI};
+use musicum_processor_sdk::ffi::{ProcessorDescriptorFFI, ProcessorTypeFFI};
 
 use crate::processor_loader::ProcessorRegistry;
 
@@ -8,7 +8,7 @@ use crate::processor_loader::ProcessorRegistry;
 pub enum EditType {
     Structural,
     Stream,
-    Analyzer,
+    StructuralAndStream,
 }
 
 impl From<ProcessorTypeFFI> for EditType {
@@ -16,71 +16,7 @@ impl From<ProcessorTypeFFI> for EditType {
         match t {
             ProcessorTypeFFI::Structural => EditType::Structural,
             ProcessorTypeFFI::Stream     => EditType::Stream,
-            ProcessorTypeFFI::Analyzer   => EditType::Analyzer,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ParamInfo {
-    Float {
-        id:       String,
-        name:     String,
-        default:  f32,
-        min:      f32,
-        max:      f32,
-        step:     f32,
-        unit:     String,
-        editable: bool,
-    },
-    Bool {
-        id:       String,
-        name:     String,
-        default:  bool,
-        editable: bool,
-    },
-    Time {
-        id:       String,
-        name:     String,
-        default:  f64,
-        editable: bool,
-    },
-    Int {
-        id:       String,
-        name:     String,
-        default:  i32,
-        min:      i32,
-        max:      i32,
-        editable: bool,
-    },
-    Canvas {
-        id:           String,
-        name:         String,
-        aspect_ratio: f32,
-    },
-}
-
-impl From<&ProcessorParamFFI> for ParamInfo {
-    fn from(p: &ProcessorParamFFI) -> Self {
-        match *p {
-            ProcessorParamFFI::Float { id, name, default, min, max, step, unit, editable } =>
-                ParamInfo::Float {
-                    id: id.to_string(), name: name.to_string(),
-                    default, min, max, step, unit: unit.to_string(), editable,
-                },
-            ProcessorParamFFI::Bool { id, name, default, editable } =>
-                ParamInfo::Bool { id: id.to_string(), name: name.to_string(), default, editable },
-            ProcessorParamFFI::Time { id, name, default, editable } =>
-                ParamInfo::Time { id: id.to_string(), name: name.to_string(), default, editable },
-            ProcessorParamFFI::Int { id, name, default, min, max, editable } =>
-                ParamInfo::Int {
-                    id: id.to_string(), name: name.to_string(),
-                    default, min, max, editable,
-                },
-            ProcessorParamFFI::Canvas { id, name, aspect_ratio } =>
-                ParamInfo::Canvas {
-                    id: id.to_string(), name: name.to_string(), aspect_ratio,
-                },
+            ProcessorTypeFFI::StructuralAndStream   => EditType::StructuralAndStream,
         }
     }
 }
@@ -90,7 +26,7 @@ pub struct EditRegistryEntry {
     pub id:         String,
     pub name:       String,
     pub edit_type:  EditType,
-    pub parameters: Vec<ParamInfo>,
+    pub parameters: Vec<(String, f64)>,
 }
 
 impl From<&ProcessorDescriptorFFI> for EditRegistryEntry {
@@ -99,7 +35,7 @@ impl From<&ProcessorDescriptorFFI> for EditRegistryEntry {
             id:         d.id.to_string(),
             name:       d.name.to_string(),
             edit_type:  EditType::from(d.processor_type),
-            parameters: d.params.iter().map(ParamInfo::from).collect(),
+            parameters: vec![],
         }
     }
 }

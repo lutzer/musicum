@@ -246,6 +246,5 @@ fn normalize_bundles_a_loadable_analyzer() {
     if !path.exists() { return; }
     let mut registry = ProcessorRegistry::new();
     registry.load_dir(&processors_dylib_dir()).unwrap();
-    assert!(registry.analyzer_descriptor("normalize").is_some());
     assert!(registry.create_analyzer_for("normalize").is_some());
 }

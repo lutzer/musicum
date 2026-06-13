@@ -1,20 +1,20 @@
 use std::sync::{Arc, Mutex};
 
-use musicum_processor_sdk::processor::{ProcessorContext, StreamProcessor};
+use musicum_processor_sdk::processor::{BaseProcessor, ProcessorContext};
 use crate::audio::source::AudioSource;
 
 pub trait AudioNode: AudioSource {}
 
 pub struct StreamProcessorNode {
     upstream:  Box<dyn AudioSource>,
-    processor: Arc<Mutex<Box<dyn StreamProcessor>>>,
+    processor: Arc<Mutex<Box<dyn BaseProcessor>>>,
     context:   ProcessorContext,
 }
 
 impl StreamProcessorNode {
     pub fn new(
         upstream:  Box<dyn AudioSource>,
-        processor: Arc<Mutex<Box<dyn StreamProcessor>>>,
+        processor: Arc<Mutex<Box<dyn BaseProcessor>>>,
     ) -> Self {
         let context = ProcessorContext {
             playing:         true,
