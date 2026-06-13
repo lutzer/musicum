@@ -42,16 +42,16 @@ impl ProcessorChain {
             if !edit.enabled { continue; }
             match edit.kind {
                 ProcessorEditType::StreamProcessor => {
-                    let Some(loaded) = registry.create(&edit.processor_id) else { continue };
-                    let Some(mut proc) = loaded.into_stream_processor() else { continue };
+                    let Some(mut proc) = registry.create(&edit.processor_id) else { continue };
                     for (id, &value) in &edit.params { proc.set_parameter(id, value); }
-                    stream_entries.push((edit.uuid, Arc::new(Mutex::new(proc)) as StreamHandle));
+                    let boxed: Box<dyn StreamProcessor> = Box::new(proc);
+                    stream_entries.push((edit.uuid, Arc::new(Mutex::new(boxed)) as StreamHandle));
                 }
                 ProcessorEditType::StructuralProcessor => {
-                    let Some(loaded) = registry.create(&edit.processor_id) else { continue };
-                    let Some(mut proc) = loaded.into_structural_processor() else { continue };
+                    let Some(mut proc) = registry.create(&edit.processor_id) else { continue };
                     for (id, &value) in &edit.params { proc.set_parameter(id, value); }
-                    structural_entries.push((edit.uuid, Arc::new(Mutex::new(proc)) as StructuralHandle));
+                    let boxed: Box<dyn StructuralProcessor> = Box::new(proc);
+                    structural_entries.push((edit.uuid, Arc::new(Mutex::new(boxed)) as StructuralHandle));
                 }
                 ProcessorEditType::Analyzer => {}
             }

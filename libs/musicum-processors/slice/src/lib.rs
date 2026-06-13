@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{BoolParam, IntParam, ProcessorParamaterInfo}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, Segment, StructuralProcessor,
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType, Segment,
 }};
 
 static SLICE_PARAMS: [ProcessorParamaterInfo; 3] = [
@@ -42,9 +42,6 @@ impl Default for SliceProcessor {
 }
 
 impl BaseProcessor for SliceProcessor {
-
-    fn descriptor(&self) -> &'static ProcessorDescriptor { &DESCRIPTOR }
-
     fn get_parameter(&self, id: &str) -> f64 {
         match id {
             "slices"       => self.slices.get() as f64,
@@ -63,10 +60,6 @@ impl BaseProcessor for SliceProcessor {
         }
     }
 
-    fn requires_analysis(&self) -> bool { false }
-}
-
-impl StructuralProcessor for SliceProcessor {
     fn segments(
         &self,
         duration: f64,
@@ -84,7 +77,11 @@ impl StructuralProcessor for SliceProcessor {
     }
 }
 
-musicum_processor_sdk::export_processor!(SliceProcessor, Structural);
+impl ProcessorMeta for SliceProcessor {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
+musicum_processor_sdk::export_processor!(SliceProcessor);
 
 #[cfg(test)]
 mod tests {

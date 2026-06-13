@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{FloatParam, ProcessorParamaterInfo}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType,
 }};
 
 static REVERB_PARAMS: [ProcessorParamaterInfo; 4] = [
@@ -77,11 +77,6 @@ impl Default for ReverbPlugin {
 }
 
 impl BaseProcessor for ReverbPlugin {
-
-    fn descriptor(&self) -> &'static ProcessorDescriptor {
-        &DESCRIPTOR
-    }
-
     fn get_parameter(&self, id: &str) -> f64 {
         match id {
             "gain" => self.gain.get() as f64,
@@ -103,13 +98,6 @@ impl BaseProcessor for ReverbPlugin {
         self.update_filters();
     }
 
-
-    fn requires_analysis(&self) -> bool {
-        false
-    }
-}
-
-impl StreamProcessor for ReverbPlugin {
     fn process(
         &mut self,
         samples: &mut [f32],
@@ -141,6 +129,10 @@ impl StreamProcessor for ReverbPlugin {
             }
         }
     }
+}
+
+impl ProcessorMeta for ReverbPlugin {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
 }
 
 impl ReverbPlugin {
@@ -214,7 +206,7 @@ impl AllpassFilter {
 const COMB_SIZES: [usize; 8] = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
 const ALLPASS_SIZES: [usize; 4] = [556, 441, 341, 225];
 
-musicum_processor_sdk::export_processor!(ReverbPlugin, Stream);
+musicum_processor_sdk::export_processor!(ReverbPlugin);
 
 
 #[cfg(test)]

@@ -14,7 +14,7 @@ pub mod edit {
 pub use db::entities::edit::ProcessorEdit;
 pub use edit_registry::{EditRegistry, EditRegistryEntry, EditType, ParamInfo};
 pub use error::ServiceError;
-pub use processor_loader::{LoadedProcessor, ProcessorLoadError, ProcessorRegistry};
+pub use processor_loader::{FfiProcessor, ProcessorLoadError, ProcessorRegistry};
 
 pub use audio::chain::ProcessorChain;
 pub use audio::devices::{list_output_devices};

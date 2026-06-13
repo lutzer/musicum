@@ -11,11 +11,13 @@ mod tests;
 
 use abi_stable::{
     sabi_trait,
-    std_types::{RBox, RSlice, RSliceMut, RStr, RString, RVec},
+    std_types::{ROption, RSlice, RSliceMut, RStr, RString, RVec},
     StableAbi,
 };
 
-use crate::{parameters::ProcessorParamaterInfo, processor::{ProcessorContext, ProcessorDescriptor, ProcessorType, Segment}};
+use crate::analyzer::{AnalysisContext, AnalysisRequest, AudioAnalyser};
+use crate::parameters::ProcessorParamaterInfo;
+use crate::processor::{BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorType, Segment};
 
 // ── Descriptor FFI types ──────────────────────────────────────────────────────
 
@@ -114,40 +116,66 @@ impl From<&'static ProcessorParamaterInfo> for ProcessorParamFFI {
     }
 }
 
-// ── ABI-safe traits ───────────────────────────────────────────────────────────
-//
-// Flat traits (no supertrait inheritance) — #[sabi_trait] does not support
-// inheriting methods from supertraits. Each trait duplicates the base methods.
+// ── ABI-safe processor trait + generic adapter ────────────────────────────────
 
 #[sabi_trait]
-pub trait AbiStreamProcessor: Send + Sync {
+pub trait AbiProcessor: Send + Sync {
     fn init(
         &mut self,
         uuid: RString,
         ctx: ProcessorContext,
         analysis: AnalysisContextFFI,
     ) -> AnalysisContextFFI;
+
     fn get_parameter(&self, id: RStr<'_>) -> f64;
     fn set_parameter(&mut self, id: RStr<'_>, value: f64);
     fn requires_analysis(&self) -> bool;
     fn get_analysis_hash(&self) -> RString;
+
     fn process(&mut self, samples: RSliceMut<'_, f32>, time: f64, ctx: ProcessorContext);
-}
-
-#[sabi_trait]
-pub trait AbiStructuralProcessor: Send + Sync {
-    fn init(
-        &mut self,
-        uuid: RString,
-        ctx: ProcessorContext,
-        analysis: AnalysisContextFFI,
-    ) -> AnalysisContextFFI;
-    fn get_parameter(&self, id: RStr<'_>) -> f64;
-    fn set_parameter(&mut self, id: RStr<'_>, value: f64);
-    fn requires_analysis(&self) -> bool;
-    fn get_analysis_hash(&self) -> RString;
     fn segments(&self, duration: f64, ctx: ProcessorContext) -> RVec<Segment>;
 }
+
+pub struct FfiAdapter<T: BaseProcessor>(pub T);
+
+impl<T: BaseProcessor> AbiProcessor for FfiAdapter<T> {
+    fn init(
+        &mut self,
+        uuid: RString,
+        ctx: ProcessorContext,
+        analysis: AnalysisContextFFI,
+    ) -> AnalysisContextFFI {
+        let mut native = AnalysisContext::default();
+        analysis.drain_into(&mut native);
+        self.0.init(uuid.into(), &ctx, &mut native);
+        AnalysisContextFFI::from_context(&mut native)
+    }
+    fn get_parameter(&self, id: RStr<'_>) -> f64 {
+        self.0.get_parameter(id.as_str())
+    }
+    fn set_parameter(&mut self, id: RStr<'_>, value: f64) {
+        self.0.set_parameter(id.as_str(), value);
+    }
+    fn requires_analysis(&self) -> bool { self.0.requires_analysis() }
+    fn get_analysis_hash(&self) -> RString { RString::from(self.0.get_analysis_hash()) }
+    fn process(
+        &mut self,
+        mut samples: RSliceMut<'_, f32>,
+        time: f64,
+        ctx: ProcessorContext,
+    ) {
+        self.0.process(samples.as_mut_slice(), time, &ctx);
+    }
+    fn segments(
+        &self,
+        duration: f64,
+        ctx: ProcessorContext,
+    ) -> RVec<Segment> {
+        self.0.segments(duration, &ctx).into()
+    }
+}
+
+// ── ABI-safe analyzer trait + generic adapter ─────────────────────────────────
 
 #[sabi_trait]
 pub trait AbiAnalyzer: Send + Sync {
@@ -158,15 +186,26 @@ pub trait AbiAnalyzer: Send + Sync {
         time:      f64,
         exhausted: bool,
         ctx:       ProcessorContext,
-    ) -> abi_stable::std_types::ROption<AnalysisResultFFI>;
+    ) -> ROption<AnalysisResultFFI>;
 }
 
-// ── ProcessorEntry enum ───────────────────────────────────────────────────────
+pub struct FfiAnalyzerAdapter<T: AudioAnalyser>(pub T);
 
-#[repr(u8)]
-#[derive(StableAbi)]
-pub enum ProcessorEntry {
-    Stream(AbiStreamProcessor_TO<'static, RBox<()>>),
-    Structural(AbiStructuralProcessor_TO<'static, RBox<()>>),
-    Analyzer(AbiAnalyzer_TO<'static, RBox<()>>),
+impl<T: AudioAnalyser + Send + Sync> AbiAnalyzer for FfiAnalyzerAdapter<T> {
+    fn init(&mut self, request: AnalysisRequestFFI) {
+        let native = AnalysisRequest::from(&request);
+        self.0.init(&native);
+    }
+    fn analyze(
+        &mut self,
+        samples:   RSlice<'_, f32>,
+        time:      f64,
+        exhausted: bool,
+        ctx:       ProcessorContext,
+    ) -> ROption<AnalysisResultFFI> {
+        match self.0.analyze(samples.as_slice(), time, exhausted, &ctx) {
+            Some((hash, boxed)) => ROption::RSome(AnalysisResultFFI::from_boxed(hash, &boxed)),
+            None => ROption::RNone,
+        }
+    }
 }

@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{analyzer::{AnalysisRequest}, parameters::{FloatParam, ProcessorParamaterInfo}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType,
 }};
 
 use crate::analyzer::NormalizeAnalyzerResult;
@@ -73,8 +73,6 @@ impl BaseProcessor for NormalizeProcessor {
         }
     }
 
-    fn descriptor(&self) -> &'static ProcessorDescriptor { &DESCRIPTOR }
-
     fn get_parameter(&self, id: &str) -> f64 {
         match id {
             "target_dbfs" => self.target_dbfs.get() as f64,
@@ -95,9 +93,7 @@ impl BaseProcessor for NormalizeProcessor {
     fn get_analysis_hash(&self) -> String {
         return AnalysisRequest::generate_hash_from(&self.uuid, &vec![])
     }
-}
 
-impl StreamProcessor for NormalizeProcessor {
     fn process(
         &mut self,
         samples: &mut [f32],
@@ -111,9 +107,12 @@ impl StreamProcessor for NormalizeProcessor {
     }
 }
 
+impl ProcessorMeta for NormalizeProcessor {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
 musicum_processor_sdk::export_processor!(
     NormalizeProcessor,
-    Stream,
     with: NormalizeAnalyzer = ANALYZER_ID
 );
 

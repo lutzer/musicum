@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{FloatParam, ProcessorParamaterInfo}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor,
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType,
 }};
 
 static PAN_PARAMS: [ProcessorParamaterInfo; 2] = [
@@ -35,9 +35,6 @@ impl Default for PanProcessor {
 }
 
 impl BaseProcessor for PanProcessor {
-
-    fn descriptor(&self) -> &'static ProcessorDescriptor { &DESCRIPTOR }
-
     fn get_parameter(&self, id: &str) -> f64 {
         match id {
             "pan"   => self.pan.get() as f64,
@@ -54,10 +51,6 @@ impl BaseProcessor for PanProcessor {
         }
     }
 
-    fn requires_analysis(&self) -> bool { false }
-}
-
-impl StreamProcessor for PanProcessor {
     fn process(
         &mut self,
         samples: &mut [f32],
@@ -91,7 +84,11 @@ impl StreamProcessor for PanProcessor {
     }
 }
 
-musicum_processor_sdk::export_processor!(PanProcessor, Stream);
+impl ProcessorMeta for PanProcessor {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
+musicum_processor_sdk::export_processor!(PanProcessor);
 
 #[cfg(test)]
 mod tests {

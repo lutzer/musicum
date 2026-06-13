@@ -24,10 +24,8 @@ fn test_wav_path() -> std::path::PathBuf {
 pub(crate) mod test_processors {
     use std::sync::{Arc, Mutex};
     use musicum_processor_sdk::analyzer::{AnalysisContext, AnalysisRequest};
-    use musicum_processor_sdk::parameters::ProcessorParamaterInfo;
     use musicum_processor_sdk::processor::{
-        BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorType,
-        Segment, StreamProcessor, StructuralProcessor,
+        BaseProcessor, ProcessorContext, Segment,
     };
 
     #[derive(Default, Clone)]
@@ -35,17 +33,6 @@ pub(crate) mod test_processors {
         pub uuid: String,
         pub posted_request: bool,
     }
-
-    static TEST_TRIM_PARAMS: [ProcessorParamaterInfo; 2] = [
-        ProcessorParamaterInfo::Time { id: "start", name: "Start", default: 0.0, editable: true },
-        ProcessorParamaterInfo::Time { id: "end",   name: "End",   default: 0.0, editable: true },
-    ];
-    static TEST_TRIM_DESC: ProcessorDescriptor = ProcessorDescriptor {
-        id: "test_trim",
-        name: "TestTrim",
-        processor_type: ProcessorType::StructuralProcessor,
-        parameters: &TEST_TRIM_PARAMS,
-    };
 
     #[derive(Default)]
     pub struct TestTrim {
@@ -67,31 +54,18 @@ pub(crate) mod test_processors {
                 });
             }
         }
-        fn descriptor(&self) -> &'static ProcessorDescriptor { &TEST_TRIM_DESC }
         fn get_parameter(&self, id: &str) -> f64 {
             match id { "start" => self.start, "end" => self.end, _ => 0.0 }
         }
         fn set_parameter(&mut self, id: &str, value: f64) {
             match id { "start" => self.start = value, "end" => self.end = value, _ => {} }
         }
-        fn requires_analysis(&self) -> bool { false }
-    }
-
-    impl StructuralProcessor for TestTrim {
         fn segments(&self, duration: f64, _: &ProcessorContext) -> Vec<Segment> {
             let end = duration - self.end.max(0.0);
             if end <= self.start { return vec![]; }
             vec![Segment { src_start: self.start.max(0.0), src_end: end, rate: 1.0 }]
         }
     }
-
-    static TEST_STREAM_PARAMS: [ProcessorParamaterInfo; 0] = [];
-    static TEST_STREAM_DESC: ProcessorDescriptor = ProcessorDescriptor {
-        id: "test_stream",
-        name: "TestStream",
-        processor_type: ProcessorType::StreamProcessor,
-        parameters: &TEST_STREAM_PARAMS,
-    };
 
     #[derive(Default)]
     pub struct TestStream {
@@ -109,14 +83,6 @@ pub(crate) mod test_processors {
                 params: vec![],
             });
         }
-        fn descriptor(&self) -> &'static ProcessorDescriptor { &TEST_STREAM_DESC }
-        fn get_parameter(&self, _: &str) -> f64 { 0.0 }
-        fn set_parameter(&mut self, _: &str, _: f64) {}
-        fn requires_analysis(&self) -> bool { false }
-    }
-
-    impl StreamProcessor for TestStream {
-        fn process(&mut self, _: &mut [f32], _: f64, _: &ProcessorContext) {}
     }
 }
 

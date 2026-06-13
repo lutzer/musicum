@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::ProcessorParamaterInfo, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor,
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType,
 }};
 
 static LEVEL_METER_PARAMS: [ProcessorParamaterInfo; 2] = [
@@ -36,14 +36,9 @@ impl Default for LevelMeterProcessor {
 }
 
 impl BaseProcessor for LevelMeterProcessor {
-
-    fn descriptor(&self) -> &'static ProcessorDescriptor { &DESCRIPTOR }
-
     fn get_parameter(&self, _id: &str) -> f64 { 0.0 }
     fn set_parameter(&mut self, _id: &str, _value: f64) {}
-}
 
-impl StreamProcessor for LevelMeterProcessor {
     fn process(
         &mut self,
         samples: &mut [f32],
@@ -81,7 +76,11 @@ impl StreamProcessor for LevelMeterProcessor {
     }
 }
 
-musicum_processor_sdk::export_processor!(LevelMeterProcessor, Stream);
+impl ProcessorMeta for LevelMeterProcessor {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
+musicum_processor_sdk::export_processor!(LevelMeterProcessor);
 
 #[cfg(test)]
 mod tests {

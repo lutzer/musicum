@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{ProcessorParamaterInfo, TimeParam}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, Segment, StructuralProcessor,
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType, Segment,
 }};
 
 static CROP_PARAMS: [ProcessorParamaterInfo; 2] = [
@@ -29,9 +29,6 @@ impl Default for CropProcessor {
 }
 
 impl BaseProcessor for CropProcessor {
-    
-    fn descriptor(&self) -> &'static ProcessorDescriptor { &DESCRIPTOR }
-
     fn get_parameter(&self, id: &str) -> f64 {
         match id {
             "from" => self.from.get(),
@@ -47,9 +44,7 @@ impl BaseProcessor for CropProcessor {
             _ => {}
         }
     }
-}
 
-impl StructuralProcessor for CropProcessor {
     fn segments(
         &self,
         duration: f64,
@@ -64,7 +59,11 @@ impl StructuralProcessor for CropProcessor {
     }
 }
 
-musicum_processor_sdk::export_processor!(CropProcessor, Structural);
+impl ProcessorMeta for CropProcessor {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
+musicum_processor_sdk::export_processor!(CropProcessor);
 
 #[cfg(test)]
 mod tests {

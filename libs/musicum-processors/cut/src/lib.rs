@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{ProcessorParamaterInfo, TimeParam}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, Segment, StructuralProcessor
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType, Segment,
 }};
 
 static CUT_PARAMS: [ProcessorParamaterInfo; 2] = [
@@ -28,10 +28,6 @@ impl Default for CutProcessor {
 }
 
 impl BaseProcessor for CutProcessor {
-    fn descriptor(&self) -> &'static ProcessorDescriptor {
-        &DESCRIPTOR
-    }
-
     fn get_parameter(&self, id: &str) -> f64 {
         if id == "start" { self.start.get() }
         else if id == "end" { self.end.get() }
@@ -42,9 +38,7 @@ impl BaseProcessor for CutProcessor {
         if id == "start" { self.start.set(value); }
         else if id == "end" { self.end.set(value); }
     }
-}
 
-impl StructuralProcessor for CutProcessor {
     fn segments(
         &self,
         duration: f64,
@@ -62,4 +56,8 @@ impl StructuralProcessor for CutProcessor {
     }
 }
 
-musicum_processor_sdk::export_processor!(CutProcessor, Structural);
+impl ProcessorMeta for CutProcessor {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
+musicum_processor_sdk::export_processor!(CutProcessor);

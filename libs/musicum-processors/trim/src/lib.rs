@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{ProcessorParamaterInfo, TimeParam}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, Segment, StructuralProcessor
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType, Segment,
 }};
 
 static TRIM_PARAMS: [ProcessorParamaterInfo; 2] = [
@@ -28,10 +28,6 @@ impl Default for TrimProcessor {
 }
 
 impl BaseProcessor for TrimProcessor {
-    fn descriptor(&self) -> &'static ProcessorDescriptor {
-        &DESCRIPTOR
-    }
-
     fn get_parameter(&self, id: &str) -> f64 {
         if id == "start" { self.start.get() }
         else if id == "end" { self.end.get() }
@@ -43,12 +39,6 @@ impl BaseProcessor for TrimProcessor {
         else if id == "end" { self.end.set(value); }
     }
 
-    fn requires_analysis(&self) -> bool {
-        false
-    }
-}
-
-impl StructuralProcessor for TrimProcessor {
     fn segments(
         &self,
         duration: f64,
@@ -63,4 +53,8 @@ impl StructuralProcessor for TrimProcessor {
     }
 }
 
-musicum_processor_sdk::export_processor!(TrimProcessor, Structural);
+impl ProcessorMeta for TrimProcessor {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
+musicum_processor_sdk::export_processor!(TrimProcessor);

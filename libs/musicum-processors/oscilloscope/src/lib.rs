@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{FloatParam, ProcessorParamaterInfo}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor,
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType,
 }};
 
 static OSCILLOSCOPE_PARAMS: [ProcessorParamaterInfo; 3] = [
@@ -42,9 +42,6 @@ impl Default for OscilloscopeProcessor {
 }
 
 impl BaseProcessor for OscilloscopeProcessor {
-
-    fn descriptor(&self) -> &'static ProcessorDescriptor { &DESCRIPTOR }
-
     fn get_parameter(&self, id: &str) -> f64 {
         match id {
             "chunk_size"        => self.chunk_size.get() as f64,
@@ -61,10 +58,6 @@ impl BaseProcessor for OscilloscopeProcessor {
         }
     }
 
-    fn requires_analysis(&self) -> bool { false }
-}
-
-impl StreamProcessor for OscilloscopeProcessor {
     fn process(
         &mut self,
         samples: &mut [f32],
@@ -80,7 +73,11 @@ impl StreamProcessor for OscilloscopeProcessor {
     }
 }
 
-musicum_processor_sdk::export_processor!(OscilloscopeProcessor, Stream);
+impl ProcessorMeta for OscilloscopeProcessor {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
+musicum_processor_sdk::export_processor!(OscilloscopeProcessor);
 
 #[cfg(test)]
 mod tests {

@@ -16,7 +16,6 @@ pub use analyzer::{
     AnalysisContext, AnalysisRequest, AnalysisResult, AudioAnalyser,
 };
 pub use processor::{
-    BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorType,
+    BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorMeta, ProcessorType,
     Segment, StreamProcessor, StructuralProcessor,
 };
-pub use ffi::ProcessorEntry;

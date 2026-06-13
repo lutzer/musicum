@@ -1,5 +1,5 @@
 use musicum_processor_sdk::{parameters::{FloatParam, ProcessorParamaterInfo}, processor::{
-    BaseProcessor, ProcessorDescriptor, ProcessorType, StreamProcessor
+    BaseProcessor, ProcessorDescriptor, ProcessorMeta, ProcessorType,
 }};
 
 static GAIN_PARAMS: [ProcessorParamaterInfo; 1] = [ProcessorParamaterInfo::Float {
@@ -31,11 +31,6 @@ impl Default for GainPlugin {
 }
 
 impl BaseProcessor for GainPlugin {
-
-    fn descriptor(&self) -> &'static ProcessorDescriptor {
-        &DESCRIPTOR
-    }
-
     fn get_parameter(&self, id: &str) -> f64 {
         if id == "gain" { self.gain.get() as f64 } else { 0.0 }
     }
@@ -45,9 +40,7 @@ impl BaseProcessor for GainPlugin {
             self.gain.set(value as f32);
         }
     }
-}
 
-impl StreamProcessor for GainPlugin {
     fn process(
         &mut self,
         samples: &mut [f32],
@@ -60,4 +53,8 @@ impl StreamProcessor for GainPlugin {
     }
 }
 
-musicum_processor_sdk::export_processor!(GainPlugin, Stream);
+impl ProcessorMeta for GainPlugin {
+    fn descriptor() -> &'static ProcessorDescriptor { &DESCRIPTOR }
+}
+
+musicum_processor_sdk::export_processor!(GainPlugin);
