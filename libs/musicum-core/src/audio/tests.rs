@@ -235,6 +235,43 @@ mod buffer_tests {
     }
 
     #[test]
+    fn producer_exits_on_shutdown_when_consumer_disconnected() {
+        let path = super::test_wav_path();
+        let decoder = SymphoniaSource::new(&path, 48000, 2).unwrap();
+        // Ring smaller than one CHUNK_FRAMES*channels push so the producer
+        // back-pressures inside the inner push loop (the leak path) before
+        // it can exhaust the 1-second test source.
+        let ring_cap = 1024;
+
+        let (ring_tx, ring_rx) = rtrb::RingBuffer::new(ring_cap);
+        let state = SharedPipelineState::new();
+
+        let producer = AudioProducer::new(
+            identity_structural(decoder), ring_tx, state.clone(),
+        );
+        let handle = std::thread::spawn(|| producer.run());
+
+        // Let the producer fill the ring and back-pressure on slots() == 0.
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Simulate the engine installing a new source: the old BufferedSource
+        // drops, which drops the ring consumer. The old producer is now an
+        // orphan with nowhere to push.
+        drop(ring_rx);
+        state.shutdown.store(true, Ordering::Release);
+
+        let deadline = std::time::Instant::now()
+            + std::time::Duration::from_millis(500);
+        while !handle.is_finished() {
+            if std::time::Instant::now() > deadline {
+                panic!("producer thread did not exit within 500ms of shutdown");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        handle.join().unwrap();
+    }
+
+    #[test]
     #[ignore]
     fn buffered_pipeline_plays_audio() {
         use crate::audio::output::{AudioOutput, CpalOutput};

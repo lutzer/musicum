@@ -31,6 +31,8 @@ impl AudioProducer {
         let sample_rate = self.decoder.sample_rate();
 
         loop {
+            if self.state.shutdown.load(Ordering::Acquire) { return; }
+
             // Handle a pending seek: re-position the decoder, then wait for
             // BufferedSource to drain the ring before clearing seek_pending.
             if self.state.seek_pending.load(Ordering::Acquire) {
@@ -38,6 +40,7 @@ impl AudioProducer {
                 self.decoder.seek(seek_f as f64 / sample_rate as f64);
                 // Wait until BufferedSource has drained the old data.
                 loop {
+                    if self.state.shutdown.load(Ordering::Acquire) { return; }
                     if self.ring_tx.slots() == self.ring_tx.buffer().capacity() { break; }
                     std::thread::sleep(std::time::Duration::from_millis(1));
                 }
@@ -66,6 +69,7 @@ impl AudioProducer {
             // iteration to avoid per-sample error handling.
             let mut pushed = 0;
             while pushed < written {
+                if self.state.shutdown.load(Ordering::Acquire) { return; }
                 let free = self.ring_tx.slots();
                 if free == 0 {
                     std::thread::sleep(std::time::Duration::from_millis(1));
