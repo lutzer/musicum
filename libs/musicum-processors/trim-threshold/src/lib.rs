@@ -130,7 +130,7 @@ impl BaseProcessor for TrimThresholdProcessor {
         _context: &ProcessorContext,
     ) -> Vec<Segment> {
         if !self.peaks_found.get_bool() {
-            return vec![];
+            return vec![Segment { src_start: 0.0, src_end: duration, rate: 1.0 }];
         }
         let offset = self.offset.get();
         let start = (self.detected_start.get() - offset).max(0.0) as f64;

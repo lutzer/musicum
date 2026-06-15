@@ -35,9 +35,10 @@ enum ParamKind {
 
 #[derive(Clone)]
 struct ParamRow {
-    key:   String,
-    value: serde_json::Value,
-    kind:  ParamKind,
+    key:      String,
+    value:    serde_json::Value,
+    kind:     ParamKind,
+    editable: bool,
 }
 
 #[derive(Clone, PartialEq)]
@@ -130,25 +131,32 @@ impl EditorState {
             None => return vec![],
         };
         let proc = &self.processors[idx];
-        let kinds: std::collections::HashMap<String, ParamKind> = self
+        let kinds: std::collections::HashMap<String, (ParamKind, bool)> = self
             .edit_registry
             .get_entry(proc.processor_id.as_str())
             .map(|entry| {
                 entry.parameters().into_iter().filter_map(|p| match p {
-                    EditParamInfo::Float { id, .. }           => Some((id, ParamKind::Float)),
-                    EditParamInfo::Bool  { id, .. }           => Some((id, ParamKind::Bool)),
-                    EditParamInfo::Int   { id, min, max, .. } => Some((id, ParamKind::Int { min, max })),
-                    EditParamInfo::Time  { id, .. }           => Some((id, ParamKind::Other)),
-                    EditParamInfo::Hidden                     => None,
+                    EditParamInfo::Float { id, editable, .. }           => Some((id, (ParamKind::Float, editable))),
+                    EditParamInfo::Bool  { id, editable, .. }           => Some((id, (ParamKind::Bool, editable))),
+                    EditParamInfo::Int   { id, min, max, editable, .. } => Some((id, (ParamKind::Int { min, max }, editable))),
+                    EditParamInfo::Time  { id, editable, .. }           => Some((id, (ParamKind::Other, editable))),
+                    EditParamInfo::Hidden                               => None,
                 }).collect()
             })
             .unwrap_or_default();
         proc.params
             .iter()
-            .map(|(k, v)| ParamRow {
-                key:   k.clone(),
-                value: serde_json::json!(v),
-                kind:  kinds.get(k).cloned().unwrap_or(ParamKind::Other),
+            .map(|(k, v)| {
+                let (kind, editable) = kinds
+                    .get(k)
+                    .cloned()
+                    .unwrap_or((ParamKind::Other, false));
+                ParamRow {
+                    key: k.clone(),
+                    value: serde_json::json!(v),
+                    kind,
+                    editable,
+                }
             })
             .collect()
     }
@@ -210,13 +218,17 @@ impl EditorState {
         }
     }
 
-    fn enter_edit(&mut self) {
+    fn enter_edit(&mut self) -> bool {
         if self.mode != Mode::Normal {
-            return;
+            return false;
         }
         let params = self.params_for_selected();
         if let Some(idx) = self.param_state.selected() {
             if let Some(row) = params.get(idx) {
+                if !row.editable {
+                    self.status_msg = Some("read-only".to_string());
+                    return false;
+                }
                 self.edit_buf = match (&row.kind, &row.value) {
                     (_, serde_json::Value::String(s)) => s.clone(),
                     (ParamKind::Int { .. }, v) =>
@@ -224,8 +236,10 @@ impl EditorState {
                     (_, v) => EditorState::format_value(v),
                 };
                 self.status_msg = None;
+                return true;
             }
         }
+        false
     }
 
     fn format_value(v: &serde_json::Value) -> String {
@@ -473,23 +487,28 @@ where
                             .and_then(|i| params.get(i))
                             .cloned();
                         if let Some(row) = selected {
-                            match row.kind {
-                                ParamKind::Bool => {
-                                    let toggled = if row.value.as_f64().unwrap_or(0.0) != 0.0 {
-                                        0.0_f64
-                                    } else {
-                                        1.0_f64
-                                    };
-                                    let key = row.key.clone();
-                                    state.apply_edit_to_processors(&key, serde_json::json!(toggled));
-                                    match save(state.processors.clone()).await {
-                                        Ok(_) => state.status_msg = Some(format!("{key} toggled")),
-                                        Err(e) => state.status_msg = Some(format!("error: {e}")),
+                            if !row.editable {
+                                state.status_msg = Some("read-only".to_string());
+                            } else {
+                                match row.kind {
+                                    ParamKind::Bool => {
+                                        let toggled = if row.value.as_f64().unwrap_or(0.0) != 0.0 {
+                                            0.0_f64
+                                        } else {
+                                            1.0_f64
+                                        };
+                                        let key = row.key.clone();
+                                        state.apply_edit_to_processors(&key, serde_json::json!(toggled));
+                                        match save(state.processors.clone()).await {
+                                            Ok(_) => state.status_msg = Some(format!("{key} toggled")),
+                                            Err(e) => state.status_msg = Some(format!("error: {e}")),
+                                        }
                                     }
-                                }
-                                _ => {
-                                    state.enter_edit();
-                                    state.mode = Mode::Editing;
+                                    _ => {
+                                        if state.enter_edit() {
+                                            state.mode = Mode::Editing;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -567,6 +586,20 @@ fn draw_processors(f: &mut Frame, state: &mut EditorState, area: Rect) {
 }
 
 fn render_value_span(row: &ParamRow, float_style: Style) -> Span<'static> {
+    if !row.editable {
+        let dim = Style::default().fg(Color::DarkGray);
+        let text = match row.kind {
+            ParamKind::Bool => {
+                if row.value.as_f64().unwrap_or(0.0) != 0.0 { "true".to_string() } else { "false".to_string() }
+            }
+            ParamKind::Int { .. } => {
+                let n = row.value.as_f64().unwrap_or(0.0).round() as i64;
+                format!("{n}")
+            }
+            ParamKind::Float | ParamKind::Other => EditorState::format_value(&row.value),
+        };
+        return Span::styled(text, dim);
+    }
     match row.kind {
         ParamKind::Bool => {
             if row.value.as_f64().unwrap_or(0.0) != 0.0 {
@@ -606,7 +639,9 @@ fn draw_params(f: &mut Frame, state: &mut EditorState, area: Rect) {
             .iter()
             .enumerate()
             .map(|(i, row)| {
-                let key_style = if Some(i) == selected_param_idx {
+                let key_style = if !row.editable {
+                    Style::default().fg(Color::DarkGray)
+                } else if Some(i) == selected_param_idx {
                     Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
@@ -644,10 +679,21 @@ fn draw_params(f: &mut Frame, state: &mut EditorState, area: Rect) {
     } else {
         let items: Vec<ListItem> = params
             .iter()
-            .map(|row| {
-                let value_span = render_value_span(row, Style::default().fg(Color::Green));
+            .enumerate()
+            .map(|(i, row)| {
+                let is_selected = Some(i) == selected_param_idx;
+                let (key_style, value_style) = if !row.editable {
+                    let dim = Style::default().fg(Color::DarkGray);
+                    (dim, dim)
+                } else if is_selected {
+                    let hl = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+                    (hl, hl)
+                } else {
+                    (Style::default(), Style::default().fg(Color::Green))
+                };
+                let value_span = render_value_span(row, value_style);
                 ListItem::new(Line::from(vec![
-                    Span::raw(format!("{}: ", row.key)),
+                    Span::styled(format!("{}: ", row.key), key_style),
                     value_span,
                 ]))
             })
@@ -660,7 +706,6 @@ fn draw_params(f: &mut Frame, state: &mut EditorState, area: Rect) {
                     .borders(Borders::ALL)
                     .border_style(border_style),
             )
-            .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
             .highlight_symbol("▶ ");
 
         f.render_stateful_widget(list, area, &mut state.param_state);
