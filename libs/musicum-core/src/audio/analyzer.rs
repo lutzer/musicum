@@ -1,9 +1,18 @@
+use musicum_processor_sdk::AnalysisContext;
+
 use crate::ProcessorChain;
 
-pub struct ChainAnalyzer {}
+pub struct ChainAnalyzer {
+    context: AnalysisContext
+}
 
 impl ChainAnalyzer {
-    pub fn run_analysis(&self, _chain: &ProcessorChain) {
-        // todo!("chain analysis pass not yet implemented")
+
+    pub fn new(context: AnalysisContext) -> Self {
+        ChainAnalyzer { context }
+    }
+
+    pub fn run_analysis(&self, _chain: &ProcessorChain) -> anyhow::Result<()> {
+        todo!("chain analysis pass not yet implemented")
     }
 }

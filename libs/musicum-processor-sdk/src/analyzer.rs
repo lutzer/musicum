@@ -1,5 +1,4 @@
-use std::{collections::HashMap, hash::DefaultHasher};
-use std::hash::{Hash, Hasher};
+use std::{collections::HashMap};
 use std::any::Any;
 use crate::processor::{ProcessorContext};
 
@@ -11,8 +10,8 @@ pub struct AnalysisContext {
 }
 
 impl AnalysisContext {
-    pub fn get_result<T: AnalysisResult + 'static>(&self, hash: &String) -> Option<&T> {
-        self.results.get(hash)?.as_any().downcast_ref::<T>()
+    pub fn get_result<T: AnalysisResult + 'static>(&self, processor_uuid: &String) -> Option<&T> {
+        self.results.get(processor_uuid)?.as_any().downcast_ref::<T>()
     }
 }
 
@@ -20,20 +19,6 @@ pub struct AnalysisRequest {
     pub analyzer_id: &'static str,
     pub hash: String,
     pub params: Vec<(String, f64)>,
-}
-
-impl AnalysisRequest {
-
-     pub fn generate_hash_from(processor_uuid: &str, params: &[(String, f64)] ) -> String {
-        let mut hasher = DefaultHasher::new();
-        processor_uuid.hash(&mut hasher);
-        for (key, value) in params {
-            key.hash(&mut hasher);
-            value.to_bits().hash(&mut hasher);
-        }
-        format!("{:016x}", hasher.finish())
-    }
-    
 }
 
 #[typetag::serde(tag = "type")]

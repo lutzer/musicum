@@ -2,7 +2,7 @@ use crate::analyzer::{AnalysisContext, AnalysisRequest, AnalysisResult};
 use crate::ffi::{AnalysisContextFFI, AnalysisRequestFFI, AnalysisResultFFI};
 use std::any::Any;
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct DummyResult { pub value: f32 }
 
 #[typetag::serde]

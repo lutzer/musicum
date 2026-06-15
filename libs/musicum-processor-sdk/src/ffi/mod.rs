@@ -133,7 +133,6 @@ pub trait AbiProcessor: Send + Sync {
     fn get_parameter(&self, id: RStr<'_>) -> f64;
     fn set_parameter(&mut self, id: RStr<'_>, value: f64);
     fn requires_analysis(&self) -> bool;
-    fn get_analysis_hash(&self) -> RString;
 
     fn process(&mut self, samples: RSliceMut<'_, f32>, time: f64, ctx: ProcessorContextFFI);
     fn segments(&self, duration: f64, ctx: ProcessorContextFFI) -> RVec<Segment>;
@@ -160,7 +159,6 @@ impl<T: BaseProcessor> AbiProcessor for FfiAdapter<T> {
         self.0.set_parameter(id.as_str(), value);
     }
     fn requires_analysis(&self) -> bool { self.0.requires_analysis() }
-    fn get_analysis_hash(&self) -> RString { RString::from(self.0.analysis_hash()) }
     fn process(
         &mut self,
         mut samples: RSliceMut<'_, f32>,

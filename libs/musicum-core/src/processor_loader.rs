@@ -63,7 +63,6 @@ impl BaseProcessor for FfiProcessor {
     fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }
     fn set_parameter(&mut self, id: &str, value: f64) { self.inner.set_parameter(id.into(), value); }
     fn requires_analysis(&self) -> bool { self.inner.requires_analysis() }
-    fn analysis_hash(&self) -> String { self.inner.get_analysis_hash().into() }
     fn process(&mut self, buffer: &mut [f32], time: f64, ctx: &ProcessorContext) {
         self.inner.process(RSliceMut::from_mut_slice(buffer), time, *ctx);
     }

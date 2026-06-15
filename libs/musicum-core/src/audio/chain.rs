@@ -21,16 +21,16 @@ struct ChainEntry {
 }
 
 pub struct ProcessorChain {
-    handles:         Vec<ChainEntry>,
-    analysis:        AnalysisContext,
+    handles: Vec<ChainEntry>,
+    analysis_context: AnalysisContext,
     structure_dirty: bool,
 }
 
 impl ProcessorChain {
     pub fn empty() -> Self {
         Self {
-            handles:         Vec::new(),
-            analysis:        AnalysisContext::default(),
+            handles: Vec::new(),
+            analysis_context: AnalysisContext::default(),
             structure_dirty: false,
         }
     }
@@ -47,7 +47,7 @@ impl ProcessorChain {
         }
         Self {
             handles,
-            analysis:        AnalysisContext::default(),
+            analysis_context: AnalysisContext::default(),
             structure_dirty: true,
         }
     }
@@ -59,12 +59,12 @@ impl ProcessorChain {
     pub fn init_all(&mut self, ctx: &ProcessorContext) {
         for entry in &self.handles {
             entry.handle.lock().unwrap().init(
-                entry.uuid.to_string(), ctx, &mut self.analysis,
+                entry.uuid.to_string(), ctx, &mut self.analysis_context,
             );
         }
     }
 
-    pub fn analysis(&self) -> &AnalysisContext { &self.analysis }
+    pub fn get_analysis_context(&self) -> &AnalysisContext { &self.analysis_context }
 
     pub fn build_timeline(
         &self,

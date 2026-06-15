@@ -38,7 +38,6 @@ pub trait BaseProcessor: Send + Sync + 'static {
     fn set_parameter(&mut self, _id: &str, _value: f64) {}
 
     fn requires_analysis(&self) -> bool { false }
-    fn analysis_hash(&self) -> String { String::new() }
 
     /// Default no-op: structural processors that don't transform samples.
     fn process(

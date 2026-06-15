@@ -1,5 +1,5 @@
 [workspace]
-members = ["gain", "trim", "reverb", "cut", "pan", "normalize", "crop", "slice", "oscilloscope", "level-meter"]
+members = ["gain", "trim", "reverb", "cut", "pan", "normalize", "crop", "slice", "oscilloscope", "level-meter", "trim-threshold"]
 resolver = "2"
 
 [workspace.dependencies]

@@ -141,10 +141,6 @@ impl AudioEngine for CpalEngine {
 
         std::thread::spawn(|| producer.run());
 
-        // run analyzer
-        let analyzer = ChainAnalyzer {};
-        analyzer.run_analysis(&chain);
-
         self.output.set_source(source)?;
         self.source_handle = Some(SourceHandle::new(state, src_rate, src_ch, out_duration));
         self.processor_chain = chain;

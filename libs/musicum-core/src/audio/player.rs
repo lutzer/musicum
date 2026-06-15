@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use crate::audio::analyzer::ChainAnalyzer;
 use crate::audio::chain::ProcessorChain;
 use crate::audio::engine::AudioEngine;
 use crate::config::Config;
