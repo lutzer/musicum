@@ -23,7 +23,6 @@ fn test_wav_path() -> std::path::PathBuf {
 #[cfg(test)]
 pub(crate) mod test_processors {
     use std::sync::{Arc, Mutex};
-    use musicum_processor_sdk::analyzer::{AnalysisContext, AnalysisRequest};
     use musicum_processor_sdk::processor::{
         BaseProcessor, ProcessorContext, Segment,
     };
@@ -31,7 +30,6 @@ pub(crate) mod test_processors {
     #[derive(Default, Clone)]
     pub struct InitRecord {
         pub uuid: String,
-        pub posted_request: bool,
     }
 
     #[derive(Default)]
@@ -42,16 +40,9 @@ pub(crate) mod test_processors {
     }
 
     impl BaseProcessor for TestTrim {
-        fn init(&mut self, uuid: String, _: &ProcessorContext, ctx: &mut AnalysisContext) {
+        fn init(&mut self, uuid: String, _: &ProcessorContext) {
             if let Some(rec) = &self.record {
-                let mut r = rec.lock().unwrap();
-                r.uuid = uuid;
-                r.posted_request = true;
-                ctx.requests.push(AnalysisRequest {
-                    analyzer_id: "test",
-                    hash: "h2".to_string(),
-                    params: vec![],
-                });
+                rec.lock().unwrap().uuid = uuid;
             }
         }
         fn get_parameter(&self, id: &str) -> f64 {
@@ -73,15 +64,8 @@ pub(crate) mod test_processors {
     }
 
     impl BaseProcessor for TestStream {
-        fn init(&mut self, uuid: String, _: &ProcessorContext, ctx: &mut AnalysisContext) {
-            let mut rec = self.record.lock().unwrap();
-            rec.uuid = uuid;
-            rec.posted_request = true;
-            ctx.requests.push(AnalysisRequest {
-                analyzer_id: "test",
-                hash: "h".to_string(),
-                params: vec![],
-            });
+        fn init(&mut self, uuid: String, _: &ProcessorContext) {
+            self.record.lock().unwrap().uuid = uuid;
         }
     }
 }

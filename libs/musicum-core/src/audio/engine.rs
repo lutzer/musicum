@@ -5,7 +5,6 @@ use uuid::Uuid;
 
 use musicum_processor_sdk::processor::ProcessorContext;
 
-use crate::audio::analyzer::ChainAnalyzer;
 use crate::audio::buffer::BufferedSource;
 use crate::audio::chain::{ProcessorChain};
 use crate::audio::output::{AudioOutput, AudioOutputError, CpalOutput};

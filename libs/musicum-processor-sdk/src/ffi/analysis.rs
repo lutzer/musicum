@@ -54,8 +54,7 @@ pub struct AnalysisResultFFI {
 }
 
 impl AnalysisResultFFI {
-    #[allow(clippy::borrowed_box)]
-    pub fn from_boxed(boxed: &Box<dyn AnalysisResult>) -> Self {
+    pub fn from_boxed(boxed: &dyn AnalysisResult) -> Self {
         let bytes = bincode::serialize(boxed)
             .expect("AnalysisResult must be serializable");
         Self { bytes: bytes.into() }
@@ -95,8 +94,8 @@ impl<T: AudioAnalyser + Send + Sync> AbiAnalyzer for FfiAnalyzerAdapter<T> {
         ctx:       ProcessorContextFFI,
     ) -> ROption<AnalysisResultFFI> {
         match self.0.analyze(samples.as_slice(), time, exhausted, &ctx) {
-            Some((_, boxed)) => ROption::RSome(AnalysisResultFFI::from_boxed(&boxed)),
-            None             => ROption::RNone,
+            Some(boxed) => ROption::RSome(AnalysisResultFFI::from_boxed(&*boxed)),
+            None        => ROption::RNone,
         }
     }
 }

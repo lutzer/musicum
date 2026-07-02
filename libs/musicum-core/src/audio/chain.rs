@@ -5,6 +5,7 @@ use musicum_processor_sdk::ffi::ProcessorTypeFFI;
 use musicum_processor_sdk::processor::ProcessorContext;
 use uuid::Uuid;
 
+
 use crate::audio::node::StreamProcessorNode;
 use crate::audio::source::AudioSource;
 use crate::audio::timeline::Timeline;
@@ -21,7 +22,6 @@ struct ChainEntry {
 
 pub struct ProcessorChain {
     handles: Vec<ChainEntry>,
-    analysis_context: AnalysisContext,
     structure_dirty: bool,
 }
 
@@ -29,7 +29,6 @@ impl ProcessorChain {
     pub fn empty() -> Self {
         Self {
             handles: Vec::new(),
-            analysis_context: AnalysisContext::default(),
             structure_dirty: false,
         }
     }
@@ -46,24 +45,17 @@ impl ProcessorChain {
         }
         Self {
             handles,
-            analysis_context: AnalysisContext::default(),
             structure_dirty: true,
         }
     }
 
     /// Initializes every processor with the given context. Must be called
-    /// once before `build_timeline` / `build_source`. The chain's
-    /// `AnalysisContext` receives all requests posted from `init()` and is
-    /// available afterwards via `analysis()`.
+    /// once before `build_timeline` / `build_source`.
     pub fn init_all(&mut self, ctx: &ProcessorContext) {
         for entry in &self.handles {
-            entry.handle.lock().unwrap().init(
-                entry.uuid.to_string(), ctx, &mut self.analysis_context,
-            );
+            entry.handle.lock().unwrap().init(entry.uuid.to_string(), ctx);
         }
     }
-
-    pub fn get_analysis_context(&self) -> &AnalysisContext { &self.analysis_context }
 
     pub fn build_timeline(
         &self,

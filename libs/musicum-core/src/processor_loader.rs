@@ -7,7 +7,7 @@ use std::{
 use libloading::{Library, Symbol};
 use musicum_processor_sdk::{
     abi_stable::std_types::{RBox, ROption, RSlice, RSliceMut},
-    analyzer::{ AnalysisRequest, AnalysisResult, AudioAnalyser},
+    analyzer::{AnalysisRequest, AnalysisResult},
     ffi::{
         AbiAnalyzer_TO, AbiProcessor_TO, AnalysisRequestFFI, AnalysisResultFFI,
         ProcessorDescriptorFFI, ProcessorTypeFFI,
@@ -54,14 +54,25 @@ pub struct FfiProcessor {
 }
 
 impl BaseProcessor for FfiProcessor {
-    fn init(&mut self, uuid: String, ctx: &ProcessorContext, analysis: &mut AnalysisContext) {
-        let ffi_in  = AnalysisContextFFI::from_context(analysis);
-        let ffi_out = self.inner.init(uuid.into(), *ctx, ffi_in);
-        ffi_out.drain_into(analysis);
+    fn init(&mut self, uuid: String, ctx: &ProcessorContext) {
+        self.inner.init(uuid.into(), *ctx);
     }
+
+    fn request_analysis(&self, ctx: &ProcessorContext) -> Option<AnalysisRequest> {
+        match self.inner.request_analysis(*ctx) {
+            ROption::RSome(ffi) => Some(AnalysisRequest::from(&ffi)),
+            ROption::RNone      => None,
+        }
+    }
+
+    fn apply_analysis(&mut self, result: &dyn AnalysisResult) {
+        let ffi = AnalysisResultFFI::from_boxed(result);
+        self.inner.apply_analysis(ffi);
+    }
+
     fn get_parameter(&self, id: &str) -> f64 { self.inner.get_parameter(id.into()) }
     fn set_parameter(&mut self, id: &str, value: f64) { self.inner.set_parameter(id.into(), value); }
-    fn requires_analysis(&self) -> bool { self.inner.requires_analysis() }
+
     fn process(&mut self, buffer: &mut [f32], time: f64, ctx: &ProcessorContext) {
         self.inner.process(RSliceMut::from_mut_slice(buffer), time, *ctx);
     }
@@ -76,29 +87,18 @@ pub struct FfiAnalyzer {
 }
 
 impl FfiAnalyzer {
-    /// FFI-encoded result, skipping typetag deserialization (which only
-    /// succeeds when the concrete `AnalysisResult` is in the host's typetag
-    /// inventory).
+    pub fn init(&mut self, request: &AnalysisRequest) {
+        self.inner.init(AnalysisRequestFFI::from(request));
+    }
+
+    /// FFI-encoded result; the caller pairs it with the request it dispatched.
     pub fn analyze_raw(
         &mut self, samples: &[f32], time: f64, exhausted: bool, context: &ProcessorContext,
     ) -> Option<AnalysisResultFFI> {
         match self.inner.analyze(RSlice::from_slice(samples), time, exhausted, *context) {
             ROption::RSome(ffi) => Some(ffi),
-            ROption::RNone => None,
+            ROption::RNone      => None,
         }
-    }
-}
-
-impl AudioAnalyser for FfiAnalyzer {
-    fn init(&mut self, request: &AnalysisRequest) {
-        self.inner.init(AnalysisRequestFFI::from(request));
-    }
-    fn analyze(
-        &mut self, samples: &[f32], time: f64, exhausted: bool, context: &ProcessorContext,
-    ) -> Option<(String, Box<dyn AnalysisResult>)> {
-        let ffi = self.analyze_raw(samples, time, exhausted, context)?;
-        let hash: String = ffi.hash.clone().into();
-        Some((hash, ffi.into_boxed()?))
     }
 }
 

@@ -24,5 +24,5 @@ pub trait AudioAnalyser: Send + Sync {
         time:      f64,
         exhausted: bool,
         context:   &ProcessorContext,
-    ) -> Option<(String, Box<dyn AnalysisResult>)>;
+    ) -> Option<Box<dyn AnalysisResult>>;
 }

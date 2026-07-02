@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 use musicum_core::processor_loader::ProcessorRegistry;
-use musicum_processor_sdk::{
-    analyzer::{AnalysisContext, AudioAnalyser},
-    processor::{BaseProcessor, ProcessorContext},
-};
+use musicum_processor_sdk::processor::{BaseProcessor, ProcessorContext};
 
 fn processors_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -22,21 +19,18 @@ fn normalize_bundle_loads_processor_and_analyzer() {
 
     let mut proc = reg.create("normalize").expect("normalize processor present");
 
-    let mut ctx = AnalysisContext::default();
     let p_ctx = ProcessorContext { playing: false, sample_rate: 44100, number_channels: 2 };
-    proc.init("smoke-test".to_string(), &p_ctx, &mut ctx);
-    assert_eq!(ctx.requests.len(), 1);
-    let request_hash = ctx.requests[0].hash.clone();
+    proc.init("smoke-test".to_string(), &p_ctx);
+    let request = proc.request_analysis(&p_ctx).expect("normalize requests analysis");
 
     let mut analyzer = reg.create_analyzer_for("normalize").expect("bundled analyzer present");
-    analyzer.init(&ctx.requests[0]);
+    analyzer.init(&request);
     // analyze_raw returns the FFI-encoded payload without typetag deserialization,
     // which would otherwise fail on the host (the concrete result type is only
     // registered in the dylib's typetag inventory).
     let raw = analyzer.analyze_raw(&[0.1, -0.2, 0.3, -0.4], 0.0, true, &p_ctx);
     let raw = raw.expect("analyzer produced a result");
     assert!(!raw.bytes.is_empty());
-    assert_eq!(raw.hash.as_str(), request_hash.as_str());
 }
 
 #[test]

@@ -16,13 +16,11 @@ impl AnalysisResult for NormalizeAnalyzerResult {
 #[derive(Default)]
 pub struct NormalizeAnalyzer {
     peak: f32,
-    hash: String
 }
 
 impl AudioAnalyser for NormalizeAnalyzer {
     fn init(&mut self, _request: &AnalysisRequest) {
         self.peak = 0.0;
-        self.hash = String::new();
     }
 
     fn analyze(
@@ -31,7 +29,7 @@ impl AudioAnalyser for NormalizeAnalyzer {
         _time: f64,
         exhausted: bool,
         _context: &ProcessorContext
-    ) -> Option<(String, Box<dyn AnalysisResult>)> {
+    ) -> Option<Box<dyn AnalysisResult>> {
         for &s in samples {
             let abs = s.abs();
             if abs > self.peak {
@@ -41,7 +39,7 @@ impl AudioAnalyser for NormalizeAnalyzer {
 
         if exhausted {
             let result = NormalizeAnalyzerResult{ peak: self.peak };
-            return Some((self.hash.clone(), Box::from(result)))
+            return Some(Box::from(result))
         }
         None
     }

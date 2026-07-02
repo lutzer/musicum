@@ -27,7 +27,7 @@ fn analysis_request_roundtrips_through_ffi() {
 #[test]
 fn analysis_result_roundtrips_through_ffi() {
     let boxed: Box<dyn AnalysisResult> = Box::new(DummyResult { value: 0.42 });
-    let ffi = AnalysisResultFFI::from_boxed(&boxed);
+    let ffi = AnalysisResultFFI::from_boxed(&*boxed);
     let restored: Box<dyn AnalysisResult> = ffi.into_boxed().expect("decode");
     let cast = restored.as_any().downcast_ref::<DummyResult>().expect("type");
     assert!((cast.value - 0.42).abs() < 1e-6);
