@@ -91,7 +91,7 @@ mod tests {
     fn req(threshold_linear: f64) -> AnalysisRequest {
         AnalysisRequest {
             analyzer_id: "trim_threshold_analyzer",
-            slot_key:    0,
+            hash:    0,
             params:      vec![("threshold_linear".to_string(), threshold_linear)],
         }
     }

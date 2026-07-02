@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 use musicum_processor_sdk::BaseProcessor;
-use musicum_processor_sdk::analyzer::AnalysisContext;
 use musicum_processor_sdk::ffi::ProcessorTypeFFI;
 use musicum_processor_sdk::processor::ProcessorContext;
 use uuid::Uuid;

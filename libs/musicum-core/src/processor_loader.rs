@@ -7,10 +7,9 @@ use std::{
 use libloading::{Library, Symbol};
 use musicum_processor_sdk::{
     abi_stable::std_types::{RBox, ROption, RSlice, RSliceMut},
-    analyzer::{AnalysisContext, AnalysisRequest, AnalysisResult, AudioAnalyser},
+    analyzer::{ AnalysisRequest, AnalysisResult, AudioAnalyser},
     ffi::{
-        AbiAnalyzer_TO, AbiProcessor_TO,
-        AnalysisContextFFI, AnalysisRequestFFI, AnalysisResultFFI,
+        AbiAnalyzer_TO, AbiProcessor_TO, AnalysisRequestFFI, AnalysisResultFFI,
         ProcessorDescriptorFFI, ProcessorTypeFFI,
     },
     processor::{BaseProcessor, ProcessorContext, Segment},

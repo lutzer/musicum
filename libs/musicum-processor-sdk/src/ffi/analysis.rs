@@ -10,7 +10,7 @@ use crate::{AudioAnalyser, analyzer::{AnalysisRequest, AnalysisResult}, ffi::Pro
 #[derive(StableAbi, Clone)]
 pub struct AnalysisRequestFFI {
     pub analyzer_id: RStr<'static>,
-    pub slot_key:    u64,
+    pub hash:    u64,
     pub params:      RVec<Tuple2<RString, f64>>,
 }
 
@@ -18,7 +18,7 @@ impl From<&AnalysisRequest> for AnalysisRequestFFI {
     fn from(r: &AnalysisRequest) -> Self {
         Self {
             analyzer_id: RStr::from(r.analyzer_id),
-            slot_key:    r.slot_key,
+            hash:    r.hash,
             params: r.params.iter()
                 .map(|(k, v)| Tuple2(RString::from(k.as_str()), *v))
                 .collect(),
@@ -30,7 +30,7 @@ impl From<&AnalysisRequestFFI> for AnalysisRequest {
     fn from(r: &AnalysisRequestFFI) -> Self {
         Self {
             analyzer_id: leak_static_str(r.analyzer_id.as_str()),
-            slot_key:    r.slot_key,
+            hash:    r.hash,
             params: r.params.iter()
                 .map(|Tuple2(k, v)| (k.as_str().to_owned(), *v))
                 .collect(),

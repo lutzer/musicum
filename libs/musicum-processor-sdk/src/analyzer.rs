@@ -5,7 +5,7 @@ pub struct AnalysisRequest {
     pub analyzer_id: &'static str,
     /// Fingerprint of the processor's own state. Chain-upstream state is
     /// added by the ChainManager — the processor must not include it.
-    pub slot_key:    u64,
+    pub hash:    u64,
     /// Forwarded verbatim to AudioAnalyser::init.
     pub params:      Vec<(String, f64)>,
 }

@@ -73,7 +73,7 @@ impl BaseProcessor for TrimThresholdProcessor {
         let linear = 10_f32.powf(self.threshold.get() / 20.0);
         Some(AnalysisRequest {
             analyzer_id: ANALYZER_ID,
-            slot_key:    Fingerprint::of_f32(linear),
+            hash:    Fingerprint::of_f32(linear),
             params:      vec![("threshold_linear".into(), linear as f64)],
         })
     }
@@ -201,9 +201,9 @@ mod tests {
     fn threshold_change_produces_different_slot_key() {
         let mut p = TrimThresholdProcessor::default();
         p.set_parameter("threshold", -20.0);
-        let k1 = p.request_analysis(&ctx()).unwrap().slot_key;
+        let k1 = p.request_analysis(&ctx()).unwrap().hash;
         p.set_parameter("threshold", -40.0);
-        let k2 = p.request_analysis(&ctx()).unwrap().slot_key;
+        let k2 = p.request_analysis(&ctx()).unwrap().hash;
         assert_ne!(k1, k2);
     }
 

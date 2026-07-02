@@ -14,13 +14,13 @@ impl AnalysisResult for DummyResult {
 fn analysis_request_roundtrips_through_ffi() {
     let original = AnalysisRequest {
         analyzer_id: "rms",
-        slot_key: 0xdead_beef,
+        hash: 0xdead_beef,
         params: vec![("window".to_string(), 0.05_f64)],
     };
     let ffi = AnalysisRequestFFI::from(&original);
     let restored = AnalysisRequest::from(&ffi);
     assert_eq!(restored.analyzer_id, "rms");
-    assert_eq!(restored.slot_key, 0xdead_beef);
+    assert_eq!(restored.hash, 0xdead_beef);
     assert_eq!(restored.params, vec![("window".to_string(), 0.05_f64)]);
 }
 

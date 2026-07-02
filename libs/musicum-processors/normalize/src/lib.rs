@@ -70,7 +70,7 @@ impl BaseProcessor for NormalizeProcessor {
         // parameter. A single slot per processor instance is enough.
         Some(AnalysisRequest {
             analyzer_id: ANALYZER_ID,
-            slot_key:    0,
+            hash:    0,
             params:      vec![],
         })
     }
