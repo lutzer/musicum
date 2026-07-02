@@ -37,7 +37,7 @@ impl AudioAnalyser for TrimThresholdAnalyzer {
         self.frames_seen = 0;
         self.first_frame = None;
         self.last_frame  = None;
-        self.hash        = request.hash.clone();
+        self.hash        = String::new();
     }
 
     fn analyze(
@@ -91,7 +91,7 @@ mod tests {
     fn req(threshold_linear: f64) -> AnalysisRequest {
         AnalysisRequest {
             analyzer_id: "trim_threshold_analyzer",
-            hash:        "test-hash".to_string(),
+            slot_key:    0,
             params:      vec![("threshold_linear".to_string(), threshold_linear)],
         }
     }

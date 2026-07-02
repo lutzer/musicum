@@ -20,9 +20,9 @@ pub struct NormalizeAnalyzer {
 }
 
 impl AudioAnalyser for NormalizeAnalyzer {
-    fn init(&mut self, request: &AnalysisRequest) {
+    fn init(&mut self, _request: &AnalysisRequest) {
         self.peak = 0.0;
-        self.hash = request.hash.clone();
+        self.hash = String::new();
     }
 
     fn analyze(

@@ -51,6 +51,11 @@ macro_rules! export_analyzer {
                     TD_Opaque,
                 )
             }
+
+            #[no_mangle]
+            pub extern "C" fn musicum_analyzer_id() -> RStr<'static> {
+                RStr::from_str($id)
+            }
         };
     };
 }

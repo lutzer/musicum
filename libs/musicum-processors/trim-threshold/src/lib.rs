@@ -1,5 +1,6 @@
 use musicum_processor_sdk::{
-    analyzer::AnalysisRequest,
+    analyzer::{AnalysisRequest, AnalysisResult},
+    fingerprint::Fingerprint,
     parameters::{BoolParam, FloatParam, ProcessorParamaterInfo},
     processor::{
         BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorMeta, ProcessorType,
@@ -46,57 +47,46 @@ static DESCRIPTOR: ProcessorDescriptor = ProcessorDescriptor {
 };
 
 pub struct TrimThresholdProcessor {
-    threshold:         FloatParam,
-    offset:            FloatParam,
-    detected_start:    FloatParam,
-    detected_end:      FloatParam,
-    peaks_found:       BoolParam,
-    requires_analysis: bool,
-    uuid:              String,
+    threshold:      FloatParam,
+    offset:         FloatParam,
+    detected_start: FloatParam,
+    detected_end:   FloatParam,
+    peaks_found:    BoolParam,
 }
 
 impl Default for TrimThresholdProcessor {
     fn default() -> Self {
         Self {
-            threshold:         TRIM_THRESHOLD_PARAMS[0].get_param().unwrap_or_default(),
-            offset:            TRIM_THRESHOLD_PARAMS[1].get_param().unwrap_or_default(),
-            detected_start:    TRIM_THRESHOLD_PARAMS[2].get_param().unwrap_or_default(),
-            detected_end:      TRIM_THRESHOLD_PARAMS[3].get_param().unwrap_or_default(),
-            peaks_found:       TRIM_THRESHOLD_PARAMS[4].get_param().unwrap_or_default(),
-            requires_analysis: false,
-            uuid:              String::new(),
+            threshold:      TRIM_THRESHOLD_PARAMS[0].get_param().unwrap_or_default(),
+            offset:         TRIM_THRESHOLD_PARAMS[1].get_param().unwrap_or_default(),
+            detected_start: TRIM_THRESHOLD_PARAMS[2].get_param().unwrap_or_default(),
+            detected_end:   TRIM_THRESHOLD_PARAMS[3].get_param().unwrap_or_default(),
+            peaks_found:    TRIM_THRESHOLD_PARAMS[4].get_param().unwrap_or_default(),
         }
     }
 }
 
 impl BaseProcessor for TrimThresholdProcessor {
-    fn init(
-        &mut self,
-        uuid: String,
-        _context: &ProcessorContext,
-        analysis_context: &mut musicum_processor_sdk::analyzer::AnalysisContext,
-    ) {
-        self.uuid = uuid;
-        let linear = 10_f32.powf(self.threshold.get() / 20.0);
-        let hash = format!("{}:{:.6}", self.uuid, linear);
+    fn init(&mut self, _uuid: String, _ctx: &ProcessorContext) {}
 
-        if let Some(result) = analysis_context.get_result::<TrimThresholdAnalyzerResult>(&hash) {
-            if let (Some(first), Some(last)) = (result.first_above_secs, result.last_above_secs) {
+    fn request_analysis(&self, _ctx: &ProcessorContext) -> Option<AnalysisRequest> {
+        let linear = 10_f32.powf(self.threshold.get() / 20.0);
+        Some(AnalysisRequest {
+            analyzer_id: ANALYZER_ID,
+            slot_key:    Fingerprint::of_f32(linear),
+            params:      vec![("threshold_linear".into(), linear as f64)],
+        })
+    }
+
+    fn apply_analysis(&mut self, result: &dyn AnalysisResult) {
+        let Some(r) = result.as_any().downcast_ref::<TrimThresholdAnalyzerResult>() else { return };
+        match (r.first_above_secs, r.last_above_secs) {
+            (Some(first), Some(last)) => {
                 self.detected_start.set(first as f32);
                 self.detected_end.set(last as f32);
                 self.peaks_found.set(true);
-            } else {
-                self.peaks_found.set(false);
             }
-            self.requires_analysis = false;
-        } else {
-            analysis_context.requests.push(AnalysisRequest {
-                analyzer_id: ANALYZER_ID,
-                hash,
-                params: vec![("threshold_linear".to_string(), linear as f64)],
-            });
-            self.peaks_found.set(false);
-            self.requires_analysis = true;
+            _ => self.peaks_found.set(false),
         }
     }
 
@@ -121,8 +111,6 @@ impl BaseProcessor for TrimThresholdProcessor {
             _ => {}
         }
     }
-
-    fn requires_analysis(&self) -> bool { self.requires_analysis }
 
     fn segments(
         &self,
@@ -156,7 +144,6 @@ musicum_processor_sdk::export_processor!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use musicum_processor_sdk::analyzer::AnalysisContext;
     use musicum_processor_sdk::processor::{BaseProcessor, ProcessorContext, ProcessorMeta};
     use crate::analyzer::TrimThresholdAnalyzerResult;
 
@@ -164,28 +151,20 @@ mod tests {
         ProcessorContext { playing: false, sample_rate: 44100, number_channels: 2 }
     }
 
-    /// Build a processor and feed it a cached analyzer result so segments()
-    /// can be exercised without the (currently todo!()) chain analyzer pipeline.
+    /// Build a processor and feed it an analyzer result so segments() can be
+    /// exercised without driving the offline analysis pipeline.
     fn primed(threshold_dbfs: f32, offset_secs: f32, first: Option<f64>, last: Option<f64>)
         -> TrimThresholdProcessor
     {
-        let uuid = "test-uuid".to_string();
-        let linear = 10_f32.powf(threshold_dbfs / 20.0);
-        let hash = format!("{uuid}:{linear:.6}");
-
-        let mut analysis = AnalysisContext::default();
-        analysis.results.insert(
-            hash.clone(),
-            Box::new(TrimThresholdAnalyzerResult {
-                first_above_secs: first,
-                last_above_secs:  last,
-            }),
-        );
-
         let mut p = TrimThresholdProcessor::default();
         p.set_parameter("threshold", threshold_dbfs as f64);
         p.set_parameter("offset",    offset_secs as f64);
-        p.init(uuid, &ctx(), &mut analysis);
+        p.init("test-uuid".into(), &ctx());
+        let result = TrimThresholdAnalyzerResult {
+            first_above_secs: first,
+            last_above_secs:  last,
+        };
+        p.apply_analysis(&result);
         p
     }
 
@@ -197,49 +176,56 @@ mod tests {
     }
 
     #[test]
-    fn default_state_has_no_peaks_and_empty_segments() {
+    fn default_state_has_no_peaks_and_passes_through() {
+        // Default `peaks_found = false` means segments() now returns full
+        // pass-through rather than an empty Vec, because no peaks have been
+        // detected yet — the chain shouldn't drop everything before analysis
+        // runs.
         let p = TrimThresholdProcessor::default();
-        assert!(p.segments(10.0, &ctx()).is_empty());
+        let segs = p.segments(10.0, &ctx());
+        assert_eq!(segs.len(), 1);
+        assert_eq!(segs[0].src_start, 0.0);
+        assert_eq!(segs[0].src_end,   10.0);
     }
 
     #[test]
-    fn init_without_cached_result_requests_analysis() {
-        let mut p = TrimThresholdProcessor::default();
-        let mut analysis = AnalysisContext::default();
-        p.init("uuid".to_string(), &ctx(), &mut analysis);
-        assert!(p.requires_analysis());
-        assert_eq!(analysis.requests.len(), 1);
-        assert_eq!(analysis.requests[0].analyzer_id, "trim_threshold_analyzer");
-        assert!(analysis.requests[0].hash.starts_with("uuid:"));
-        let has_param = analysis.requests[0].params.iter()
-            .any(|(k, _)| k == "threshold_linear");
+    fn request_analysis_carries_threshold_linear() {
+        let p = TrimThresholdProcessor::default();
+        let req: AnalysisRequest = p.request_analysis(&ctx()).expect("request");
+        assert_eq!(req.analyzer_id, ANALYZER_ID);
+        let has_param = req.params.iter().any(|(k, _)| k == "threshold_linear");
         assert!(has_param);
     }
 
     #[test]
-    fn init_with_cached_peaks_populates_detected_and_clears_requires_analysis() {
+    fn threshold_change_produces_different_slot_key() {
+        let mut p = TrimThresholdProcessor::default();
+        p.set_parameter("threshold", -20.0);
+        let k1 = p.request_analysis(&ctx()).unwrap().slot_key;
+        p.set_parameter("threshold", -40.0);
+        let k2 = p.request_analysis(&ctx()).unwrap().slot_key;
+        assert_ne!(k1, k2);
+    }
+
+    #[test]
+    fn apply_analysis_with_peaks_populates_detected_and_segments() {
         let p = primed(-40.0, 0.5, Some(2.0), Some(8.0));
-        assert!(!p.requires_analysis());
         assert_eq!(p.get_parameter("detected_start"), 2.0);
         assert_eq!(p.get_parameter("detected_end"),   8.0);
         assert_eq!(p.get_parameter("peaks_found"),    1.0);
-    }
-
-    #[test]
-    fn init_with_cached_no_peaks_sets_peaks_found_false() {
-        let p = primed(-40.0, 0.5, None, None);
-        assert!(!p.requires_analysis());
-        assert_eq!(p.get_parameter("peaks_found"), 0.0);
-        assert!(p.segments(10.0, &ctx()).is_empty());
-    }
-
-    #[test]
-    fn segments_expand_around_detected_range() {
-        let p = primed(-40.0, 0.5, Some(2.0), Some(8.0));
         let segs = p.segments(10.0, &ctx());
         assert_eq!(segs.len(), 1);
         assert!((segs[0].src_start - 1.5).abs() < 1e-9);
         assert!((segs[0].src_end   - 8.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn apply_analysis_with_no_peaks_sets_peaks_found_false() {
+        let p = primed(-40.0, 0.5, None, None);
+        assert_eq!(p.get_parameter("peaks_found"), 0.0);
+        // peaks_found=false → segments() now passes through
+        let segs = p.segments(10.0, &ctx());
+        assert_eq!(segs.len(), 1);
     }
 
     #[test]
@@ -261,28 +247,11 @@ mod tests {
     }
 
     #[test]
-    fn threshold_change_produces_different_request_hash() {
-        let mut p = TrimThresholdProcessor::default();
-        p.set_parameter("threshold", -20.0);
-        let mut a1 = AnalysisContext::default();
-        p.init("uuid".to_string(), &ctx(), &mut a1);
-        let hash1 = a1.requests[0].hash.clone();
-
-        p.set_parameter("threshold", -40.0);
-        let mut a2 = AnalysisContext::default();
-        p.init("uuid".to_string(), &ctx(), &mut a2);
-        let hash2 = a2.requests[0].hash.clone();
-
-        assert_ne!(hash1, hash2);
-    }
-
-    #[test]
     fn dbfs_to_linear_smoke() {
         let mut p = TrimThresholdProcessor::default();
         p.set_parameter("threshold", -20.0);
-        let mut a = AnalysisContext::default();
-        p.init("uuid".to_string(), &ctx(), &mut a);
-        let linear = a.requests[0].params.iter()
+        let req = p.request_analysis(&ctx()).expect("request");
+        let linear = req.params.iter()
             .find(|(k, _)| k == "threshold_linear").unwrap().1;
         assert!((linear - 0.1).abs() < 1e-3);
     }

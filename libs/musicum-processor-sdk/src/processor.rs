@@ -1,5 +1,6 @@
 use abi_stable::StableAbi;
-use crate::{analyzer::AnalysisContext, parameters::ProcessorParamaterInfo};
+use crate::analyzer::{AnalysisRequest, AnalysisResult};
+use crate::parameters::ProcessorParamaterInfo;
 
 pub enum ProcessorType { StructuralProcessor, StreamProcessor, StructuralAndStreamProcesssor }
 
@@ -27,32 +28,18 @@ pub struct Segment {
 }
 
 pub trait BaseProcessor: Send + Sync + 'static {
-    fn init(
-        &mut self,
-        _uuid: String,
-        _context: &ProcessorContext,
-        _analysis: &mut AnalysisContext,
-    ) {}
+    fn init(&mut self, _uuid: String, _ctx: &ProcessorContext) {}
+
+    fn request_analysis(&self, _ctx: &ProcessorContext) -> Option<AnalysisRequest> { None }
+
+    fn apply_analysis(&mut self, _result: &dyn AnalysisResult) {}
 
     fn get_parameter(&self, _id: &str) -> f64 { 0.0 }
     fn set_parameter(&mut self, _id: &str, _value: f64) {}
 
-    fn requires_analysis(&self) -> bool { false }
+    fn process(&mut self, _samples: &mut [f32], _time: f64, _ctx: &ProcessorContext) {}
 
-    /// Default no-op: structural processors that don't transform samples.
-    fn process(
-        &mut self,
-        _samples: &mut [f32],
-        _time: f64,
-        _context: &ProcessorContext,
-    ) {}
-
-    /// Default identity span: stream processors pass through unchanged.
-    fn segments(
-        &self,
-        duration: f64,
-        _context: &ProcessorContext,
-    ) -> Vec<Segment> {
+    fn segments(&self, duration: f64, _ctx: &ProcessorContext) -> Vec<Segment> {
         vec![Segment { src_start: 0.0, src_end: duration, rate: 1.0 }]
     }
 }

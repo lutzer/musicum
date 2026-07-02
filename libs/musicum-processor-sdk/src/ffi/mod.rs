@@ -2,8 +2,7 @@
 
 pub mod analysis;
 pub use analysis::{
-    AbiAnalyzer_TO, AnalysisContextFFI, AnalysisRequestFFI, AnalysisResultFFI,
-    FfiAnalyzerAdapter,
+    AbiAnalyzer_TO, AnalysisRequestFFI, AnalysisResultFFI, FfiAnalyzerAdapter,
 };
 
 #[cfg(test)]
@@ -11,11 +10,10 @@ mod tests;
 
 use abi_stable::{
     sabi_trait,
-    std_types::{RSliceMut, RStr, RString, RVec},
+    std_types::{ROption, RSliceMut, RStr, RString, RVec},
     StableAbi,
 };
 
-use crate::analyzer::{AnalysisContext};
 use crate::parameters::ProcessorParamaterInfo;
 use crate::processor::{BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorType, Segment};
 
@@ -123,16 +121,13 @@ type ProcessorContextFFI = ProcessorContext;
 
 #[sabi_trait]
 pub trait AbiProcessor: Send + Sync {
-    fn init(
-        &mut self,
-        uuid: RString,
-        ctx: ProcessorContextFFI,
-        analysis: AnalysisContextFFI,
-    ) -> AnalysisContextFFI;
+    fn init(&mut self, uuid: RString, ctx: ProcessorContextFFI);
+
+    fn request_analysis(&self, ctx: ProcessorContextFFI) -> ROption<AnalysisRequestFFI>;
+    fn apply_analysis(&mut self, result: AnalysisResultFFI);
 
     fn get_parameter(&self, id: RStr<'_>) -> f64;
     fn set_parameter(&mut self, id: RStr<'_>, value: f64);
-    fn requires_analysis(&self) -> bool;
 
     fn process(&mut self, samples: RSliceMut<'_, f32>, time: f64, ctx: ProcessorContextFFI);
     fn segments(&self, duration: f64, ctx: ProcessorContextFFI) -> RVec<Segment>;
@@ -141,37 +136,35 @@ pub trait AbiProcessor: Send + Sync {
 pub struct FfiAdapter<T: BaseProcessor>(pub T);
 
 impl<T: BaseProcessor> AbiProcessor for FfiAdapter<T> {
-    fn init(
-        &mut self,
-        uuid: RString,
-        ctx: ProcessorContext,
-        analysis: AnalysisContextFFI,
-    ) -> AnalysisContextFFI {
-        let mut native = AnalysisContext::default();
-        analysis.drain_into(&mut native);
-        self.0.init(uuid.into(), &ctx, &mut native);
-        AnalysisContextFFI::from_context(&mut native)
+    fn init(&mut self, uuid: RString, ctx: ProcessorContext) {
+        self.0.init(uuid.into(), &ctx);
     }
+
+    fn request_analysis(&self, ctx: ProcessorContext) -> ROption<AnalysisRequestFFI> {
+        match self.0.request_analysis(&ctx) {
+            Some(req) => ROption::RSome(AnalysisRequestFFI::from(&req)),
+            None      => ROption::RNone,
+        }
+    }
+
+    fn apply_analysis(&mut self, result: AnalysisResultFFI) {
+        if let Some(boxed) = result.into_boxed() {
+            self.0.apply_analysis(&*boxed);
+        }
+    }
+
     fn get_parameter(&self, id: RStr<'_>) -> f64 {
         self.0.get_parameter(id.as_str())
     }
     fn set_parameter(&mut self, id: RStr<'_>, value: f64) {
         self.0.set_parameter(id.as_str(), value);
     }
-    fn requires_analysis(&self) -> bool { self.0.requires_analysis() }
-    fn process(
-        &mut self,
-        mut samples: RSliceMut<'_, f32>,
-        time: f64,
-        ctx: ProcessorContextFFI,
-    ) {
+
+    fn process(&mut self, mut samples: RSliceMut<'_, f32>, time: f64, ctx: ProcessorContextFFI) {
         self.0.process(samples.as_mut_slice(), time, &ctx);
     }
-    fn segments(
-        &self,
-        duration: f64,
-        ctx: ProcessorContextFFI,
-    ) -> RVec<Segment> {
+
+    fn segments(&self, duration: f64, ctx: ProcessorContextFFI) -> RVec<Segment> {
         self.0.segments(duration, &ctx).into()
     }
 }

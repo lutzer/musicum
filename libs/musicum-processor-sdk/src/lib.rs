@@ -1,5 +1,6 @@
 pub mod analyzer;
 pub mod ffi;
+pub mod fingerprint;
 pub mod processor;
 pub mod parameters;
 
@@ -13,7 +14,7 @@ pub use bincode;
 pub use typetag;
 
 pub use analyzer::{
-    AnalysisContext, AnalysisRequest, AnalysisResult, AudioAnalyser,
+    AnalysisRequest, AnalysisResult, AudioAnalyser,
 };
 pub use processor::{
     BaseProcessor, ProcessorContext, ProcessorDescriptor, ProcessorMeta, ProcessorType,
