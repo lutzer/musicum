@@ -90,9 +90,13 @@ impl BaseProcessor for NormalizeProcessor {
     }
 
     fn set_parameter(&mut self, id: &str, value: f64) {
-        if id == "target_dbfs" {
-            self.target_dbfs.set(value as f32);
-            self.recompute_gain();
+        match id {
+            "target_dbfs" => {
+                self.target_dbfs.set(value as f32);
+                self.recompute_gain();
+            }
+            "computed_gain" => self.gain.set(value as f32),
+            _ => {}
         }
     }
 

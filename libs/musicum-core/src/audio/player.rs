@@ -27,10 +27,10 @@ impl AudioPlayer {
     }
 
     pub fn prepare(&mut self) -> anyhow::Result<()> {
-        self.load_current()
+        self.update_chain()
     }
 
-    fn load_current(&mut self) -> anyhow::Result<()> {
+    fn update_chain(&mut self) -> anyhow::Result<()> {
         let path = Path::new(&self.queue.current_item().path).to_path_buf();
         let chain = ProcessorChain::from_edits(&self.queue.current_item().edits, &self.registry);
         self.engine.load_with_processors(&path, chain)
@@ -52,7 +52,7 @@ impl AudioPlayer {
 
     pub fn next_clip(&mut self) -> bool {
         if self.queue.next_item().is_some() {
-            let _ = self.load_current();
+            let _ = self.update_chain();
             return true
         }
         false
@@ -60,7 +60,7 @@ impl AudioPlayer {
 
     pub fn previous_clip(&mut self) -> bool {
         if self.queue.previous_item().is_some() {
-            let _ = self.load_current();
+            let _ = self.update_chain();
             return true
         }
         false
