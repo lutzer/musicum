@@ -33,9 +33,7 @@ libs/musicum-processors/    # gain, reverb, trim
 - **Sidecars are source of truth.** The SQLite DB is a queryable index rebuilt from
   `.musicum.json` sidecars. Don't treat the DB as canonical. Propagate sidecar changes
   to the in-memory library state immediately; full sync only for new/removed files.
-- **ffmpeg is a system dependency.** Required only for MP3 export.
-- **Processor crates need dual crate-type.** Each crate under `libs/musicum-processors/` must
-  have `crate-type = ["cdylib", "rlib"]` — `cdylib` for WASM, `rlib` for native linkage.
+- **ffmpeg is a system dependency.** Required only for audio export.
 - **Audio Engine applies processors and plugins** to the source audio files. Edits are defined on clips; plugin parameters can be adjusted while playing. Design any engine changes with live-parameter-update in mind.
 - **Logic goes in musicum-core.** CLI is display-only; all business logic lives in the core lib.
 - **CLI output style.** Reuse output functions so all commands share consistent formatting.
