@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "apps/cli",
+    "apps/desktop/src-tauri",
     "libs/musicum-core",
     "libs/musicum-processor-sdk",
 ]

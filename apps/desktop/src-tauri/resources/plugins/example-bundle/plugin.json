@@ -1,0 +1,8 @@
+{
+  "id": "example-bundle",
+  "name": "Example Bundle",
+  "version": "0.1.0",
+  "description": "Demonstrates registering multiple views and a slot entry.",
+  "entry": "index.js",
+  "apiVersion": 1
+}

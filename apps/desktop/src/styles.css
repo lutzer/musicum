@@ -1,0 +1,22 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mus-bg: #f6f7fb;
+  --mus-fg: #16181d;
+  --mus-border: #d8dbe4;
+  --mus-accent: #3a5dff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mus-bg: #16181d;
+    --mus-fg: #eef0f6;
+    --mus-border: #2a2e37;
+  }
+}
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--mus-bg);
+  color: var(--mus-fg);
+}
+mus-app { display: block; height: 100%; }

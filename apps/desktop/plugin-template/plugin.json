@@ -1,0 +1,8 @@
+{
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "version": "0.1.0",
+  "description": "Rename me before publishing.",
+  "entry": "index.js",
+  "apiVersion": 1
+}

@@ -1,0 +1,26 @@
+[package]
+name = "musicum-desktop"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "musicum_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "musicum-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror = "1"
+tracing = "0.1"
+musicum-core = { path = "../../../libs/musicum-core" }
+
+[dev-dependencies]
+tempfile = "3"
