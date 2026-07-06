@@ -4,9 +4,10 @@ use uuid::Uuid;
 use std::path::Path;
 
 use crate::db::entities::edit::{ProcessorEdit, ProcessorEditList};
-use crate::db::entities::{clip, collection_clip};
-use crate::sidecar::{self, ClipSidecar};
+use crate::db::entities::{clip, collection_clip, file};
 use crate::services::file_service;
+use crate::services::list_dto::ClipListItem;
+use crate::sidecar::{self, ClipSidecar};
 use crate::ServiceError;
 
 pub async fn list_all_clips(db: &DatabaseConnection) -> Result<Vec<clip::Model>, ServiceError> {
@@ -25,6 +26,25 @@ pub async fn list_clips_for_file(
         .order_by_asc(clip::Column::Title)
         .all(db)
         .await?)
+}
+
+pub async fn list_clips_with_files(
+    db: &DatabaseConnection,
+) -> Result<Vec<ClipListItem>, ServiceError> {
+    let rows = clip::Entity::find()
+        .order_by_asc(clip::Column::Title)
+        .find_also_related(file::Entity)
+        .all(db)
+        .await?;
+
+    rows.into_iter()
+        .map(|(clip, file)| {
+            file.map(|f| ClipListItem { clip: clip.clone(), file: f })
+                .ok_or_else(|| ServiceError::NotFound(
+                    format!("orphan clip '{}' has no parent file", clip.slug),
+                ))
+        })
+        .collect()
 }
 
 pub async fn get_clip_by_slug(
@@ -183,7 +203,6 @@ pub async fn delete_clip(
 mod tests {
     use super::*;
     use crate::db::test_db;
-    use crate::db::entities::file;
     use crate::sidecar::{ClipSidecar, FileSidecar, FileMetadataSidecar};
     use tempfile::tempdir;
 
@@ -300,5 +319,87 @@ mod tests {
 
         let sc = sidecar::read_file_sidecar(&audio).unwrap();
         assert!(sc.clips.is_empty());
+    }
+
+    // ── list_clips_with_files tests ─────────────────────────────────────────
+
+    async fn insert_file_named(
+        db: &DatabaseConnection,
+        slug: &str,
+        name: &str,
+    ) -> file::Model {
+        let now = chrono::Utc::now().to_rfc3339();
+        file::ActiveModel {
+            id:          Set(uuid::Uuid::new_v4().to_string()),
+            slug:        Set(slug.to_string()),
+            name:        Set(name.to_string()),
+            path:        Set(format!("/tmp/{slug}.wav")),
+            duration:    Set(1.0),
+            sample_rate: Set(44100),
+            channels:    Set(2),
+            mime_type:   Set("audio/wav".to_string()),
+            hash:        Set("abc".to_string()),
+            mtime:       Set(String::new()),
+            size_bytes:  Set(0),
+            created_at:  Set(now.clone()),
+            updated_at:  Set(now),
+        }
+        .insert(db).await.unwrap()
+    }
+
+    async fn insert_clip_for(
+        db: &DatabaseConnection,
+        file_id: &str,
+        slug: &str,
+        title: &str,
+    ) -> clip::Model {
+        let now = chrono::Utc::now().to_rfc3339();
+        clip::ActiveModel {
+            id:         Set(uuid::Uuid::new_v4().to_string()),
+            slug:       Set(slug.to_string()),
+            file_id:    Set(file_id.to_string()),
+            title:      Set(title.to_string()),
+            processors: Set(ProcessorEditList(vec![])),
+            duration:   Set(None),
+            notes:      Set(String::new()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(db).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn list_clips_with_files_returns_empty_when_no_clips() {
+        let db = test_db().await;
+        let result = list_clips_with_files(&db).await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn list_clips_with_files_joins_parent_file() {
+        let db = test_db().await;
+        let parent = insert_file_named(&db, "parent", "Parent File").await;
+        insert_clip_for(&db, &parent.id, "kick", "Kick").await;
+
+        let result = list_clips_with_files(&db).await.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].clip.slug, "kick");
+        assert_eq!(result[0].file.id, parent.id);
+        assert_eq!(result[0].file.name, "Parent File");
+    }
+
+    #[tokio::test]
+    async fn list_clips_with_files_orders_by_title_asc() {
+        let db = test_db().await;
+        let f = insert_file_named(&db, "f", "F").await;
+        insert_clip_for(&db, &f.id, "zebra", "Zebra").await;
+        insert_clip_for(&db, &f.id, "apple", "Apple").await;
+        insert_clip_for(&db, &f.id, "mango", "Mango").await;
+
+        let result = list_clips_with_files(&db).await.unwrap();
+        assert_eq!(
+            result.iter().map(|r| r.clip.title.as_str()).collect::<Vec<_>>(),
+            vec!["Apple", "Mango", "Zebra"],
+        );
     }
 }

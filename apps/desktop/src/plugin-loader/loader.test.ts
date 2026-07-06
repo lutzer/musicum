@@ -32,7 +32,12 @@ describe('loadPlugins', () => {
       manifests: [okManifest()],
       importer,
       convertPath: p => p,
-      coreApi: { getAppInfo: async () => ({ name: '', version: '' }), listPlugins: async () => [] },
+      coreApi: {
+        getAppInfo: async () => ({ name: '', version: '' }),
+        listPlugins: async () => [],
+        listFiles: async () => [],
+        listClips: async () => [],
+      },
     });
 
     expect(importer).toHaveBeenCalledWith('/plugins/test/index.js');

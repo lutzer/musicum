@@ -31,4 +31,10 @@ pub enum Relation {
     Clip,
 }
 
+impl Related<super::clip::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Clip.def()
+    }
+}
+
 impl ActiveModelBehavior for ActiveModel {}

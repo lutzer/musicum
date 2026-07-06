@@ -39,7 +39,8 @@ libs/musicum-processors/    # gain, reverb, trim
 - **CLI output style.** Reuse output functions so all commands share consistent formatting.
 - **Shell completion slug registry.** When adding a subcommand with slug positional args, add an entry to `SLUG_COMPLETIONS` in `apps/cli/src/commands/completions.rs`. No other file needs editing for completion to work.
 - **Audio Player and audio exporter** using the same logic. They should both produce the same output of audio samples with the same source file. Share as much code as possible between these two.
-* **Processors are loaded dynamically** and it might happen that the processor is not available that is saved in the processor edits in the clips. Implementation need to deal with that.
+- **Processors are loaded dynamically** and it might happen that the processor is not available that is saved in the processor edits in the clips. Implementation need to deal with that.
+- **Desktop and CLI Frotend** share the same musicum-core library. both UIs should use the same service files to access the functionality. if you make changes in the core library, make sure it doesnt break any of the frontend apps.
 
 ## Supplemental docs
 - `docs/2026-05-22-tauri-greenfield-setup.md` — full architecture & DB schema

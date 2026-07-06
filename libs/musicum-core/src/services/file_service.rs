@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::db::entities::{clip, collection_clip, file, file_attachment, file_metadata};
 use crate::db::entities::edit::ProcessorEditList;
+use crate::services::list_dto::FileListItem;
 use crate::sidecar::{self, ClipSidecar};
 use crate::ServiceError;
 
@@ -15,6 +16,21 @@ pub async fn list_files(db: &DatabaseConnection) -> Result<Vec<file::Model>, Ser
         .order_by_asc(file::Column::Name)
         .all(db)
         .await?)
+}
+
+pub async fn list_files_with_clips(
+    db: &DatabaseConnection,
+) -> Result<Vec<FileListItem>, ServiceError> {
+    let rows = file::Entity::find()
+        .order_by_asc(file::Column::Name)
+        .find_with_related(clip::Entity)
+        .all(db)
+        .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(file, clips)| FileListItem { file, clips })
+        .collect())
 }
 
 pub async fn get_file_by_id(
@@ -728,5 +744,94 @@ mod tests {
 
         assert_eq!(row.slug, "drums-kick");
         assert_eq!(row.name, "kick");
+    }
+
+    // ── list_files_with_clips tests ─────────────────────────────────────────
+
+    async fn insert_file_named(
+        db: &DatabaseConnection,
+        slug: &str,
+        name: &str,
+    ) -> file::Model {
+        let now = chrono::Utc::now().to_rfc3339();
+        file::ActiveModel {
+            id:          Set(uuid::Uuid::new_v4().to_string()),
+            slug:        Set(slug.to_string()),
+            name:        Set(name.to_string()),
+            path:        Set(format!("/tmp/{slug}.wav")),
+            duration:    Set(1.0),
+            sample_rate: Set(44100),
+            channels:    Set(2),
+            mime_type:   Set("audio/wav".to_string()),
+            hash:        Set("abc".to_string()),
+            mtime:       Set(String::new()),
+            size_bytes:  Set(0),
+            created_at:  Set(now.clone()),
+            updated_at:  Set(now),
+        }
+        .insert(db).await.unwrap()
+    }
+
+    async fn insert_clip_for(
+        db: &DatabaseConnection,
+        file_id: &str,
+        slug: &str,
+        title: &str,
+    ) -> clip::Model {
+        let now = chrono::Utc::now().to_rfc3339();
+        clip::ActiveModel {
+            id:         Set(uuid::Uuid::new_v4().to_string()),
+            slug:       Set(slug.to_string()),
+            file_id:    Set(file_id.to_string()),
+            title:      Set(title.to_string()),
+            processors: Set(ProcessorEditList(vec![])),
+            duration:   Set(None),
+            notes:      Set(String::new()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        }
+        .insert(db).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn list_files_with_clips_returns_empty_when_no_files() {
+        let db = test_db().await;
+        let result = list_files_with_clips(&db).await.unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[tokio::test]
+    async fn list_files_with_clips_hydrates_clips_per_file() {
+        let db = test_db().await;
+        let alpha = insert_file_named(&db, "alpha", "alpha").await;
+        let beta  = insert_file_named(&db, "beta",  "beta").await;
+        insert_clip_for(&db, &alpha.id, "a-one",   "a-one").await;
+        insert_clip_for(&db, &alpha.id, "a-two",   "a-two").await;
+        insert_clip_for(&db, &alpha.id, "a-three", "a-three").await;
+
+        let result = list_files_with_clips(&db).await.unwrap();
+        assert_eq!(result.len(), 2);
+
+        let alpha_row = result.iter().find(|r| r.file.slug == "alpha").unwrap();
+        assert_eq!(alpha_row.clips.len(), 3);
+
+        let beta_row = result.iter().find(|r| r.file.slug == "beta").unwrap();
+        assert_eq!(beta_row.clips.len(), 0);
+
+        let _ = beta;
+    }
+
+    #[tokio::test]
+    async fn list_files_with_clips_orders_by_name_asc() {
+        let db = test_db().await;
+        insert_file_named(&db, "zeta",  "zeta").await;
+        insert_file_named(&db, "alpha", "alpha").await;
+        insert_file_named(&db, "mango", "mango").await;
+
+        let result = list_files_with_clips(&db).await.unwrap();
+        assert_eq!(
+            result.iter().map(|r| r.file.name.as_str()).collect::<Vec<_>>(),
+            vec!["alpha", "mango", "zeta"],
+        );
     }
 }

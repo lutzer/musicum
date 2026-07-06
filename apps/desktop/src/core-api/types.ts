@@ -3,4 +3,10 @@ export interface AppInfo {
   version: string;
 }
 
-export type { PluginManifest } from '../plugin-api/types';
+export type {
+  ClipListItem,
+  ClipModel,
+  FileListItem,
+  FileModel,
+  PluginManifest,
+} from '../plugin-api/types';

@@ -2,5 +2,8 @@ pub mod clip_service;
 pub mod collection_service;
 pub mod export_service;
 pub mod file_service;
+pub mod list_dto;
 pub mod preset_service;
 pub mod sync_service;
+
+pub use list_dto::{ClipListItem, FileListItem};

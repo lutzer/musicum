@@ -1,8 +1,10 @@
 pub mod entities;
 pub mod schema;
 
+pub use sea_orm::DatabaseConnection;
+
 use sea_orm::{
-    ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, DbErr, Schema, Statement,
+    ConnectionTrait, Database, DatabaseBackend, DbErr, Schema, Statement,
 };
 
 use crate::ServiceError;

@@ -1,6 +1,8 @@
 import './base';
 import './shell';
 import './views/welcome-view';
+import './views/files-view';
+import './views/clips-view';
 import { viewRegistry } from './plugin-api/registry';
 import { coreApi } from './core-api';
 import { loadPlugins } from './plugin-loader/loader';
@@ -11,6 +13,18 @@ viewRegistry.register('__built_in__', {
   title: 'Welcome',
   icon: 'home',
   element: 'mus-welcome-view',
+});
+viewRegistry.register('__built_in__', {
+  id: 'files',
+  title: 'Files',
+  icon: 'folder',
+  element: 'mus-files-view',
+});
+viewRegistry.register('__built_in__', {
+  id: 'clips',
+  title: 'Clips',
+  icon: 'layers',
+  element: 'mus-clips-view',
 });
 
 if (!window.location.hash) {
