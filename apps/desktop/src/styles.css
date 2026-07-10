@@ -13,6 +13,22 @@
     --mus-border: #2a2e37;
   }
 }
+
+.titlebar {
+  height: 28px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  -webkit-app-region: drag;
+  z-index: 1000;
+}
+
+/* keep buttons/inputs inside it clickable */
+.titlebar button, .titlebar input {
+  -webkit-app-region: no-drag;
+}
+
 html, body {
   margin: 0;
   height: 100%;

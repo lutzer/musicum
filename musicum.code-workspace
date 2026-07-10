@@ -9,6 +9,10 @@
       "name": "cli"
     },
     {
+      "path": "apps/desktop",
+      "name": "desktop"
+    },
+    {
       "path": "libs/musicum-core",
       "name": "musicum-core"
     },

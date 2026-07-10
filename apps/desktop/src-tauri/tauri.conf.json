@@ -11,7 +11,13 @@
   },
   "app": {
     "windows": [
-      { "title": "Musicum", "width": 1200, "height": 800 }
+      { "title": "Musicum", 
+        "width": 1200, 
+        "height": 800, 
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "decorations": true }
     ],
     "security": {
       "csp": null,
