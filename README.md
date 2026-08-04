@@ -12,6 +12,25 @@ Musicum is an app for organizing sound recordings, editing them non-destructivel
 - Export clips and files to WAV, FLAC, AIFF, or MP3 (with ffmpeg)
 - JSON output on all list/show commands for scripting
 
+## Desktop
+
+The desktop app is a Tauri 2 + Lit shell in `apps/desktop/` that links to `musicum-core`.
+
+```bash
+cd apps/desktop
+npm install
+npm run tauri:dev
+```
+
+Production build:
+
+```bash
+cd apps/desktop
+npm run tauri:build
+```
+
+Runtime plugin loading (via the Tauri asset protocol) only works in production builds; the dev server serves built-in views and statically imported bundles only.
+
 ## CLI
 
 The `musicum` binary links directly to `musicum-core` and provides library management without the desktop app.

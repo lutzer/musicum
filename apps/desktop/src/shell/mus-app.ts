@@ -7,44 +7,43 @@ import './mus-slot';
 @customElement('mus-app')
 export class MusApp extends LitElement {
   static styles = css`
-    .layout { 
+    .layout {
       display: flex;
       height: 100%;
       width: 100%;
       overflow: hidden;
     }
     .sidebar {
-      background: var(--sidebar-bg);
-      color: var(--sidebar-text);
-      width: 200px;
-      min-width: 160px;
-      max-width: 480px;
+      background: var(--mus-sidebar-bg);
+      width: var(--mus-sidebar-width);
+      min-width: var(--mus-sidebar-min);
+      max-width: var(--mus-sidebar-max);
       flex-shrink: 0;
-      padding: 20px 16px;
+      padding-top: var(--mus-titlebar-height);
       overflow-y: auto;
     }
 
     .content {
       flex: 1;
-      background: var(--content-bg);
-      padding: 32px;
+      background: var(--mus-content-bg);
+      padding: var(--mus-space-xl);
       overflow-y: auto;
     }
 
     /* --- the drag handle --- */
 
     .resizer {
-      width: 6px;
+      width: var(--mus-resizer-width);
       flex-shrink: 0;
       cursor: col-resize;
-      background: var(--handle-idle);
+      background: var(--mus-resizer-idle);
       position: relative;
-      transition: background 0.15s;
+      transition: background var(--mus-transition-fast);
     }
 
     .resizer:hover,
     .resizer.dragging {
-      background: var(--handle-hover);
+      background: var(--mus-resizer-hover);
     }
 
     .resizer::after {
@@ -53,7 +52,6 @@ export class MusApp extends LitElement {
       top: 0; bottom: 0;
       left: -4px; right: -4px;
     }
-
   `;
   render() {
     return html`

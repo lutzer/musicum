@@ -11,7 +11,7 @@ export class MusWelcomeView extends LitElement {
   static styles = css`
     :host { display: block; max-width: 640px; }
     h2 { margin-top: 0; }
-    .meta { color: color-mix(in srgb, var(--mus-fg) 65%, transparent); font-size: 0.9em; }
+    .meta { color: var(--mus-fg-muted); font-size: var(--mus-font-md); }
   `;
 
   @state() private appName = '…';

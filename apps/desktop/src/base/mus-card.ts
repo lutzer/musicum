@@ -6,10 +6,10 @@ export class MusCard extends LitElement {
   static styles = css`
     :host {
       display: block;
-      padding: 1.25rem;
+      padding: var(--mus-space-lg);
       border: 1px solid var(--mus-border);
-      border-radius: 10px;
-      background: color-mix(in srgb, var(--mus-bg) 90%, transparent);
+      border-radius: var(--mus-radius-md);
+      background: var(--mus-surface);
     }
   `;
   render() { return html`<slot></slot>`; }

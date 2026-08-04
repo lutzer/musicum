@@ -11,19 +11,16 @@ import { convertFileSrc } from './plugin-loader/convert-fs-src';
 viewRegistry.register('__built_in__', {
   id: 'welcome',
   title: 'Welcome',
-  icon: 'home',
   element: 'mus-welcome-view',
 });
 viewRegistry.register('__built_in__', {
   id: 'files',
   title: 'Files',
-  icon: 'folder',
   element: 'mus-files-view',
 });
 viewRegistry.register('__built_in__', {
   id: 'clips',
   title: 'Clips',
-  icon: 'layers',
   element: 'mus-clips-view',
 });
 

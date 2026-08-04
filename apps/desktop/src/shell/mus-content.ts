@@ -7,7 +7,7 @@ import { RegistrySubscription } from './registry-controller';
 @customElement('mus-content')
 export class MusContent extends LitElement {
   static styles = css`
-    :host { display: block; padding: 1.5rem; }
+    :host { display: block; padding: var(--mus-space-lg); }
   `;
 
   @state() private activeId: string | undefined = readHashViewId();

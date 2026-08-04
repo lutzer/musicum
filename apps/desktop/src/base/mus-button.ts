@@ -7,8 +7,8 @@ export class MusButton extends LitElement {
     :host { display: inline-block; }
     button {
       font: inherit;
-      padding: 0.5em 1em;
-      border-radius: 6px;
+      padding: var(--mus-space-sm) var(--mus-space-md);
+      border-radius: var(--mus-radius-sm);
       border: 1px solid var(--mus-border);
       background: transparent;
       color: inherit;
@@ -16,7 +16,7 @@ export class MusButton extends LitElement {
     }
     button[data-variant='primary'] {
       background: var(--mus-accent);
-      color: white;
+      color: var(--mus-accent-fg);
       border-color: transparent;
     }
   `;

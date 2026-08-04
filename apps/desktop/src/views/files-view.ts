@@ -10,9 +10,9 @@ export class MusFilesView extends LitElement {
   static styles = css`
     :host { display: block; height: 100%; }
     .path {
-      color: color-mix(in srgb, var(--mus-fg) 65%, transparent);
-      font-family: ui-monospace, monospace;
-      font-size: 0.85em;
+      color: var(--mus-fg-muted);
+      font-family: var(--mus-font-mono);
+      font-size: var(--mus-font-sm);
     }
   `;
 
@@ -25,11 +25,9 @@ export class MusFilesView extends LitElement {
       sortValue: i => i.file.duration,    render: i => fmtDuration(i.file.duration) },
     { key: 'path',     label: 'Path',
       sortValue: i => i.file.path,
-      render: i => html`<span class="path">${i.file.path}</span>` },
-    { key: 'sr',       label: 'Sample rate', align: 'right',
-      sortValue: i => i.file.sample_rate, render: i => i.file.sample_rate },
-    { key: 'ch',       label: 'Ch', align: 'right',
-      sortValue: i => i.file.channels,    render: i => i.file.channels },
+      render: i => html`<span class="path">${fmtPath(i.file.path)}</span>` },
+    { key: 'info',       label: 'Info', align: 'right',
+      sortValue: i => i.file.sample_rate, render: i => `${i.file.sample_rate/1000} khz (${i.file.channels})` },
     { key: 'size',     label: 'Size', align: 'right',
       sortValue: i => i.file.size_bytes,  render: i => fmtSize(i.file.size_bytes) },
     { key: 'clips',    label: 'Clips', align: 'right',
@@ -69,7 +67,9 @@ function fmtDuration(seconds: number): string {
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
-function fmtPath(path: string)
+function fmtPath(path: string) {
+  return "path"
+}
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

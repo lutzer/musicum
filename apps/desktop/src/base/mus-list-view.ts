@@ -19,15 +19,15 @@ export class MusListView<T = unknown> extends LitElement {
       flex-direction: column;
       height: 100%;
       border: 1px solid var(--mus-border);
-      border-radius: 10px;
-      background: color-mix(in srgb, var(--mus-bg) 90%, transparent);
+      border-radius: var(--mus-radius-md);
+      background: var(--mus-surface);
       overflow: hidden;
     }
     .scroll { flex: 1; overflow-y: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+    table { width: 100%; border-collapse: collapse; font-size: var(--mus-font-md); }
     th, td {
       text-align: left;
-      padding: 0.4em 0.6em;
+      padding: var(--mus-space-xs) var(--mus-space-sm);
       border-bottom: 1px solid var(--mus-border);
     }
     th {
@@ -42,9 +42,9 @@ export class MusListView<T = unknown> extends LitElement {
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
-    .sort-indicator { margin-left: 0.4em; opacity: 0.7; }
+    .sort-indicator { margin-left: var(--mus-space-xs); opacity: 0.7; }
     :host(.drag-over) { outline: 2px dashed var(--mus-accent); outline-offset: -4px; }
-    .state { padding: 1rem; }
+    .state { padding: var(--mus-space-md); }
   `;
 
   @property({ attribute: false }) items: ListState<T> = 'loading';

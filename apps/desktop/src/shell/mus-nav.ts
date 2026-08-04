@@ -8,19 +8,41 @@ import '../base';
 export class MusNav extends LitElement {
   static styles = css`
     :host {
-      display: flex; flex-direction: column;
-      width: 220px; padding: 1rem;
+      display: flex; 
+      flex-direction: column;
+      padding: var(--mus-space-md);
       border-right: 1px solid var(--mus-border);
-      gap: 0.25rem;
-      background: color-mix(in srgb, var(--mus-bg) 90%, transparent);
+      gap: var(--mus-space-xs);
+      background: var(--mus-sidebar-bg);
+      color: var(--mus-sidebar-text);
     }
     a {
-      display: flex; align-items: center; gap: 0.5em;
-      padding: 0.5em 0.75em; border-radius: 6px;
-      color: inherit; text-decoration: none; font-size: 0.95em;
+      display: flex; 
+      align-items: center; 
+      gap: var(--mus-space-sm);
+      padding: var(--mus-space-sm) var(--mus-space-md);
+      border-radius: var(--mus-radius-sm);
+      font-size: var(--mus-font-lg);
     }
-    a:hover { background: color-mix(in srgb, var(--mus-fg) 8%, transparent); }
+    a:hover { background: var(--mus-hover-bg); }
     .footer { margin-top: auto; }
+
+    ul {
+      list-style: none;
+      text-indent: 0;
+      padding-left: 0;
+    }
+
+    li {
+      border-radius: var(--mus-radius-sm);
+    }
+
+    li:hover { background: rgba(255,255,255,0.1); }
+
+    a {
+      color: inherit; 
+      text-decoration: none; 
+    }
   `;
   constructor() {
     super();
@@ -29,12 +51,14 @@ export class MusNav extends LitElement {
   render() {
     const views = viewRegistry.list();
     return html`
+      <ul class="sidebar-list">
       ${views.map(v => html`
-        <a href="#${v.id}">
+        <li><a href="#${v.id}">
           ${v.icon ? html`<mus-icon name=${v.icon}></mus-icon>` : ''}
           ${v.title}
-        </a>
+        </a></li>
       `)}
+      </ul>
       <div class="footer">
         <mus-slot slot-id="app.nav.footer"></mus-slot>
       </div>
