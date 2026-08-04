@@ -34,6 +34,9 @@ export class MusClipsView extends LitElement {
 
   render() {
     return html`
+      <mus-content-header
+        title="Clips">
+      </mus-content-header>
       <mus-list-view
         .items=${this.items}
         .columns=${this.columns}

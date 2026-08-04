@@ -19,15 +19,14 @@ export class MusApp extends LitElement {
       min-width: var(--mus-sidebar-min);
       max-width: var(--mus-sidebar-max);
       flex-shrink: 0;
-      padding-top: var(--mus-titlebar-height);
       overflow-y: auto;
     }
 
     .content {
       flex: 1;
       background: var(--mus-content-bg);
-      padding: var(--mus-space-xl);
       overflow-y: auto;
+      /* padding: 0; */
     }
 
     /* --- the drag handle --- */

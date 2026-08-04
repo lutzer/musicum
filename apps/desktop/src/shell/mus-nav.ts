@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
-import { customElement } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
+import { classMap } from 'lit/directives/class-map.js';
 import { viewRegistry } from '../plugin-api/registry';
 import { RegistrySubscription } from './registry-controller';
 import '../base';
@@ -8,17 +9,17 @@ import '../base';
 export class MusNav extends LitElement {
   static styles = css`
     :host {
-      display: flex; 
+      display: flex;
       flex-direction: column;
-      padding: var(--mus-space-md);
+      padding: var(--mus-titlebar-height) var(--mus-space-md) var(--mus-space-md) var(--mus-space-md);
       border-right: 1px solid var(--mus-border);
       gap: var(--mus-space-xs);
       background: var(--mus-sidebar-bg);
       color: var(--mus-sidebar-text);
     }
     a {
-      display: flex; 
-      align-items: center; 
+      display: flex;
+      align-items: center;
       gap: var(--mus-space-sm);
       padding: var(--mus-space-sm) var(--mus-space-md);
       border-radius: var(--mus-radius-sm);
@@ -39,21 +40,32 @@ export class MusNav extends LitElement {
 
     li:hover { background: rgba(255,255,255,0.1); }
 
+    li.active,
+    li.active:hover { background: var(--mus-accent); }
+    li.active a { color: var(--mus-accent-fg); }
+
     a {
-      color: inherit; 
-      text-decoration: none; 
+      color: inherit;
+      text-decoration: none;
     }
   `;
+
+  @state() private activeId: string | undefined = readHashViewId();
+
   constructor() {
     super();
     new RegistrySubscription(this, viewRegistry);
+    window.addEventListener('hashchange', () => {
+      this.activeId = readHashViewId();
+    });
   }
   render() {
     const views = viewRegistry.list();
+    const active = this.activeId ?? views[0]?.id;
     return html`
       <ul class="sidebar-list">
       ${views.map(v => html`
-        <li><a href="#${v.id}">
+        <li class=${classMap({ active: v.id === active })}><a href="#${v.id}">
           ${v.icon ? html`<mus-icon name=${v.icon}></mus-icon>` : ''}
           ${v.title}
         </a></li>
@@ -64,6 +76,11 @@ export class MusNav extends LitElement {
       </div>
     `;
   }
+}
+
+function readHashViewId(): string | undefined {
+  const h = window.location.hash.replace(/^#/, '').trim();
+  return h.length ? h : undefined;
 }
 
 declare global { interface HTMLElementTagNameMap { 'mus-nav': MusNav } }

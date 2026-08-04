@@ -44,7 +44,7 @@ plugin-template/       # scaffold copied when creating a new plugin
 - **Hash routing**: `mus-content` reads `window.location.hash` for the active
   view id; `mus-nav` sets it. No router library.
 - **Styling**: Lit `css` tagged templates + shared CSS variables (`--mus-bg`,
-  `--mus-border`, `--sidebar-bg`, …) defined in `src/styles.css`.
+  `--mus-border`, `--sidebar-bg`, …) defined in `src/styles.css`. If introducing new colors or numeric values, add them to the shared css instead of definining them in the components.
 - **Tests colocated** as `*.test.ts` next to source; `vitest.config.ts` uses
   jsdom.
 

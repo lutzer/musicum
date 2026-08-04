@@ -26,7 +26,7 @@
   --mus-font-lg: 0.95em;
 
   /* Spacing scale */
-  --mus-space-xs: 0.25rem;
+  --mus-space-xs: 0.35rem;
   --mus-space-sm: 0.5rem;
   --mus-space-md: 1rem;
   --mus-space-lg: 1.5rem;
@@ -52,8 +52,9 @@
   --mus-sidebar-bg: #1e2330;
   --mus-sidebar-text: #d7dbe5;
   --mus-border: #d8dbe4;
-  --mus-accent: #3a5dff;
+  --mus-accent: #5b8def;
   --mus-accent-fg: #ffffff;
+  --mus-accent-bg: #d7dde9;
 
   /* Derived semantic colors — resolve via var() so themes carry through */
   --mus-surface: color-mix(in srgb, var(--mus-bg) 90%, transparent);
@@ -66,33 +67,33 @@
 
 /* Dark theme picked automatically when the OS prefers dark and no explicit
    data-theme override is set. */
-@media (prefers-color-scheme: dark) {
+/* @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --mus-bg: #16181d;
     --mus-fg: #eef0f6;
     --mus-sidebar-bg: #1e2330;
     --mus-sidebar-text: #d7dbe5;
     --mus-border: #2a2e37;
-    --mus-accent: #6c8bff;
+    --mus-accent: #5b8def;
   }
-}
+} */
 
 /* Explicit theme overrides — use e.g. <html data-theme="dark">. */
-:root[data-theme='light'] {
+/* :root[data-theme='light'] {
   --mus-bg: #f6f7fb;
   --mus-fg: #16181d;
   --mus-border: #d8dbe4;
   --mus-accent: #3a5dff;
   --mus-accent-fg: #ffffff;
-}
+} */
 
-:root[data-theme='dark'] {
+/* :root[data-theme='dark'] {
   --mus-bg: #16181d;
   --mus-fg: #eef0f6;
   --mus-border: #2a2e37;
   --mus-accent: #6c8bff;
   --mus-accent-fg: #ffffff;
-}
+} */
 
 /* ---------------------------------------------------------------------------
  * Global element styles

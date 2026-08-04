@@ -18,26 +18,32 @@ export class MusListView<T = unknown> extends LitElement {
       display: flex;
       flex-direction: column;
       height: 100%;
-      border: 1px solid var(--mus-border);
-      border-radius: var(--mus-radius-md);
       background: var(--mus-surface);
       overflow: hidden;
     }
     .scroll { flex: 1; overflow-y: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: var(--mus-font-md); }
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: var(--mus-font-md); 
+    }
     th, td {
       text-align: left;
       padding: var(--mus-space-xs) var(--mus-space-sm);
-      border-bottom: 1px solid var(--mus-border);
     }
     th {
       font-weight: 600;
       position: sticky;
       top: 0;
-      background: var(--mus-bg);
       user-select: none;
+      margin: var(--mus-space-md) 0;
+      border-radius: 0;
+      margin: 5px;
+      background: var(--mus-accent-bg);
     }
-    th[data-sortable] { cursor: pointer; }
+    th[data-sortable] { 
+      cursor: pointer; 
+    }
     th[data-align='right'], td[data-align='right'] {
       text-align: right;
       font-variant-numeric: tabular-nums;

@@ -38,6 +38,9 @@ export class MusWelcomeView extends LitElement {
   render() {
     const count = viewRegistry.list().length;
     return html`
+      <mus-content-header
+        title="Welcome">
+      </mus-content-header>
       <mus-card>
         <h2>Welcome to ${this.appName}</h2>
         <p class="meta">version ${this.appVersion} · ${count} view(s) registered</p>
