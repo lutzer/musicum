@@ -34,5 +34,11 @@ html, body {
   height: 100%;
   background: var(--mus-bg);
   color: var(--mus-fg);
+  overflow: hidden;
 }
-mus-app { display: block; height: 100%; }
+
+mus-app { 
+  display: block; 
+  height: 100%;
+  margin-top: 28px; 
+}

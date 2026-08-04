@@ -2,23 +2,26 @@ import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { coreApi } from '../core-api';
 import type { ClipListItem } from '../core-api/types';
+import type { ListColumn, ListState } from '../base/mus-list-view';
 import '../base';
-
-type State = 'loading' | ClipListItem[] | { error: string };
 
 @customElement('mus-clips-view')
 export class MusClipsView extends LitElement {
   static styles = css`
-    :host { display: block; }
-    h2 { margin-top: 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
-    th, td { text-align: left; padding: 0.4em 0.6em;
-             border-bottom: 1px solid var(--mus-border); }
-    th { font-weight: 600; }
-    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    :host { display: block; height: 100%; }
   `;
 
-  @state() private items: State = 'loading';
+  @state() private items: ListState<ClipListItem> = 'loading';
+
+  private columns: ListColumn<ClipListItem>[] = [
+    { key: 'title',    label: 'Title',
+      sortValue: i => i.clip.title, render: i => i.clip.title },
+    { key: 'file',     label: 'Source file',
+      sortValue: i => i.file.name,  render: i => i.file.name },
+    { key: 'duration', label: 'Duration', align: 'right',
+      sortValue: i => i.clip.duration,
+      render:    i => fmtDuration(i.clip.duration) },
+  ];
 
   async connectedCallback() {
     super.connectedCallback();
@@ -30,38 +33,20 @@ export class MusClipsView extends LitElement {
   }
 
   render() {
-    if (this.items === 'loading') {
-      return html`<mus-card><p>Loading…</p></mus-card>`;
-    }
-    if (!Array.isArray(this.items)) {
-      return html`<mus-card><p>Error: ${this.items.error}</p></mus-card>`;
-    }
-    if (this.items.length === 0) {
-      return html`<mus-card><p>No clips yet.</p></mus-card>`;
-    }
     return html`
-      <mus-card>
-        <h2>Clips</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Source file</th>
-              <th class="num">Duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${this.items.map(item => html`
-              <tr>
-                <td>${item.clip.title}</td>
-                <td>${item.file.name}</td>
-                <td class="num">${fmtDuration(item.clip.duration)}</td>
-              </tr>
-            `)}
-          </tbody>
-        </table>
-      </mus-card>
+      <mus-list-view
+        .items=${this.items}
+        .columns=${this.columns}
+        emptyMessage="No clips yet."
+        accept-drop
+        @mus-list-drop=${this.onDrop}>
+      </mus-list-view>
     `;
+  }
+
+  private onDrop(e: CustomEvent<{ paths: string[] }>) {
+    // TODO: wire to coreApi.createClipFromPath once available.
+    console.log('clips-view drop', e.detail.paths);
   }
 }
 

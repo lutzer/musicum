@@ -4,8 +4,8 @@ import { unsafeStatic, html as staticHtml } from 'lit/static-html.js';
 import { viewRegistry } from '../plugin-api/registry';
 import { RegistrySubscription } from './registry-controller';
 
-@customElement('mus-view-outlet')
-export class MusViewOutlet extends LitElement {
+@customElement('mus-content')
+export class MusContent extends LitElement {
   static styles = css`
     :host { display: block; padding: 1.5rem; }
   `;
@@ -34,4 +34,4 @@ function readHashViewId(): string | undefined {
   return h.length ? h : undefined;
 }
 
-declare global { interface HTMLElementTagNameMap { 'mus-view-outlet': MusViewOutlet } }
+declare global { interface HTMLElementTagNameMap { 'mus-content': MusContent } }

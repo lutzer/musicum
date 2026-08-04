@@ -24,4 +24,8 @@ describe('base components', () => {
     expect(customElements.get('mus-card')).toBeDefined();
     expect(customElements.get('mus-icon')).toBeDefined();
   });
+
+  it('defines mus-list-view', () => {
+    expect(customElements.get('mus-list-view')).toBeDefined();
+  });
 });

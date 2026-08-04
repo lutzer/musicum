@@ -32,7 +32,15 @@ async function mount(): Promise<HTMLElement> {
   const el = document.createElement('mus-files-view');
   document.body.appendChild(el);
   await (el as any).updateComplete;
+  await new Promise(r => setTimeout(r, 0));
+  await (el as any).updateComplete;
+  const list = el.shadowRoot!.querySelector('mus-list-view')!;
+  await (list as any).updateComplete;
   return el;
+}
+
+function listRoot(el: HTMLElement): ShadowRoot {
+  return el.shadowRoot!.querySelector('mus-list-view')!.shadowRoot!;
 }
 
 describe('mus-files-view', () => {
@@ -44,16 +52,13 @@ describe('mus-files-view', () => {
   it('shows a loading placeholder before the promise resolves', async () => {
     mockCoreApi.listFiles.mockReturnValue(new Promise(() => {}));
     const el = await mount();
-    expect(el.shadowRoot!.textContent).toContain('Loading');
+    expect(listRoot(el).textContent).toContain('Loading');
   });
 
   it('renders one row per file with clip count derived from clips.length', async () => {
     mockCoreApi.listFiles.mockResolvedValue([makeItem('alpha', 2), makeItem('beta', 0)]);
     const el = await mount();
-    await new Promise(r => setTimeout(r, 0));
-    await (el as any).updateComplete;
-
-    const rows = el.shadowRoot!.querySelectorAll('tbody tr');
+    const rows = listRoot(el).querySelectorAll('tbody tr');
     expect(rows).toHaveLength(2);
     expect(rows[0]!.textContent).toContain('alpha');
     expect(rows[0]!.textContent).toContain('2');
@@ -64,16 +69,12 @@ describe('mus-files-view', () => {
   it('renders the empty state when no files', async () => {
     mockCoreApi.listFiles.mockResolvedValue([]);
     const el = await mount();
-    await new Promise(r => setTimeout(r, 0));
-    await (el as any).updateComplete;
-    expect(el.shadowRoot!.textContent).toContain('No files yet');
+    expect(listRoot(el).textContent).toContain('No files yet');
   });
 
   it('renders the error state when the call rejects', async () => {
     mockCoreApi.listFiles.mockRejectedValue('boom');
     const el = await mount();
-    await new Promise(r => setTimeout(r, 0));
-    await (el as any).updateComplete;
-    expect(el.shadowRoot!.textContent).toContain('boom');
+    expect(listRoot(el).textContent).toContain('boom');
   });
 });

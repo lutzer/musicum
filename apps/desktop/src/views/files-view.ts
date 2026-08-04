@@ -2,25 +2,39 @@ import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { coreApi } from '../core-api';
 import type { FileListItem } from '../core-api/types';
+import type { ListColumn, ListState } from '../base/mus-list-view';
 import '../base';
-
-type State = 'loading' | FileListItem[] | { error: string };
 
 @customElement('mus-files-view')
 export class MusFilesView extends LitElement {
   static styles = css`
-    :host { display: block; }
-    h2 { margin-top: 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
-    th, td { text-align: left; padding: 0.4em 0.6em;
-             border-bottom: 1px solid var(--mus-border); }
-    th { font-weight: 600; }
-    .path { color: color-mix(in srgb, var(--mus-fg) 65%, transparent);
-            font-family: ui-monospace, monospace; font-size: 0.85em; }
-    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    :host { display: block; height: 100%; }
+    .path {
+      color: color-mix(in srgb, var(--mus-fg) 65%, transparent);
+      font-family: ui-monospace, monospace;
+      font-size: 0.85em;
+    }
   `;
 
-  @state() private items: State = 'loading';
+  @state() private items: ListState<FileListItem> = 'loading';
+
+  private columns: ListColumn<FileListItem>[] = [
+    { key: 'name',     label: 'Name',
+      sortValue: i => i.file.name,        render: i => i.file.name },
+    { key: 'duration', label: 'Duration',
+      sortValue: i => i.file.duration,    render: i => fmtDuration(i.file.duration) },
+    { key: 'path',     label: 'Path',
+      sortValue: i => i.file.path,
+      render: i => html`<span class="path">${i.file.path}</span>` },
+    { key: 'sr',       label: 'Sample rate', align: 'right',
+      sortValue: i => i.file.sample_rate, render: i => i.file.sample_rate },
+    { key: 'ch',       label: 'Ch', align: 'right',
+      sortValue: i => i.file.channels,    render: i => i.file.channels },
+    { key: 'size',     label: 'Size', align: 'right',
+      sortValue: i => i.file.size_bytes,  render: i => fmtSize(i.file.size_bytes) },
+    { key: 'clips',    label: 'Clips', align: 'right',
+      sortValue: i => i.clips.length,     render: i => i.clips.length },
+  ];
 
   async connectedCallback() {
     super.connectedCallback();
@@ -32,46 +46,20 @@ export class MusFilesView extends LitElement {
   }
 
   render() {
-    if (this.items === 'loading') {
-      return html`<mus-card><p>Loading…</p></mus-card>`;
-    }
-    if (!Array.isArray(this.items)) {
-      return html`<mus-card><p>Error: ${this.items.error}</p></mus-card>`;
-    }
-    if (this.items.length === 0) {
-      return html`<mus-card><p>No files yet.</p></mus-card>`;
-    }
     return html`
-      <mus-card>
-        <h2>Files</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Duration</th>
-              <th>Path</th>
-              <th class="num">Sample rate</th>
-              <th class="num">Ch</th>
-              <th class="num">Size</th>
-              <th class="num">Clips</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${this.items.map(item => html`
-              <tr>
-                <td>${item.file.name}</td>
-                <td>${fmtDuration(item.file.duration)}</td>
-                <td class="path">${item.file.path}</td>
-                <td class="num">${item.file.sample_rate}</td>
-                <td class="num">${item.file.channels}</td>
-                <td class="num">${fmtSize(item.file.size_bytes)}</td>
-                <td class="num">${item.clips.length}</td>
-              </tr>
-            `)}
-          </tbody>
-        </table>
-      </mus-card>
+      <mus-list-view
+        .items=${this.items}
+        .columns=${this.columns}
+        emptyMessage="No files yet."
+        accept-drop
+        @mus-list-drop=${this.onDrop}>
+      </mus-list-view>
     `;
+  }
+
+  private onDrop(e: CustomEvent<{ paths: string[] }>) {
+    // TODO: wire to coreApi.importPaths once available.
+    console.log('files-view drop', e.detail.paths);
   }
 }
 
@@ -80,6 +68,8 @@ function fmtDuration(seconds: number): string {
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
+
+function fmtPath(path: string)
 
 function fmtSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
