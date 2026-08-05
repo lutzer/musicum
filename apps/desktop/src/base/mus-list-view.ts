@@ -1,7 +1,6 @@
 import { LitElement, html, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ColumnResizeController } from './mus-list-view-resize';
-import { ScrollSyncController } from './mus-list-view-scroll-sync';
 
 export type ListState<T> = 'loading' | T[] | { error: string };
 
@@ -24,30 +23,24 @@ export class MusListView<T = unknown> extends LitElement {
     :host {
       display: flex;
       background: var(--mus-surface);
-      width: 100%;
       min-height: 0;
       flex-grow: 1;
+      /* border: 1px solid var(--mus-border);
+      border-radius: var(--mus-radius-sm); */
     }
-    .table-container {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      min-height: 0;
-    }
-    .table-header {
-      overflow-x: hidden;
-      flex-shrink: 0;
-    }
-    .table-body {
+    .table-scroll {
       overflow: auto;
       min-height: 0;
       flex-grow: 1;
     }
     table {
-      width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
       font-size: var(--mus-font-md);
+      width: 100%;
+    }
+    tbody tr:first-child td {
+      padding-top: var(--mus-space-md);
     }
     th, td {
       text-align: left;
@@ -62,7 +55,9 @@ export class MusListView<T = unknown> extends LitElement {
       font-weight: 600;
       user-select: none;
       background: var(--mus-accent-bg);
-      position: relative;
+      position: sticky;
+      top: 0;
+      z-index: 1;
     }
     th[data-sortable] {
       cursor: pointer;
@@ -84,6 +79,7 @@ export class MusListView<T = unknown> extends LitElement {
       cursor: col-resize;
       user-select: none;
       touch-action: none;
+      border-right: 2px solid var(--mus-surface);
     }
     :host(.drag-over) {
       outline: 2px dashed var(--mus-accent);
@@ -107,16 +103,11 @@ export class MusListView<T = unknown> extends LitElement {
 
   private tauriUnlisten: (() => void) | null = null;
   private resize = new ColumnResizeController(this);
-  private scrollSync = new ScrollSyncController(this);
 
   willUpdate(changed: PropertyValues) {
     if (changed.has('columns')) {
       this.widths = this.columns.map(c => c.width ?? DEFAULT_WIDTH);
     }
-  }
-
-  firstUpdated() {
-    this.scrollSync.attach();
   }
 
   connectedCallback() {
@@ -255,25 +246,18 @@ export class MusListView<T = unknown> extends LitElement {
   }
 
   private sortedItems(items: T[]): T[] {
-    if (this.sortKey === null) return items;
-    const col = this.columns.find(c => c.key === this.sortKey);
-    if (!col?.sortValue) return items;
-    const sortValue = col.sortValue;
+    const sortValue = this.columns.find(c => c.key === this.sortKey)?.sortValue;
+    if (!sortValue) return items;
     const dir = this.sortDirection === 'asc' ? 1 : -1;
     return [...items].sort((a, b) => {
       const va = sortValue(a);
       const vb = sortValue(b);
-      const aNil = va === null || va === undefined;
-      const bNil = vb === null || vb === undefined;
-      if (aNil && bNil) return 0;
-      if (aNil) return 1;
-      if (bNil) return -1;
-      if (typeof va === 'string' && typeof vb === 'string') {
-        return va.localeCompare(vb) * dir;
-      }
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
+      if (va == null) return vb == null ? 0 : 1;   // nulls always last
+      if (vb == null) return -1;
+      const cmp = typeof va === 'string' && typeof vb === 'string'
+        ? va.localeCompare(vb)
+        : (va < vb ? -1 : va > vb ? 1 : 0);
+      return cmp * dir;
     });
   }
 
@@ -304,21 +288,13 @@ export class MusListView<T = unknown> extends LitElement {
 
   render() {
     const totalWidth = this.widths.reduce((a, b) => a + b, 0);
-    const tableStyle = `min-width: ${totalWidth}px`;
     return html`
-      <div class="table-container">
-        <div class="table-header">
-          <table style=${tableStyle}>
-            ${this.renderColgroup()}
-            ${this.renderHeader()}
-          </table>
-        </div>
-        <div class="table-body">
-          <table style=${tableStyle}>
-            ${this.renderColgroup()}
-            ${this.renderBody()}
-          </table>
-        </div>
+      <div class="table-scroll">
+        <table style="min-width: ${totalWidth}px">
+          ${this.renderColgroup()}
+          ${this.renderHeader()}
+          ${this.renderBody()}
+        </table>
         ${this.renderStateOverlay()}
       </div>
     `;

@@ -18,24 +18,29 @@ export class MusFilesView extends LitElement {
       font-family: var(--mus-font-mono);
       font-size: var(--mus-font-sm);
     }
+
+    mus-list-view {
+      margin: var(--mus-space-md);
+    }
   `;
 
   @state() private items: ListState<FileListItem> = 'loading';
 
   private columns: ListColumn<FileListItem>[] = [
-    { key: 'name',     label: 'Name',                    width: 220,
+    { key: 'name',     label: 'Name',                    width: 300,
       sortValue: i => i.file.name,        render: i => i.file.name },
-    { key: 'duration', label: 'Duration',                width: 80,
-      sortValue: i => i.file.duration,    render: i => fmtDuration(i.file.duration) },
-    { key: 'path',     label: 'Path',                    width: 300,
+    { key: 'path',     label: 'Path',                    width: 100,
       sortValue: i => i.file.path,
       render: i => html`<span class="path">${fmtPath(i.file.path)}</span>` },
-    { key: 'info',     label: 'Info', align: 'right',    width: 140,
-      sortValue: i => i.file.sample_rate, render: i => `${i.file.sample_rate/1000} khz (${i.file.channels})` },
-    { key: 'size',     label: 'Size', align: 'right',    width: 100,
-      sortValue: i => i.file.size_bytes,  render: i => fmtSize(i.file.size_bytes) },
-    { key: 'clips',    label: 'Clips', align: 'right',   width: 80,
+    { key: 'duration', label: 'Duration',                width: 80,
+      sortValue: i => i.file.duration,    render: i => fmtDuration(i.file.duration) },
+    { key: 'clips',    label: 'Clips',   width: 80,
       sortValue: i => i.clips.length,     render: i => i.clips.length },
+    { key: 'info',     label: 'Info',    width: 140,
+      sortValue: i => i.file.sample_rate, render: i => `${i.file.sample_rate/1000} khz (${i.file.channels})` },
+    { key: 'size',     label: 'Size',    width: 100,
+      sortValue: i => i.file.size_bytes,  render: i => fmtSize(i.file.size_bytes) },
+    
   ];
 
   async connectedCallback() {

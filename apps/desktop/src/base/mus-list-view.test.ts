@@ -69,7 +69,7 @@ describe('mus-list-view columns', () => {
     expect(el.widths).toEqual([100, 120]);   // 120 = DEFAULT_WIDTH
   });
 
-  it('renders both header and body colgroups with matching widths', async () => {
+  it('renders a single colgroup with the expected widths', async () => {
     const withWidths: ListColumn<Row>[] = [
       { key: 'id', label: 'ID', width: 100, sortValue: r => r.id, render: r => r.id },
       { key: 'n',  label: 'N',  width: 60,  sortValue: r => r.n,  render: r => r.n },
@@ -82,14 +82,11 @@ describe('mus-list-view columns', () => {
     await el.updateComplete;
 
     const groups = el.shadowRoot!.querySelectorAll('colgroup');
-    expect(groups).toHaveLength(2);
-    const widthsOf = (g: Element) =>
-      Array.from(g.querySelectorAll('col')).map(c => (c as HTMLElement).style.width);
-    const header = widthsOf(groups[0]);
-    const body   = widthsOf(groups[1]);
-    expect(header).toEqual(body);
-    expect(header.slice(0, -1)).toEqual(['100px', '60px']);   // last col left blank
-    expect(header[header.length - 1]).toBe('');
+    expect(groups).toHaveLength(1);
+    const widths = Array.from(groups[0]!.querySelectorAll('col'))
+      .map(c => (c as HTMLElement).style.width);
+    expect(widths.slice(0, -1)).toEqual(['100px', '60px']);   // last col left blank
+    expect(widths[widths.length - 1]).toBe('');
   });
 
   it('cells have single-line truncation styles', async () => {

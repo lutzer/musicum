@@ -13,6 +13,10 @@ export class MusClipsView extends LitElement {
       flex-direction: column;
       width: 100%;
     }
+
+    mus-list-view {
+      margin: var(--mus-space-md);
+    }
   `;
 
   @state() private items: ListState<ClipListItem> = 'loading';
@@ -22,7 +26,7 @@ export class MusClipsView extends LitElement {
       sortValue: i => i.clip.title, render: i => i.clip.title },
     { key: 'file',     label: 'Source file',             width: 240,
       sortValue: i => i.file.name,  render: i => i.file.name },
-    { key: 'duration', label: 'Duration', align: 'right', width: 80,
+    { key: 'duration', label: 'Duration', width: 80,
       sortValue: i => i.clip.duration,
       render:    i => fmtDuration(i.clip.duration) },
   ];
