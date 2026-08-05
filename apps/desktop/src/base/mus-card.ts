@@ -9,7 +9,7 @@ export class MusCard extends LitElement {
       padding: var(--mus-space-lg);
       border: 1px solid var(--mus-border);
       border-radius: var(--mus-radius-md);
-      background: var(--mus-surface);
+      background: var(--mus-accent-bg);
     }
   `;
   render() { return html`<slot></slot>`; }

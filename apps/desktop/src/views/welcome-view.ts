@@ -9,9 +9,26 @@ import '../shell/mus-slot';
 @customElement('mus-welcome-view')
 export class MusWelcomeView extends LitElement {
   static styles = css`
-    :host { display: block; max-width: 640px; }
-    h2 { margin-top: 0; }
-    .meta { color: var(--mus-fg-muted); font-size: var(--mus-font-md); }
+    :host { 
+      display: flex; 
+      width: 100%;
+      flex-direction: column;
+    }
+    h2 { 
+      margin-top: 0;
+    }
+    .meta { 
+      color: var(--mus-fg-muted); 
+      font-size: var(--mus-font-md); 
+    }
+
+    .center {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex: 1;
+
+    }
   `;
 
   @state() private appName = '…';
@@ -41,11 +58,13 @@ export class MusWelcomeView extends LitElement {
       <mus-content-header
         title="Welcome">
       </mus-content-header>
-      <mus-card>
-        <h2>Welcome to ${this.appName}</h2>
-        <p class="meta">version ${this.appVersion} · ${count} view(s) registered</p>
-        <mus-slot slot-id="view.welcome.body"></mus-slot>
-      </mus-card>
+      <div class="center">
+        <mus-card>
+          <h2>Welcome to ${this.appName}</h2>
+          <p class="meta">version ${this.appVersion} · ${count} view(s) registered</p>
+          <mus-slot slot-id="view.welcome.body"></mus-slot>
+        </mus-card>
+      </div>
     `;
   }
 }

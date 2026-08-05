@@ -55,7 +55,9 @@
   --mus-accent: #5b8def;
   --mus-accent-fg: #ffffff;
   --mus-accent-bg: #d7dde9;
-  --mus-header-bg: #d7dde9;
+  --mus-header-bg: #acc0ea;
+  --mus-tableheader-bg: #75839d;
+  --muss-tableheader-text: #ffffff;
 
   /* Derived semantic colors — resolve via var() so themes carry through */
   --mus-surface: color-mix(in srgb, var(--mus-bg) 90%, transparent);
