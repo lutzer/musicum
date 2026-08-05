@@ -221,9 +221,10 @@ export class MusListView<T = unknown> extends LitElement {
             const isLast = i === this.columns.length - 1;
             return html`
               <th data-align=${c.align ?? 'left'}
-                  ?data-sortable=${sortable}
-                  @click=${sortable ? () => this.onHeaderClick(c.key) : null}>
-                ${c.label}${indicator}
+                  ?data-sortable=${sortable}>
+                <span @click=${sortable ? () => this.onHeaderClick(c.key) : null}>
+                  ${c.label}${indicator}
+                </span>
                 ${isLast ? null : html`
                   <span class="resize-handle"
                         @pointerdown=${(e: PointerEvent) => this.resize.start(e, i)}></span>
