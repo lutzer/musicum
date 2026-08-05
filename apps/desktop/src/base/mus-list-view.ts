@@ -16,12 +16,20 @@ export class MusListView<T = unknown> extends LitElement {
   static styles = css`
     :host {
       display: flex;
-      flex-direction: column;
-      height: 100%;
       background: var(--mus-surface);
-      overflow: hidden;
+      width: 100%;
+      min-height: 0;
     }
-    .scroll { flex: 1; overflow-y: auto; }
+    .table-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+    }
+
+    .table-body {
+      overflow: auto;
+    }
+
     table { 
       width: 100%; 
       border-collapse: collapse; 
@@ -48,9 +56,18 @@ export class MusListView<T = unknown> extends LitElement {
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
-    .sort-indicator { margin-left: var(--mus-space-xs); opacity: 0.7; }
-    :host(.drag-over) { outline: 2px dashed var(--mus-accent); outline-offset: -4px; }
-    .state { padding: var(--mus-space-md); }
+    .sort-indicator { 
+      margin-left: var(--mus-space-xs); 
+      opacity: 0.7; 
+    }
+    :host(.drag-over) { 
+      outline: 2px dashed var(--mus-accent); 
+      outline-offset: -4px; 
+    }
+    .state { 
+      position: absolute;
+      padding: var(--mus-space-md); 
+    }
   `;
 
   @property({ attribute: false }) items: ListState<T> = 'loading';
@@ -236,11 +253,17 @@ export class MusListView<T = unknown> extends LitElement {
 
   render() {
     return html`
-      <div class="scroll">
-        <table>
-          ${this.renderHeader()}
-          ${this.renderBody()}
-        </table>
+      <div class="table-container">
+        <div class="table-header">
+          <table>
+            ${this.renderHeader()}
+          </table>
+        </div>
+        <div class="table-body">
+          <table>
+            ${this.renderBody()}
+          </table>
+          </div>
         ${this.renderStateOverlay()}
       </div>
     `;

@@ -5,9 +5,14 @@ import { customElement, property } from 'lit/decorators.js';
 export class MusContentHeader extends LitElement {
   static styles = css`
     :host {
-        display: block;
+        display: flex;
         width: 100%;
-        padding: 0 var(--mus-space-xl);
+        padding-left: var(--mus-space-xl);
+        background: var(--mus-header-bg)
+    }
+
+    h2 {
+      margin: var(--mus-space-md);
     }
   `;
 

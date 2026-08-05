@@ -12,6 +12,7 @@ export class MusApp extends LitElement {
       height: 100%;
       width: 100%;
       overflow: hidden;
+      gap: 0;
     }
     .sidebar {
       background: var(--mus-sidebar-bg);
@@ -20,13 +21,15 @@ export class MusApp extends LitElement {
       max-width: var(--mus-sidebar-max);
       flex-shrink: 0;
       overflow-y: auto;
+      border: 0;
     }
 
     .content {
       flex: 1;
       background: var(--mus-content-bg);
-      overflow-y: auto;
-      /* padding: 0; */
+      overflow: hidden;
+      display: flex;
+      width: 100%;
     }
 
     /* --- the drag handle --- */
@@ -35,7 +38,7 @@ export class MusApp extends LitElement {
       width: var(--mus-resizer-width);
       flex-shrink: 0;
       cursor: col-resize;
-      background: var(--mus-resizer-idle);
+      background: var(--mus-sidebar-bg);
       position: relative;
       transition: background var(--mus-transition-fast);
     }
@@ -54,10 +57,6 @@ export class MusApp extends LitElement {
   `;
   render() {
     return html`
-      <!-- <header>
-        <h1>Musicum</h1>
-        <div class="actions"><mus-slot slot-id="app.header.actions"></mus-slot></div>
-      </header> -->
       <div class="layout">
         <mus-nav class="sidebar"></mus-nav>
         <div class="resizer" id="resizer"></div>

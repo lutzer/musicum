@@ -8,7 +8,11 @@ import '../base';
 @customElement('mus-files-view')
 export class MusFilesView extends LitElement {
   static styles = css`
-    :host { display: block; height: 100%; }
+    :host { 
+      display: flex; 
+      flex-direction: column;
+      width: 100%;
+    }
     .path {
       color: var(--mus-fg-muted);
       font-family: var(--mus-font-mono);

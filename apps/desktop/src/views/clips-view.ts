@@ -8,7 +8,11 @@ import '../base';
 @customElement('mus-clips-view')
 export class MusClipsView extends LitElement {
   static styles = css`
-    :host { display: block; height: 100%; }
+    :host { 
+      display: block; 
+      height: 100%;
+      width: 100%;
+    }
   `;
 
   @state() private items: ListState<ClipListItem> = 'loading';
