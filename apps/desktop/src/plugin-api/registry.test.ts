@@ -32,6 +32,13 @@ describe('ViewRegistry', () => {
     r.register('bundle-a', { id: 'x', title: 'X', element: 'x' });
     expect(count).toBe(1);
   });
+
+  it('preserves the sidebar flag on registered views', () => {
+    r.register('bundle-a', { id: 'a', title: 'A', element: 'x-a' });
+    r.register('bundle-a', { id: 'b', title: 'B', element: 'x-b', sidebar: false });
+    expect(r.get('a')?.sidebar).toBeUndefined();
+    expect(r.get('b')?.sidebar).toBe(false);
+  });
 });
 
 describe('SlotRegistry', () => {

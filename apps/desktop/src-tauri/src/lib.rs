@@ -34,6 +34,10 @@ pub fn run() {
             commands::library::list_files,
             commands::library::list_clips,
             commands::library::get_library_dir,
+            commands::library::get_file_with_clips_by_slug,
+            commands::library::get_file_metadata,
+            commands::library::set_file_notes,
+            commands::library::set_file_tags,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

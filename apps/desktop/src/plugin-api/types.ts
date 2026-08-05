@@ -38,6 +38,16 @@ export interface ClipModel {
   updated_at: string;
 }
 
+export interface FileMetadataModel {
+  file_id: string;
+  bpm: number | null;
+  key: string | null;
+  rating: number | null;
+  color: string | null;
+  notes: string;
+  tags: string;
+}
+
 export interface FileListItem { file: FileModel; clips: ClipModel[]; }
 export interface ClipListItem { clip: ClipModel; file: FileModel; }
 
@@ -46,6 +56,7 @@ export interface ViewDescriptor {
   title: string;
   icon?: string;
   element: string;
+  sidebar?: boolean;
 }
 
 export interface SlotEntry {
@@ -69,6 +80,10 @@ export interface CoreApi {
   listPlugins(): Promise<PluginManifest[]>;
   listFiles(): Promise<FileListItem[]>;
   listClips(): Promise<ClipListItem[]>;
+  getFileBySlug(slug: string): Promise<FileListItem>;
+  getFileMetadata(fileId: string): Promise<FileMetadataModel | null>;
+  setFileNotes(slug: string, notes: string): Promise<void>;
+  setFileTags(slug: string, tags: string): Promise<void>;
 }
 
 export interface PluginContext {

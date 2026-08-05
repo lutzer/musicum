@@ -54,6 +54,18 @@ pub async fn get_file_by_slug(
         .ok_or_else(|| ServiceError::NotFound(format!("file '{slug}'")))
 }
 
+pub async fn get_file_with_clips_by_slug(
+    db: &DatabaseConnection,
+    slug: &str,
+) -> Result<FileListItem, ServiceError> {
+    let file = get_file_by_slug(db, slug).await?;
+    let clips = clip::Entity::find()
+        .filter(clip::Column::FileId.eq(&file.id))
+        .all(db)
+        .await?;
+    Ok(FileListItem { file, clips })
+}
+
 pub async fn get_file_metadata(
     db: &DatabaseConnection,
     file_id: &str,
@@ -833,5 +845,44 @@ mod tests {
             result.iter().map(|r| r.file.name.as_str()).collect::<Vec<_>>(),
             vec!["alpha", "mango", "zeta"],
         );
+    }
+
+    // ── get_file_with_clips_by_slug tests ───────────────────────────────────
+
+    #[tokio::test]
+    async fn get_file_with_clips_by_slug_returns_file_with_no_clips() {
+        let db = test_db().await;
+        insert_file_named(&db, "alpha", "alpha").await;
+
+        let result = get_file_with_clips_by_slug(&db, "alpha").await.unwrap();
+
+        assert_eq!(result.file.slug, "alpha");
+        assert!(result.clips.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_file_with_clips_by_slug_returns_file_with_clips() {
+        let db = test_db().await;
+        let alpha = insert_file_named(&db, "alpha", "alpha").await;
+        insert_clip_for(&db, &alpha.id, "a-one", "A one").await;
+        insert_clip_for(&db, &alpha.id, "a-two", "A two").await;
+        // Different file's clip must not leak into alpha's result.
+        let beta = insert_file_named(&db, "beta", "beta").await;
+        insert_clip_for(&db, &beta.id, "b-one", "B one").await;
+
+        let result = get_file_with_clips_by_slug(&db, "alpha").await.unwrap();
+
+        assert_eq!(result.file.slug, "alpha");
+        assert_eq!(result.clips.len(), 2);
+        let slugs: Vec<_> = result.clips.iter().map(|c| c.slug.as_str()).collect();
+        assert!(slugs.contains(&"a-one"));
+        assert!(slugs.contains(&"a-two"));
+    }
+
+    #[tokio::test]
+    async fn get_file_with_clips_by_slug_errors_when_slug_missing() {
+        let db = test_db().await;
+        let err = get_file_with_clips_by_slug(&db, "nope").await.unwrap_err();
+        assert!(matches!(err, ServiceError::NotFound(_)));
     }
 }

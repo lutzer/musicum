@@ -38,6 +38,10 @@ describe('loadPlugins', () => {
         listPlugins: async () => [],
         listFiles: async () => [],
         listClips: async () => [],
+        getFileBySlug: async () => ({} as any),
+        getFileMetadata: async () => null,
+        setFileNotes: async () => {},
+        setFileTags: async () => {},
       },
     });
 

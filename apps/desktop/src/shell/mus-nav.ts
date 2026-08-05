@@ -60,7 +60,7 @@ export class MusNav extends LitElement {
     });
   }
   render() {
-    const views = viewRegistry.list();
+    const views = viewRegistry.list().filter(v => v.sidebar !== false);
     const active = this.activeId ?? views[0]?.id;
     return html`
       <ul class="sidebar-list">
@@ -80,7 +80,9 @@ export class MusNav extends LitElement {
 
 function readHashViewId(): string | undefined {
   const h = window.location.hash.replace(/^#/, '').trim();
-  return h.length ? h : undefined;
+  if (!h.length) return undefined;
+  const slash = h.indexOf('/');
+  return slash === -1 ? h : h.slice(0, slash);
 }
 
 declare global { interface HTMLElementTagNameMap { 'mus-nav': MusNav } }

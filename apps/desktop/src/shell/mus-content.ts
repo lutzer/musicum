@@ -4,34 +4,52 @@ import { unsafeStatic, html as staticHtml } from 'lit/static-html.js';
 import { viewRegistry } from '../plugin-api/registry';
 import { RegistrySubscription } from './registry-controller';
 
+type Route = { viewId: string; param?: string };
+
 @customElement('mus-content')
 export class MusContent extends LitElement {
   static styles = css`
     :host { display: flex; }
   `;
 
-  @state() private activeId: string | undefined = readHashViewId();
+  @state() private route: Route | undefined = parseHash();
 
   constructor() {
     super();
     new RegistrySubscription(this, viewRegistry);
     window.addEventListener('hashchange', () => {
-      this.activeId = readHashViewId();
+      this.route = parseHash();
     });
   }
 
   render() {
-    const target = this.activeId ?? viewRegistry.list()[0]?.id;
-    if (!target) return html`<p>No views registered.</p>`;
-    const view = viewRegistry.get(target);
-    if (!view) return html`<p>Unknown view: ${target}</p>`;
-    return staticHtml`<${unsafeStatic(view.element)}></${unsafeStatic(view.element)}>`;
+    const route = this.route ?? { viewId: viewRegistry.list()[0]?.id ?? '' };
+    if (!route.viewId) return html`<p>No views registered.</p>`;
+
+    if (route.param === undefined) {
+      const view = viewRegistry.get(route.viewId);
+      if (!view) return html`<p>Unknown view: ${route.viewId}</p>`;
+      const tag = unsafeStatic(view.element);
+      return staticHtml`<${tag}></${tag}>`;
+    }
+
+    const detailId = `${route.viewId}-detail`;
+    const view = viewRegistry.get(detailId);
+    if (!view) return html`<p>Unknown view: ${route.viewId}/${route.param}</p>`;
+    const tag = unsafeStatic(view.element);
+    return staticHtml`<${tag} slug=${route.param}></${tag}>`;
   }
 }
 
-function readHashViewId(): string | undefined {
+function parseHash(): Route | undefined {
   const h = window.location.hash.replace(/^#/, '').trim();
-  return h.length ? h : undefined;
+  if (!h.length) return undefined;
+  const slash = h.indexOf('/');
+  if (slash === -1) return { viewId: h };
+  const param = h.slice(slash + 1);
+  // Empty param (`#thing/`) → treat as no param.
+  if (!param.length) return { viewId: h.slice(0, slash) };
+  return { viewId: h.slice(0, slash), param };
 }
 
 declare global { interface HTMLElementTagNameMap { 'mus-content': MusContent } }

@@ -66,6 +66,11 @@ export class MusListView<T = unknown> extends LitElement {
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
+
+    tr.link:hover {
+      background: var(--mus-accent-bg);
+    }
+
     .sort-indicator {
       margin-left: var(--mus-space-xs);
       opacity: 0.7;
@@ -93,6 +98,8 @@ export class MusListView<T = unknown> extends LitElement {
 
   @property({ attribute: false }) items: ListState<T> = 'loading';
   @property({ attribute: false }) columns: ListColumn<T>[] = [];
+  @property({ attribute: false }) onItemClicked: (item: T) => void = () => {};
+
   @property() emptyMessage = 'No items.';
   @property({ type: Boolean, attribute: 'accept-drop' }) acceptDrop = false;
 
@@ -266,11 +273,11 @@ export class MusListView<T = unknown> extends LitElement {
     if (!Array.isArray(this.items) || this.items.length === 0) return null;
     const rows = this.sortedItems(this.items);
     return html`<tbody>${rows.map(item => html`
-      <tr>
-        ${this.columns.map(c => html`
-          <td data-align=${c.align ?? 'left'}>${c.render(item)}</td>
-        `)}
-      </tr>
+        <tr class="link" @click=${() => this.onItemClicked(item)}>
+          ${this.columns.map(c => html`
+            <td data-align=${c.align ?? 'left'}>${c.render(item)}</td>
+          `)}
+        </tr>
     `)}</tbody>`;
   }
 

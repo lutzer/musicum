@@ -1,7 +1,8 @@
 import './base';
 import './shell';
 import './views/welcome-view';
-import './views/files-view';
+import './views/file-list-view';
+import './views/file-detail-view';
 import './views/clips-view';
 import { viewRegistry } from './plugin-api/registry';
 import { coreApi } from './core-api';
@@ -16,7 +17,13 @@ viewRegistry.register('__built_in__', {
 viewRegistry.register('__built_in__', {
   id: 'files',
   title: 'Files',
-  element: 'mus-files-view',
+  element: 'mus-file-list-view',
+});
+viewRegistry.register('__built_in__', {
+  id: 'files-detail',
+  title: 'File',
+  element: 'mus-file-detail-view',
+  sidebar: false,
 });
 viewRegistry.register('__built_in__', {
   id: 'clips',
