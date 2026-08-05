@@ -33,6 +33,7 @@ pub fn run() {
             commands::plugins::list_plugins,
             commands::library::list_files,
             commands::library::list_clips,
+            commands::library::get_library_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

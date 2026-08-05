@@ -1,23 +1,10 @@
 use anyhow::Result;
 use clap::{Args, Subcommand};
+use musicum_core::paths::relative_folder;
 use musicum_core::services::{clip_service, file_service};
 use sea_orm::DatabaseConnection;
 
 use crate::output::{DetailItem::{self, Field, Section}, print_detail, print_json, print_result, print_table};
-
-/// Returns the subfolder of `file_path` relative to `files_dir`, or "-" if at root.
-fn subfolder_of(file_path: &str, files_dir: &std::path::Path) -> String {
-    let path = std::path::Path::new(file_path);
-    if let Some(parent) = path.parent() {
-        if let Ok(rel) = parent.strip_prefix(files_dir) {
-            let s = rel.to_string_lossy();
-            if !s.is_empty() && s != "." {
-                return s.to_string();
-            }
-        }
-    }
-    "-".to_string()
-}
 
 #[derive(Debug, Args)]
 pub struct FileArgs {
@@ -73,7 +60,7 @@ pub async fn run(db: &DatabaseConnection, args: FileArgs) -> Result<()> {
                         .iter()
                         .map(|f| vec![
                             f.slug.clone(),
-                            subfolder_of(&f.path, &musicum_core::config::Config::get().library.files_dir),
+                            relative_folder(&f.path, &musicum_core::config::Config::get().library.files_dir),
                             f.name.clone(),
                             format!("[{:.1}s  {}Hz  {}ch]", f.duration, f.sample_rate, f.channels),
                         ])

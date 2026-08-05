@@ -5,6 +5,7 @@ import { viewRegistry } from '../plugin-api/registry';
 import { RegistrySubscription } from '../shell/registry-controller';
 import '../base';
 import '../shell/mus-slot';
+import { core } from '@tauri-apps/api';
 
 @customElement('mus-welcome-view')
 export class MusWelcomeView extends LitElement {
@@ -27,12 +28,16 @@ export class MusWelcomeView extends LitElement {
       justify-content: center;
       align-items: center;
       flex: 1;
-
+      padding: var(--mus-space-md);
+      text-align: center;
     }
   `;
 
   @state() private appName = '…';
   @state() private appVersion = '';
+  @state() private fileCount = 0;
+  @state() private clipCount = 0;
+  @state() private libraryFolder = '';
 
   constructor() {
     super();
@@ -45,6 +50,9 @@ export class MusWelcomeView extends LitElement {
       const info = await coreApi.getAppInfo();
       this.appName = info.name;
       this.appVersion = info.version;
+      this.fileCount = (await coreApi.listFiles()).length;
+      this.clipCount = (await coreApi.listClips()).length;
+      this.libraryFolder = await coreApi.getLibraryDir();
     } catch (e) {
       console.error('getAppInfo failed', e);
       this.appName = 'musicum-desktop';
@@ -61,7 +69,9 @@ export class MusWelcomeView extends LitElement {
       <div class="center">
         <mus-card>
           <h2>Welcome to ${this.appName}</h2>
-          <p class="meta">version ${this.appVersion} · ${count} view(s) registered</p>
+          <p class="meta">App version ${this.appVersion} · ${count} view(s) registered</p>
+          <p class="meta">Library location: ${this.libraryFolder}</p>
+          <p class="meta">Database contains ${this.fileCount} files and  ${this.clipCount} clips</p>
           <mus-slot slot-id="view.welcome.body"></mus-slot>
         </mus-card>
       </div>

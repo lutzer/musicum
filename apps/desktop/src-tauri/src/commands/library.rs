@@ -1,5 +1,6 @@
 use tauri::State;
 
+use musicum_core::config::Config;
 use musicum_core::db::DatabaseConnection;
 use musicum_core::services::{
     clip_service, file_service, ClipListItem, FileListItem,
@@ -27,4 +28,13 @@ pub async fn list_clips(
     clip_service::list_clips_with_files(db)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_library_dir() -> String {
+    Config::get()
+        .library
+        .files_dir
+        .to_string_lossy()
+        .into_owned()
 }

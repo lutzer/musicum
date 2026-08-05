@@ -34,6 +34,7 @@ describe('loadPlugins', () => {
       convertPath: p => p,
       coreApi: {
         getAppInfo: async () => ({ name: '', version: '' }),
+        getLibraryDir: async () => '',
         listPlugins: async () => [],
         listFiles: async () => [],
         listClips: async () => [],

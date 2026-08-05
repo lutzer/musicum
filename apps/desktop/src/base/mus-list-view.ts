@@ -25,8 +25,8 @@ export class MusListView<T = unknown> extends LitElement {
       background: var(--mus-surface);
       min-height: 0;
       flex-grow: 1;
-      /* border: 1px solid var(--mus-border);
-      border-radius: var(--mus-radius-sm); */
+      font-family: var(--mus-font-mono);
+      font-size: var(--mus-font-sm);
     }
     .table-scroll {
       overflow: auto;

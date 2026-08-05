@@ -65,6 +65,7 @@ export interface RegisteredSlotEntry extends SlotEntry {
 
 export interface CoreApi {
   getAppInfo(): Promise<{ name: string; version: string }>;
+  getLibraryDir(): Promise<string>;
   listPlugins(): Promise<PluginManifest[]>;
   listFiles(): Promise<FileListItem[]>;
   listClips(): Promise<ClipListItem[]>;

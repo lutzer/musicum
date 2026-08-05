@@ -3,6 +3,7 @@ import type { FileListItem } from '../core-api/types';
 
 const mockCoreApi = {
   getAppInfo: vi.fn(),
+  getLibraryDir: vi.fn<() => Promise<string>>(),
   listPlugins: vi.fn(),
   listFiles: vi.fn<() => Promise<FileListItem[]>>(),
   listClips: vi.fn(),
@@ -46,6 +47,8 @@ function listRoot(el: HTMLElement): ShadowRoot {
 describe('mus-files-view', () => {
   beforeEach(() => {
     mockCoreApi.listFiles.mockReset();
+    mockCoreApi.getLibraryDir.mockReset();
+    mockCoreApi.getLibraryDir.mockResolvedValue('/tmp');
     document.body.innerHTML = '';
   });
 
