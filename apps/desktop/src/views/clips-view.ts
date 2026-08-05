@@ -9,8 +9,8 @@ import '../base';
 export class MusClipsView extends LitElement {
   static styles = css`
     :host { 
-      display: block; 
-      height: 100%;
+      display: flex; 
+      flex-direction: column;
       width: 100%;
     }
   `;
@@ -18,11 +18,11 @@ export class MusClipsView extends LitElement {
   @state() private items: ListState<ClipListItem> = 'loading';
 
   private columns: ListColumn<ClipListItem>[] = [
-    { key: 'title',    label: 'Title',
+    { key: 'title',    label: 'Title',                   width: 240,
       sortValue: i => i.clip.title, render: i => i.clip.title },
-    { key: 'file',     label: 'Source file',
+    { key: 'file',     label: 'Source file',             width: 240,
       sortValue: i => i.file.name,  render: i => i.file.name },
-    { key: 'duration', label: 'Duration', align: 'right',
+    { key: 'duration', label: 'Duration', align: 'right', width: 80,
       sortValue: i => i.clip.duration,
       render:    i => fmtDuration(i.clip.duration) },
   ];

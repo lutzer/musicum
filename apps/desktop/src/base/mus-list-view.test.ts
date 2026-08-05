@@ -53,6 +53,120 @@ describe('mus-list-view rendering', () => {
   });
 });
 
+describe('mus-list-view columns', () => {
+  beforeEach(() => { document.body.innerHTML = ''; });
+
+  it('seeds widths from column.width, falling back to a default', async () => {
+    const withWidths: ListColumn<Row>[] = [
+      { key: 'id', label: 'ID', width: 100, sortValue: r => r.id, render: r => r.id },
+      { key: 'n',  label: 'N',                 sortValue: r => r.n,  render: r => r.n },
+    ];
+    const el = document.createElement('mus-list-view') as any;
+    el.columns = withWidths;
+    el.items = [];
+    document.body.appendChild(el);
+    await el.updateComplete;
+    expect(el.widths).toEqual([100, 120]);   // 120 = DEFAULT_WIDTH
+  });
+
+  it('renders both header and body colgroups with matching widths', async () => {
+    const withWidths: ListColumn<Row>[] = [
+      { key: 'id', label: 'ID', width: 100, sortValue: r => r.id, render: r => r.id },
+      { key: 'n',  label: 'N',  width: 60,  sortValue: r => r.n,  render: r => r.n },
+      { key: 'raw', label: 'Raw', width: 80,                     render: r => r.id },
+    ];
+    const el = document.createElement('mus-list-view') as any;
+    el.columns = withWidths;
+    el.items = [{ id: 'a', n: 1 }];
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    const groups = el.shadowRoot!.querySelectorAll('colgroup');
+    expect(groups).toHaveLength(2);
+    const widthsOf = (g: Element) =>
+      Array.from(g.querySelectorAll('col')).map(c => (c as HTMLElement).style.width);
+    const header = widthsOf(groups[0]);
+    const body   = widthsOf(groups[1]);
+    expect(header).toEqual(body);
+    expect(header.slice(0, -1)).toEqual(['100px', '60px']);   // last col left blank
+    expect(header[header.length - 1]).toBe('');
+  });
+
+  it('cells have single-line truncation styles', async () => {
+    // jsdom does not resolve shadow-DOM stylesheet rules via getComputedStyle,
+    // so we assert the rules exist in the component's <style> tag directly.
+    const el = await mount({ items: [{ id: 'a', n: 1 }] });
+    const styleTag = el.shadowRoot!.querySelector('style');
+    const css = styleTag?.textContent ?? '';
+    const tdBlock = css.match(/(?:^|\})\s*td\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(tdBlock).toMatch(/white-space:\s*nowrap/);
+    expect(tdBlock).toMatch(/overflow:\s*hidden/);
+    expect(tdBlock).toMatch(/text-overflow:\s*ellipsis/);
+  });
+
+  function pointerEvent(type: string, init: { clientX: number; cancelable?: boolean }) {
+    // jsdom lacks PointerEvent + setPointerCapture, so we fake both.
+    const ev = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: init.cancelable ?? false,
+      clientX: init.clientX,
+    }) as MouseEvent & { pointerId: number };
+    (ev as any).pointerId = 1;
+    return ev;
+  }
+
+  async function dragHandle(el: any, index: number, dx: number) {
+    const handles = el.shadowRoot!.querySelectorAll('.resize-handle');
+    const handle = handles[index] as HTMLElement;
+    if (!(handle as any).setPointerCapture) (handle as any).setPointerCapture = () => {};
+    if (!(handle as any).releasePointerCapture) (handle as any).releasePointerCapture = () => {};
+    const startX = 100;
+    handle.dispatchEvent(pointerEvent('pointerdown', { clientX: startX, cancelable: true }));
+    handle.dispatchEvent(pointerEvent('pointermove', { clientX: startX + dx }));
+    handle.dispatchEvent(pointerEvent('pointerup',   { clientX: startX + dx }));
+    await el.updateComplete;
+  }
+
+  it('dragging a resize handle updates the column width', async () => {
+    const withWidths: ListColumn<Row>[] = [
+      { key: 'id', label: 'ID', width: 100, sortValue: r => r.id, render: r => r.id },
+      { key: 'n',  label: 'N',  width: 80,  sortValue: r => r.n,  render: r => r.n },
+    ];
+    const el = document.createElement('mus-list-view') as any;
+    el.columns = withWidths;
+    el.items = [{ id: 'a', n: 1 }];
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    await dragHandle(el, 0, 50);
+    expect(el.widths[0]).toBe(150);
+  });
+
+  it('minWidth clamps the resize', async () => {
+    const withWidths: ListColumn<Row>[] = [
+      { key: 'id', label: 'ID', width: 100, minWidth: 60,
+        sortValue: r => r.id, render: r => r.id },
+      { key: 'n',  label: 'N',  width: 80,
+        sortValue: r => r.n,  render: r => r.n },
+    ];
+    const el = document.createElement('mus-list-view') as any;
+    el.columns = withWidths;
+    el.items = [{ id: 'a', n: 1 }];
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    await dragHandle(el, 0, -200);   // would go to -100 without clamp
+    expect(el.widths[0]).toBe(60);
+  });
+
+  it('resize gesture does not trigger sort', async () => {
+    const el = await mount({ items: [{ id: 'b', n: 2 }, { id: 'a', n: 1 }] });
+    await dragHandle(el, 0, 20);
+    const first = el.shadowRoot!.querySelector('tbody tr')!.textContent!;
+    expect(first).toContain('b');   // still original order
+  });
+});
+
 describe('mus-list-view sorting', () => {
   beforeEach(() => { document.body.innerHTML = ''; });
 

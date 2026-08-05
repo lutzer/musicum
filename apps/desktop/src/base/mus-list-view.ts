@@ -1,5 +1,7 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { ColumnResizeController } from './mus-list-view-resize';
+import { ScrollSyncController } from './mus-list-view-scroll-sync';
 
 export type ListState<T> = 'loading' | T[] | { error: string };
 
@@ -7,9 +9,14 @@ export interface ListColumn<T> {
   key: string;
   label: string;
   align?: 'left' | 'right';
+  width?: number;
+  minWidth?: number;
   sortValue?: (item: T) => string | number | null;
   render: (item: T) => unknown;
 }
+
+const DEFAULT_WIDTH = 120;
+const DEFAULT_MIN_WIDTH = 40;
 
 @customElement('mus-list-view')
 export class MusListView<T = unknown> extends LitElement {
@@ -19,54 +26,72 @@ export class MusListView<T = unknown> extends LitElement {
       background: var(--mus-surface);
       width: 100%;
       min-height: 0;
+      flex-grow: 1;
     }
     .table-container {
       display: flex;
       flex-direction: column;
       width: 100%;
+      min-height: 0;
     }
-
+    .table-header {
+      overflow-x: hidden;
+      flex-shrink: 0;
+    }
     .table-body {
       overflow: auto;
+      min-height: 0;
+      flex-grow: 1;
     }
-
-    table { 
-      width: 100%; 
-      border-collapse: collapse; 
-      font-size: var(--mus-font-md); 
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: var(--mus-font-md);
     }
     th, td {
       text-align: left;
       padding: var(--mus-space-xs) var(--mus-space-sm);
     }
+    td {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     th {
       font-weight: 600;
-      position: sticky;
-      top: 0;
       user-select: none;
-      margin: var(--mus-space-md) 0;
-      border-radius: 0;
-      margin: 5px;
       background: var(--mus-accent-bg);
+      position: relative;
     }
-    th[data-sortable] { 
-      cursor: pointer; 
+    th[data-sortable] {
+      cursor: pointer;
     }
     th[data-align='right'], td[data-align='right'] {
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
-    .sort-indicator { 
-      margin-left: var(--mus-space-xs); 
-      opacity: 0.7; 
+    .sort-indicator {
+      margin-left: var(--mus-space-xs);
+      opacity: 0.7;
     }
-    :host(.drag-over) { 
-      outline: 2px dashed var(--mus-accent); 
-      outline-offset: -4px; 
-    }
-    .state { 
+    .resize-handle {
       position: absolute;
-      padding: var(--mus-space-md); 
+      top: 0;
+      right: 0;
+      width: 6px;
+      height: 100%;
+      cursor: col-resize;
+      user-select: none;
+      touch-action: none;
+    }
+    :host(.drag-over) {
+      outline: 2px dashed var(--mus-accent);
+      outline-offset: -4px;
+    }
+    .state {
+      position: absolute;
+      padding: var(--mus-space-md);
     }
   `;
 
@@ -78,8 +103,21 @@ export class MusListView<T = unknown> extends LitElement {
   @state() private sortKey: string | null = null;
   @state() private sortDirection: 'asc' | 'desc' = 'asc';
   @state() private isDragOver = false;
+  @state() widths: number[] = [];
 
   private tauriUnlisten: (() => void) | null = null;
+  private resize = new ColumnResizeController(this);
+  private scrollSync = new ScrollSyncController(this);
+
+  willUpdate(changed: PropertyValues) {
+    if (changed.has('columns')) {
+      this.widths = this.columns.map(c => c.width ?? DEFAULT_WIDTH);
+    }
+  }
+
+  firstUpdated() {
+    this.scrollSync.attach();
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -171,21 +209,34 @@ export class MusListView<T = unknown> extends LitElement {
     }));
   };
 
+  private renderColgroup() {
+    return html`<colgroup>${this.widths.map((w, i) =>
+      i === this.widths.length - 1
+        ? html`<col>`
+        : html`<col style="width: ${w}px">`
+    )}</colgroup>`;
+  }
+
   private renderHeader() {
     return html`
       <thead>
         <tr>
-          ${this.columns.map(c => {
+          ${this.columns.map((c, i) => {
             const sortable = !!c.sortValue;
             const active = sortable && this.sortKey === c.key;
             const indicator = active
               ? html`<span class="sort-indicator">${this.sortDirection === 'asc' ? '▲' : '▼'}</span>`
               : null;
+            const isLast = i === this.columns.length - 1;
             return html`
               <th data-align=${c.align ?? 'left'}
                   ?data-sortable=${sortable}
                   @click=${sortable ? () => this.onHeaderClick(c.key) : null}>
                 ${c.label}${indicator}
+                ${isLast ? null : html`
+                  <span class="resize-handle"
+                        @pointerdown=${(e: PointerEvent) => this.resize.start(e, i)}></span>
+                `}
               </th>
             `;
           })}
@@ -252,18 +303,22 @@ export class MusListView<T = unknown> extends LitElement {
   }
 
   render() {
+    const totalWidth = this.widths.reduce((a, b) => a + b, 0);
+    const tableStyle = `min-width: ${totalWidth}px`;
     return html`
       <div class="table-container">
         <div class="table-header">
-          <table>
+          <table style=${tableStyle}>
+            ${this.renderColgroup()}
             ${this.renderHeader()}
           </table>
         </div>
         <div class="table-body">
-          <table>
+          <table style=${tableStyle}>
+            ${this.renderColgroup()}
             ${this.renderBody()}
           </table>
-          </div>
+        </div>
         ${this.renderStateOverlay()}
       </div>
     `;
