@@ -8,6 +8,7 @@ import { viewRegistry } from './plugin-api/registry';
 import { coreApi } from './core-api';
 import { loadPlugins } from './plugin-loader/loader';
 import { convertFileSrc } from './plugin-loader/convert-fs-src';
+import { router } from './shell/router';
 
 viewRegistry.register('__built_in__', {
   id: 'welcome',
@@ -31,9 +32,7 @@ viewRegistry.register('__built_in__', {
   element: 'mus-clips-view',
 });
 
-if (!window.location.hash) {
-  window.location.hash = '#welcome';
-}
+router.ensureDefault();
 
 async function bootstrap() {
   try {

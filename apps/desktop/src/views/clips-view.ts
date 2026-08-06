@@ -13,10 +13,6 @@ export class MusClipsView extends LitElement {
       flex-direction: column;
       width: 100%;
     }
-
-    mus-list-view {
-      margin: var(--mus-space-md);
-    }
   `;
 
   @state() private items: ListState<ClipListItem> = 'loading';

@@ -4,6 +4,7 @@ import { coreApi } from '../core-api';
 import type { FileListItem } from '../core-api/types';
 import type { ListColumn, ListState } from '../base/mus-list-view';
 import { fmtDuration, fmtSize, relativeFolder } from './file-format';
+import { router } from '../shell/router';
 import '../base';
 
 @customElement('mus-file-list-view')
@@ -21,10 +22,6 @@ export class MusFileListView extends LitElement {
     }
     a { color: inherit; text-decoration: none; }
     a:hover { text-decoration: underline; }
-
-    mus-list-view {
-      margin: var(--mus-space-md);
-    }
   `;
 
   @state() private items: ListState<FileListItem> = 'loading';
@@ -64,8 +61,9 @@ export class MusFileListView extends LitElement {
     }
   }
 
-  handleItemClick(item: FileListItem) {
-    window.location.href = `#files/${item.file.slug}`;
+
+  handleItemClicked(item: FileListItem) {
+    router.navigate("files", item.file.slug)
   }
 
   render() {
@@ -74,7 +72,7 @@ export class MusFileListView extends LitElement {
       <mus-list-view
         .items=${this.items}
         .columns=${this.columns}
-        .onItemClicked=${this.handleItemClick}
+        .onItemClicked=${(item) => this.handleItemClicked(item)}
         emptyMessage="No files yet."
         accept-drop
         @mus-list-drop=${this.onDrop}>
@@ -90,3 +88,4 @@ export class MusFileListView extends LitElement {
 declare global {
   interface HTMLElementTagNameMap { 'mus-file-list-view': MusFileListView }
 }
+

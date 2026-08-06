@@ -3,6 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { viewRegistry } from '../plugin-api/registry';
 import { RegistrySubscription } from './registry-controller';
+import { router } from './router';
 import '../base';
 
 @customElement('mus-nav')
@@ -50,14 +51,12 @@ export class MusNav extends LitElement {
     }
   `;
 
-  @state() private activeId: string | undefined = readHashViewId();
+  @state() private activeId: string | undefined = router.activeViewId();
 
   constructor() {
     super();
     new RegistrySubscription(this, viewRegistry);
-    window.addEventListener('hashchange', () => {
-      this.activeId = readHashViewId();
-    });
+    router.subscribe(route => { this.activeId = route?.viewId; });
   }
   render() {
     const views = viewRegistry.list().filter(v => v.sidebar !== false);
@@ -65,7 +64,7 @@ export class MusNav extends LitElement {
     return html`
       <ul class="sidebar-list">
       ${views.map(v => html`
-        <li class=${classMap({ active: v.id === active })}><a href="#${v.id}">
+        <li class=${classMap({ active: v.id === active })}><a href=${router.hashFor(v.id)}>
           ${v.icon ? html`<mus-icon name=${v.icon}></mus-icon>` : ''}
           ${v.title}
         </a></li>
@@ -76,13 +75,6 @@ export class MusNav extends LitElement {
       </div>
     `;
   }
-}
-
-function readHashViewId(): string | undefined {
-  const h = window.location.hash.replace(/^#/, '').trim();
-  if (!h.length) return undefined;
-  const slash = h.indexOf('/');
-  return slash === -1 ? h : h.slice(0, slash);
 }
 
 declare global { interface HTMLElementTagNameMap { 'mus-nav': MusNav } }

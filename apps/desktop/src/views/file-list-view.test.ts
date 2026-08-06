@@ -50,6 +50,7 @@ describe('mus-file-list-view', () => {
     mockCoreApi.getLibraryDir.mockReset();
     mockCoreApi.getLibraryDir.mockResolvedValue('/tmp');
     document.body.innerHTML = '';
+    window.location.hash = '';
   });
 
   it('shows a loading placeholder before the promise resolves', async () => {
@@ -81,11 +82,11 @@ describe('mus-file-list-view', () => {
     expect(listRoot(el).textContent).toContain('boom');
   });
 
-  it('renders the name column as a link to #files/<slug>', async () => {
+  it('navigates to #files/<slug> when a row is clicked', async () => {
     mockCoreApi.listFiles.mockResolvedValue([makeItem('alpha', 0)]);
     const el = await mount();
-    const link = listRoot(el).querySelector('a')! as HTMLAnchorElement;
-    expect(link.getAttribute('href')).toBe('#files/alpha');
-    expect(link.textContent).toBe('alpha');
+    const row = listRoot(el).querySelector('tbody tr.data-row') as HTMLElement;
+    row.click();
+    expect(window.location.hash).toBe('#files/alpha');
   });
 });

@@ -41,8 +41,9 @@ plugin-template/       # scaffold copied when creating a new plugin
   register via `viewRegistry.register('__built_in__', {...})`.
 - **Plugins register through `PluginContext`** (`ctx.registerView`,
   `ctx.registerSlot`) — never touch registries directly. See `plugin-loader/loader.ts`.
-- **Hash routing**: `mus-content` reads `window.location.hash` for the active
-  view id; `mus-nav` sets it. No router library.
+- **Hash routing**: all routing goes through `src/shell/router.ts` — never
+  read or write `window.location.hash` directly. See the "Routing" section in
+  `README.md` for the URL grammar and API.
 - **Styling**: Lit `css` tagged templates + shared CSS variables (`--mus-bg`,
   `--mus-border`, `--sidebar-bg`, …) defined in `src/styles.css`. If introducing new colors or numeric values, add them to the shared css instead of definining them in the components.
 - **Tests colocated** as `*.test.ts` next to source; `vitest.config.ts` uses

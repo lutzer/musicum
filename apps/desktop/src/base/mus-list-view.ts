@@ -39,8 +39,8 @@ export class MusListView<T = unknown> extends LitElement {
       font-size: var(--mus-font-md);
       width: 100%;
     }
-    tbody tr:first-child td {
-      padding-top: var(--mus-space-md);
+    .spacer {
+      height: var(--mus-space-md);
     }
     th, td {
       text-align: left;
@@ -54,7 +54,8 @@ export class MusListView<T = unknown> extends LitElement {
     th {
       font-weight: 600;
       user-select: none;
-      background: var(--mus-accent-bg);
+      background: var(--mus-tableheader-bg);
+      color: var(--mus-tableheader-text);
       position: sticky;
       top: 0;
       z-index: 1;
@@ -67,8 +68,12 @@ export class MusListView<T = unknown> extends LitElement {
       font-variant-numeric: tabular-nums;
     }
 
-    tr.link:hover {
-      background: var(--mus-accent-bg);
+    tr.data-row {
+      cursor: pointer;
+    }
+
+    tr.data-row:hover {
+      background: var(--mus-table-highlight);
     }
 
     .sort-indicator {
@@ -229,7 +234,7 @@ export class MusListView<T = unknown> extends LitElement {
             return html`
               <th data-align=${c.align ?? 'left'}
                   ?data-sortable=${sortable}>
-                <span @click=${sortable ? () => this.onHeaderClick(c.key) : null}>
+                <span class="column-label" @click=${sortable ? () => this.onHeaderClick(c.key) : null}>
                   ${c.label}${indicator}
                 </span>
                 ${isLast ? null : html`
@@ -273,7 +278,7 @@ export class MusListView<T = unknown> extends LitElement {
     if (!Array.isArray(this.items) || this.items.length === 0) return null;
     const rows = this.sortedItems(this.items);
     return html`<tbody>${rows.map(item => html`
-        <tr class="link" @click=${() => this.onItemClicked(item)}>
+        <tr class="data-row" @click=${() => this.onItemClicked(item)}>
           ${this.columns.map(c => html`
             <td data-align=${c.align ?? 'left'}>${c.render(item)}</td>
           `)}

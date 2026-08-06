@@ -3,8 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { unsafeStatic, html as staticHtml } from 'lit/static-html.js';
 import { viewRegistry } from '../plugin-api/registry';
 import { RegistrySubscription } from './registry-controller';
-
-type Route = { viewId: string; param?: string };
+import { router, type Route } from './router';
 
 @customElement('mus-content')
 export class MusContent extends LitElement {
@@ -12,44 +11,31 @@ export class MusContent extends LitElement {
     :host { display: flex; }
   `;
 
-  @state() private route: Route | undefined = parseHash();
+  @state() private route: Route | undefined = router.current();
 
   constructor() {
     super();
     new RegistrySubscription(this, viewRegistry);
-    window.addEventListener('hashchange', () => {
-      this.route = parseHash();
-    });
+    router.subscribe(route => { this.route = route; });
   }
 
   render() {
     const route = this.route ?? { viewId: viewRegistry.list()[0]?.id ?? '' };
     if (!route.viewId) return html`<p>No views registered.</p>`;
 
-    if (route.param === undefined) {
-      const view = viewRegistry.get(route.viewId);
-      if (!view) return html`<p>Unknown view: ${route.viewId}</p>`;
-      const tag = unsafeStatic(view.element);
-      return staticHtml`<${tag}></${tag}>`;
+    const resolved = router.resolve(route, viewRegistry);
+    if (resolved.kind === 'missing') {
+      const path = resolved.param === undefined
+        ? resolved.viewId
+        : `${resolved.viewId}/${resolved.param}`;
+      return html`<p>Unknown view: ${path}</p>`;
     }
 
-    const detailId = `${route.viewId}-detail`;
-    const view = viewRegistry.get(detailId);
-    if (!view) return html`<p>Unknown view: ${route.viewId}/${route.param}</p>`;
-    const tag = unsafeStatic(view.element);
-    return staticHtml`<${tag} slug=${route.param}></${tag}>`;
+    const tag = unsafeStatic(resolved.element);
+    return resolved.param === undefined
+      ? staticHtml`<${tag}></${tag}>`
+      : staticHtml`<${tag} slug=${resolved.param}></${tag}>`;
   }
-}
-
-function parseHash(): Route | undefined {
-  const h = window.location.hash.replace(/^#/, '').trim();
-  if (!h.length) return undefined;
-  const slash = h.indexOf('/');
-  if (slash === -1) return { viewId: h };
-  const param = h.slice(slash + 1);
-  // Empty param (`#thing/`) → treat as no param.
-  if (!param.length) return { viewId: h.slice(0, slash) };
-  return { viewId: h.slice(0, slash), param };
 }
 
 declare global { interface HTMLElementTagNameMap { 'mus-content': MusContent } }

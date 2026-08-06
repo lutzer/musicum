@@ -175,7 +175,7 @@ describe('mus-list-view sorting', () => {
   it('clicking a sortable header sorts asc, clicking again sorts desc', async () => {
     const items = [{ id: 'c', n: 3 }, { id: 'a', n: 1 }, { id: 'b', n: 2 }];
     const el = await mount({ items });
-    const idHeader = el.shadowRoot!.querySelector<HTMLElement>('th[data-sortable]')!;
+    const idHeader = el.shadowRoot!.querySelector<HTMLElement>('.column-label')!;
 
     idHeader.click();
     await (el as any).updateComplete;
@@ -217,13 +217,13 @@ describe('mus-list-view sorting', () => {
     document.body.appendChild(el);
     await el.updateComplete;
 
-    el.shadowRoot!.querySelector('th[data-sortable]').click();
+    el.shadowRoot!.querySelector('.column-label').click();
     await el.updateComplete;
     let ids = Array.from(el.shadowRoot!.querySelectorAll('tbody tr'))
       .map((r: any) => r.textContent.trim());
     expect(ids).toEqual(['a', 'b', 'x']);
 
-    el.shadowRoot!.querySelector('th[data-sortable]').click();
+    el.shadowRoot!.querySelector('.column-label').click();
     await el.updateComplete;
     ids = Array.from(el.shadowRoot!.querySelectorAll('tbody tr'))
       .map((r: any) => r.textContent.trim());
